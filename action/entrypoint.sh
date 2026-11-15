@@ -77,6 +77,10 @@ if test "$command" = factory; then
     *[!0-9a-z/:._-]*|*..*) printf '%s\n' 'factory: the sandbox record is not confined' >&2; exit 2 ;;
   esac
   case "$sandbox_home" in "$sandbox_scratch"/*) ;; *) printf '%s\n' 'factory: HOME must be inside the scratch tmpfs' >&2; exit 2 ;; esac
+  # Cargo's home starts from the image's locked offline cache when the image
+  # carries one (the SDK's prismpm-cargo-home), so a pinned fetch only adds
+  # what the closure's locks name beyond it.
+  seed_cargo='if test -x /usr/local/libexec/prismpm-cargo-home; then CARGO_HOME=$(PRISMPM_EPHEMERAL_HOME=1 TMPDIR=/'"$sandbox_scratch"' /usr/local/libexec/prismpm-cargo-home); export CARGO_HOME; fi;'
   # The closure is a throwaway copy; the sandbox user must be able to write
   # its build outputs there.
   chmod -R a+rwX "$project"
@@ -91,6 +95,7 @@ if test "$command" = factory; then
     --env HOME="/$sandbox_home" \
     --env CARGO_HOME="/$sandbox_home/cargo" \
     --env FACTORY_OBLIGATION="$target" \
+    --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0=/work \
     --tmpfs "/$sandbox_scratch:rw,exec,nosuid,size=8g" \
     --cap-drop ALL \
     --security-opt no-new-privileges \
@@ -98,7 +103,7 @@ if test "$command" = factory; then
     --volume "$project:/work" \
     --workdir /work \
     "$PRISMPM_ACTION_SDK_IMAGE" \
-    bash -euo pipefail -c "umask $sandbox_umask; $run_command" || status=$?
+    bash -euo pipefail -c "umask $sandbox_umask; $seed_cargo $run_command" || status=$?
   if test "$status" = 0; then passed=true; else passed=false; fi
   printf 'result={"obligation":"%s","passed":%s,"status":%s}\n' "$target" "$passed" "$status" >>"$GITHUB_OUTPUT"
   exit 0
