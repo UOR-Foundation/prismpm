@@ -245,3 +245,20 @@ fn the_pull_request_checks_read_the_whole_tree_and_the_factory_model_keeps_its_c
     }
     assert_eq!(kappa_of(&before, "factory-model"), kappa_of(&after, "factory-model"));
 }
+
+#[test]
+fn a_counted_failure_of_a_fetch_obligation_fails_the_check_and_is_established_again() {
+    // model-audits fetches, so a failure is observed again rather than taken as
+    // a refutation, but the check it reports is a failure, never pending.
+    let kappa = kappa_of(&delegated(""), "model-audits");
+    let plan = delegated(&format!("signed model-audits {kappa} fail workflow runner {FORGE}\n"));
+    assert_eq!(route(&plan, "model-audits").0, "observe");
+    assert!(plan.contains("status model-audits failure\n"));
+    assert!(plan.contains("establish model-audits\n"));
+    assert!(plan.ends_with("check failure\n"));
+    // A later pass for the same identity outweighs it.
+    let later = delegated(&format!(
+        "signed model-audits {kappa} fail workflow runner {FORGE}\nsigned model-audits {kappa} pass workflow runner {FORGE}\n"
+    ));
+    assert!(later.contains("status model-audits success\n"));
+}

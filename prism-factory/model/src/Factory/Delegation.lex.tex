@@ -10,7 +10,7 @@ inductive{
   name: Access,
   type_parameters: [],
   parameters: [],
-  constructors: [{name: sealed, fields: []}, {name: pinned, fields: []}, {name: live, fields: []}]
+  constructors: [{name: sealed, fields: []}, {name: pinned, fields: []}, {name: daemon, fields: []}, {name: live, fields: []}]
 }
 
 definition{
@@ -20,6 +20,7 @@ definition{
   body: (match access
     | Access.sealed => "sealed"
     | Access.pinned => "pinned"
+    | Access.daemon => "daemon"
     | Access.live => "live"),
   executable: true
 }
@@ -31,7 +32,20 @@ definition{
   body: (match access
     | Access.sealed => false
     | Access.pinned => false
+    | Access.daemon => false
     | Access.live => true),
+  executable: true
+}
+
+definition{
+  name: drivesDaemon,
+  parameters: [access : Access],
+  result: Bool,
+  body: (match access
+    | Access.sealed => false
+    | Access.pinned => false
+    | Access.daemon => true
+    | Access.live => false),
   executable: true
 }
 
@@ -61,7 +75,7 @@ definition{
   name: sandboxes,
   parameters: [],
   result: (List (String * Sandbox)),
-  body: (cons ("policy", (sandbox "@sdk" (ctor Access.sealed))) (cons ("factory-model", (sandbox "@sdk" (ctor Access.pinned))) (cons ("plumbing", (sandbox "@sdk" (ctor Access.pinned))) (cons ("vv-sdk", (sandbox "@sdk" (ctor Access.pinned))) (cons ("source-vv", (sandbox "@vv-sdk" (ctor Access.sealed))) (cons ("build", (sandbox "@sdk" (ctor Access.pinned))) (cons ("gate", (sandbox "@vv-sdk" (ctor Access.sealed))) (cons ("oci-native", (sandbox "@build" (ctor Access.pinned))) (cons ("crates", (sandbox "@build" (ctor Access.pinned))) (cons ("release", (sandbox "@build" (ctor Access.pinned))) (cons ("lint", (sandbox "@sdk" (ctor Access.pinned))) (cons ("model-audits", (sandbox "@sdk" (ctor Access.pinned))) (cons ("fixtures-golden", (sandbox "@sdk" (ctor Access.pinned))) (nil (String * Sandbox))))))))))))))),
+  body: (cons ("policy", (sandbox "@sdk" (ctor Access.sealed))) (cons ("factory-model", (sandbox "@sdk" (ctor Access.pinned))) (cons ("plumbing", (sandbox "@sdk" (ctor Access.pinned))) (cons ("vv-sdk", (sandbox "@sdk" (ctor Access.pinned))) (cons ("source-vv", (sandbox "@vv-sdk" (ctor Access.sealed))) (cons ("build", (sandbox "@sdk" (ctor Access.pinned))) (cons ("gate", (sandbox "@vv-sdk" (ctor Access.sealed))) (cons ("oci-native", (sandbox "@build" (ctor Access.pinned))) (cons ("crates", (sandbox "@build" (ctor Access.pinned))) (cons ("release", (sandbox "@build" (ctor Access.pinned))) (cons ("lint", (sandbox "@sdk" (ctor Access.pinned))) (cons ("model-audits", (sandbox "@sdk" (ctor Access.daemon))) (cons ("fixtures-golden", (sandbox "@sdk" (ctor Access.pinned))) (nil (String * Sandbox))))))))))))))),
   executable: true
 }
 
@@ -1055,7 +1069,15 @@ theorem{
 theorem{
   name: the_pull_request_checks_run_in_the_pinned_sdk_image,
   parameters: [],
-  statement: ((prim list_fold (fun (sofar : Bool) (item : Factory.Engine::Obligation) => (sofar && ((prim equal (project (sandboxFor (project item name)) image) "@sdk" : Bool) && (prim equal (accessName (project (sandboxFor (project item name)) network)) "pinned" : Bool)))) true (checkGraph) : Bool) = true),
+  statement: ((prim list_fold (fun (sofar : Bool) (item : Factory.Engine::Obligation) => (sofar && ((prim equal (project (sandboxFor (project item name)) image) "@sdk" : Bool) && (not (prim equal (accessName (project (sandboxFor (project item name)) network)) "sealed" : Bool))))) true (checkGraph) : Bool) = true),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: only_the_model_audits_drive_the_lent_runners_container_daemon,
+  parameters: [],
+  statement: ((prim list_fold (fun (sofar : (List String)) (entry : (String * Sandbox)) => (if (drivesDaemon (project (second entry) network)) then (prim append sofar (cons (first entry) (nil String)) : (List String)) else sofar)) (nil String) (sandboxes) : (List String)) = (cons "model-audits" (nil String))),
   proof: decide{},
   axioms: []
 }
