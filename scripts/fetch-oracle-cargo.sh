@@ -13,8 +13,8 @@ fi
 # Release packaging also verifies the independently locked upstream compiler.
 # Review these pins whenever an independently locked verification graph changes.
 sha256sum --check --strict <<'CHECKSUMS'
-ec19fdecf241b6e502726c1740bdc962dffc7fc1eaf456468ba0836b8fb2272a  tests/hologram-oracle/Cargo.toml
-16e2a6e4ce47c12b3510813b605897a377981b8314d031775a4ec99e89b5c277  tests/hologram-oracle/Cargo.lock
+a5d92317802f3b7b1abdfed562aae5be77d69c3a1835f7cadbe65007ae72e0f6  tests/hologram-oracle/Cargo.toml
+c50f45b39385dfc3ee5aad4eabc0db69e10a7f2a39ee49f7dbcd8d920ed10e01  tests/hologram-oracle/Cargo.lock
 5be0cb25a1bc7ebff4a709c6dd4c724ae787c6d97e4e9b0a9070ca2cafa71f89  tests/holo-codec-oracle/Cargo.toml
 8ab0b99efa9ab6f44d9368d026aefadcefae4640cc92c814947609b41aaf0df4  tests/holo-codec-oracle/Cargo.lock
 ec81bd62c5874aaea817f464a808a7c573b0333cef7366c72f2d9def2fbf17fc  tests/holo-browser-codec/Cargo.toml

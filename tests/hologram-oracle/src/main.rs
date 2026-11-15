@@ -12,6 +12,7 @@ use hologram_view_surface::{
     ViewIntentRequest, APPLICATION_INVOKE_INTENT, VIEW_INTENT_VERSION,
 };
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -296,6 +297,179 @@ fn allocation_boundary(
     }
 }
 
+/// The identities a holo is known by: the κ of its application manifest, its
+/// integrity fingerprint and the κ of the file.
+struct Identities {
+    application_kappa: String,
+    archive_fingerprint: String,
+    archive_kappa: String,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn uleb(data: &[u8], at: &mut usize) -> Result<u64, Box<dyn std::error::Error>> {
+    let start = *at;
+    let mut value = 0u64;
+    for shift in (0..64).step_by(7) {
+        let byte = *data.get(*at).ok_or("UORC number is truncated")?;
+        *at += 1;
+        value |= u64::from(byte & 0x7F) << shift;
+        if byte < 0x80 {
+            if byte == 0 && *at - start > 1 {
+                return Err("UORC number is not in shortest form".into());
+            }
+            return Ok(value);
+        }
+    }
+    Err("UORC number is too long".into())
+}
+
+/// UORC-SHA256-CHAIN-v1 over `preimage`.
+fn uorc_chain(preimage: &[u8]) -> [u8; 32] {
+    const TAG: &[u8] = b"UORC-SHA256-CHAIN-v1\0";
+    let mut chain: [u8; 32] = Sha256::new()
+        .chain_update(TAG)
+        .chain_update([0u8])
+        .finalize()
+        .into();
+    let mut blocks = preimage.chunks_exact(64);
+    for block in &mut blocks {
+        chain = Sha256::new()
+            .chain_update(TAG)
+            .chain_update([1u8])
+            .chain_update(chain)
+            .chain_update(block)
+            .finalize()
+            .into();
+    }
+    let tail = blocks.remainder();
+    Sha256::new()
+        .chain_update(TAG)
+        .chain_update([2u8])
+        .chain_update(chain)
+        .chain_update([tail.len() as u8])
+        .chain_update(tail)
+        .finalize()
+        .into()
+}
+
+/// The ordered objects of a holo v5: a self-contained raw UORC archive
+/// (format 2, profile 1) whose seal is checked first. This is an independent
+/// reader of the published format (ADR-017), not Prism's own.
+fn uorc_objects(bytes: &[u8]) -> Result<Vec<&[u8]>, Box<dyn std::error::Error>> {
+    const SEAL: usize = 32;
+    if !bytes.starts_with(b"UORC\x02\x01\x00\x00") || bytes.len() < 10 + SEAL {
+        return Err("holo v5 is not a self-contained raw UORC archive".into());
+    }
+    let (preimage, seal) = bytes.split_at(bytes.len() - SEAL);
+    if uorc_chain(preimage) != seal {
+        return Err("UORC-SHA256-CHAIN-v1 seal does not match the holo".into());
+    }
+    let mut at = 8;
+    let count = uleb(preimage, &mut at)?;
+    if count == 0 || count > 16 {
+        return Err("holo declares an object count outside 1 to 16".into());
+    }
+    let mut lengths = Vec::new();
+    for _ in 0..count {
+        lengths.push(usize::try_from(uleb(preimage, &mut at)?)?);
+    }
+    let body = usize::try_from(uleb(preimage, &mut at)?)?;
+    if lengths.iter().sum::<usize>() != body || preimage.len() - at != body {
+        return Err("holo body disagrees with its objects".into());
+    }
+    let mut objects = Vec::new();
+    for length in lengths {
+        objects.push(&preimage[at..at + length]);
+        at += length;
+    }
+    Ok(objects)
+}
+
+/// A holo v5 carries the application's objects in a UORC archive, which the
+/// pinned upstream Hologram does not read. Check that its guest and model are
+/// exactly the files under test and its capability request is the canonical
+/// empty one, then render the same capability request, guest, view and model
+/// as the upstream Hologram v4 application archive, written by upstream
+/// Hologram's own writer, for the upstream checks below. The identities
+/// reported are the shipped holo's, read from it here.
+fn render_v5(
+    holo: &[u8],
+    wasm: &[u8],
+    model: &[u8],
+) -> Result<(Vec<u8>, Identities), Box<dyn std::error::Error>> {
+    // ROLES_V5: manifest, source-manifest, provenance, capabilities, guest,
+    // view, model, then optionally the attestations.
+    let objects = uorc_objects(holo)?;
+    if objects.len() != 7 && objects.len() != 8 {
+        return Err("holo v5 does not hold the application's seven objects".into());
+    }
+    let manifest: Value = serde_json::from_slice(objects[0])?;
+    if manifest["schema"] != "prism/holo/5" {
+        return Err("holo v5 manifest has another schema".into());
+    }
+    let capabilities = hologram_live::holo_capability::empty_canonical();
+    let (guest, view, document) = (objects[4], objects[5], objects[6]);
+    if objects[3] != capabilities.as_slice()
+        || guest != wasm
+        || document != model
+        || !view.starts_with(b"HOLOVIEW\0\x01")
+    {
+        return Err(
+            "holo v5 objects are not the capability request, guest, view and model under test"
+                .into(),
+        );
+    }
+    let app = AppManifest {
+        primary: Some(0),
+        requires: address_bytes(&capabilities),
+        layers: vec![
+            Layer::wasm_with_contract(
+                address_bytes(guest),
+                "holo_run",
+                "hologram:guest/core-wasm@1",
+            ),
+            Layer::view(address_bytes(view), "portable"),
+        ],
+        children: Vec::new(),
+    };
+    let addressed = [
+        (address_bytes(&capabilities), capabilities.as_slice()),
+        (address_bytes(guest), guest),
+        (address_bytes(document), document),
+        (address_bytes(view), view),
+    ];
+    let directory = hologram_live::holo_directory::derive(
+        &app,
+        addressed
+            .iter()
+            .map(|(kappa, content)| (kappa.as_bytes(), *content)),
+    )?;
+    let mut writer = HoloWriter::new();
+    writer.set_app_manifest(app.canonicalize());
+    writer.add_extension(
+        hologram_live::holo_directory::DIRECTORY_EXTENSION_KEY,
+        hologram_live::holo_directory::encode(&directory)?,
+    );
+    for (kappa, content) in addressed {
+        writer.add_content_blob(kappa.as_bytes(), content);
+    }
+    let identities = Identities {
+        application_kappa: format!("sha256:{}", sha256_hex(objects[0])),
+        archive_fingerprint: holo[holo.len() - 32..]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+        archive_kappa: format!("sha256:{}", sha256_hex(holo)),
+    };
+    Ok((writer.finish()?, identities))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments = std::env::args_os().skip(1);
@@ -314,9 +488,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.next().is_some() {
         return Err("unexpected argument".into());
     }
-    let archive = std::fs::read(archive_path)?;
+    let holo = std::fs::read(archive_path)?;
     let wasm = std::fs::read(wasm_path)?;
-    let model: Value = serde_json::from_slice(&std::fs::read(model_path)?)?;
+    let model_bytes = std::fs::read(model_path)?;
+    let model: Value = serde_json::from_slice(&model_bytes)?;
+    let (archive, shipped) = if holo.starts_with(b"UORC") {
+        let (rendering, identities) = render_v5(&holo, &wasm, &model_bytes)?;
+        (rendering, Some(identities))
+    } else {
+        (holo, None)
+    };
     let application = &model["application"];
     // Match the production fail-fast check to authoritative upstream constants,
     // before guest invocation or any model-sized negative-case allocation.
@@ -585,9 +766,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string(&json!({
-            "application_kappa": inspection.application_kappa,
-            "archive_fingerprint": inspection.archive_fingerprint,
-            "archive_kappa": session.archive_kappa(),
+            "application_kappa": match &shipped {
+                Some(s) => json!(s.application_kappa),
+                None => json!(inspection.application_kappa),
+            },
+            "archive_fingerprint": match &shipped {
+                Some(s) => json!(s.archive_fingerprint),
+                None => json!(inspection.archive_fingerprint),
+            },
+            "archive_kappa": match &shipped {
+                Some(s) => json!(s.archive_kappa),
+                None => json!(session.archive_kappa()),
+            },
             "direct_vectors": vectors.len(),
             "footer_verified": true,
             "guest_allocation_boundary": "verified",
