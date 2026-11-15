@@ -126,7 +126,12 @@ impl<'a> Fields<'a> {
             })
     }
 
-    /// A list literal of String literals, in source order.
+    /// A list literal of String literals, in source order. A long literal may
+    /// be written as the `append` of shorter ones (LexLean's own long
+    /// literals are balanced appends, and its linker reads a term to a
+    /// bounded depth), so a feature may list as many calls and acceptance
+    /// rows as its product has; the term is walked with a stack, not
+    /// recursion.
     fn texts(&self, name: &str) -> Result<Vec<String>, PrismError> {
         let malformed = || {
             refuse(
@@ -135,10 +140,10 @@ impl<'a> Fields<'a> {
             )
         };
         let mut out = Vec::new();
-        let mut term = self.field(name)?;
-        loop {
+        let mut pending = vec![self.field(name)?];
+        while let Some(term) = pending.pop() {
             match term.get("kind").and_then(Value::as_str) {
-                Some("nil") => return Ok(out),
+                Some("nil") => {}
                 Some("cons") => {
                     let head = term.get("head").ok_or_else(malformed)?;
                     if head.get("kind").and_then(Value::as_str) != Some("string") {
@@ -150,11 +155,26 @@ impl<'a> Fields<'a> {
                             .ok_or_else(malformed)?
                             .to_owned(),
                     );
-                    term = term.get("tail").ok_or_else(malformed)?;
+                    pending.push(term.get("tail").ok_or_else(malformed)?);
+                }
+                Some("primitive")
+                    if term.get("operation").and_then(Value::as_str) == Some("append")
+                        && term.pointer("/result/kind").and_then(Value::as_str) == Some("list") =>
+                {
+                    let Some([left, right]) = term
+                        .get("arguments")
+                        .and_then(Value::as_array)
+                        .map(Vec::as_slice)
+                    else {
+                        return Err(malformed());
+                    };
+                    pending.push(right);
+                    pending.push(left);
                 }
                 _ => return Err(malformed()),
             }
         }
+        Ok(out)
     }
 }
 
