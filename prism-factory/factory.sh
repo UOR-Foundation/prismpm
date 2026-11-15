@@ -77,7 +77,8 @@ publish_receipts() {
 # ---------------------------------------------------------------- delegation
 # GitHub is the forge (prism-factory/model/src/Factory/Delegation.lex.tex): it
 # verifies receipts and the certified `delegate` root decides. A receipt is a
-# file `KAPPA-pass|fail.receipt`; its Sigstore bundle `KAPPA-...bundle` was
+# file `KAPPA-pass|fail.receipt`; its Sigstore bundle `KAPPA-...jsonl` (gh reads
+# only .json and .jsonl bundles) was
 # made by actions/attest-build-provenance in this repository's delegation
 # workflow, and `gh attestation verify` checks it before the root sees it.
 delegation_branch=${PRISM_RECEIPTS_BRANCH:-prism-receipts}
@@ -115,11 +116,11 @@ forge_verified() {
     [ -d "$dir" ] || continue
     for receipt in "$dir"/*.receipt; do
       [ -e "$receipt" ] || continue
-      bundle=${receipt%.receipt}.bundle
+      bundle=${receipt%.receipt}.jsonl
       [ -e "$bundle" ] || { echo "factory: $receipt has no bundle; ignored" >&2; continue; }
-      if ! gh attestation verify "$receipt" --bundle "$bundle" --repo "$repo" \
-           --signer-workflow "$subject" >/dev/null 2>&1; then
-        echo "factory: $receipt does not verify; ignored" >&2
+      if ! why=$(gh attestation verify "$receipt" --bundle "$bundle" --repo "$repo" \
+           --signer-workflow "$subject" 2>&1); then
+        printf 'factory: %s does not verify; ignored:\n%s\n' "$receipt" "$why" >&2
         continue
       fi
       read -r _ kappa verdict < "$receipt"
@@ -264,7 +265,7 @@ case "$command" in
   forge-bundle)
     name=${2:?usage: factory.sh forge-bundle NAME}
     : "${FACTORY_BUNDLE:?}"
-    for receipt in "$fresh/$name"/*.receipt; do cp "$FACTORY_BUNDLE" "${receipt%.receipt}.bundle"; done
+    for receipt in "$fresh/$name"/*.receipt; do cp "$FACTORY_BUNDLE" "${receipt%.receipt}.jsonl"; done
     ;;
   forge-report)
     build
@@ -290,7 +291,7 @@ case "$command" in
     rm -rf "$staged"; mkdir -p "$staged"
     while read -r tag name kappa verdict _; do
       [ "$tag" = signed ] || continue
-      cp "$fresh/$kappa-$verdict.receipt" "$fresh/$kappa-$verdict.bundle" "$staged/"
+      cp "$fresh/$kappa-$verdict.receipt" "$fresh/$kappa-$verdict.jsonl" "$staged/"
     done < target/factory/keep-verified
     ls "$staged"/*.receipt >/dev/null 2>&1 || { echo "factory: no new receipts to keep"; exit 0; }
     for attempt in 1 2 3 4 5; do
