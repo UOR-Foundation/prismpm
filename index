@@ -1,0 +1,15 @@
+receipt 01c760eadcb6663576eb55a02b6b797c0c1d051cfad0e870966840aa37807d7c pass
+receipt 18c570642995eaac81b4812570c707a5e6f68a499800fa7ca8e1a786bc138c6b pass
+receipt 2b7b47af8eb34f0d7d8a0866c816dd52bcfdc5d8380690dae1e1e3bd1f1e04b2 pass
+receipt 4d06a6c285558dc209973e8d1a77bc2106dbb720e54ab9fdac19185ce2b1bee4 fail
+receipt 82e1e53e6b4574eef56eb745b6c80df71fe9f06ba48219665e2ae6ab6dfd6e43 fail
+weight policy 3
+weight factory-model 3
+weight plumbing 3
+weight vv-sdk 6
+weight source-vv 4
+weight build 6
+weight gate 4
+weight oci-native 4
+weight crates 4
+weight release 4
