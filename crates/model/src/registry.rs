@@ -491,6 +491,7 @@ impl Contracts {
                     || row.schema == "prismpm/model-document/5"
                     || row.schema == "prismpm/model-document/6"
                     || row.schema == "prismpm/model-document/7"
+                    || row.schema == "prismpm/model-document/8"
                     || row.schema == "prismpm/sdk-lock/2"
                     || row.schema == "prismpm/sdk-lock/3"
                     || row.schema == "prismpm/sdk-lock-update/2"

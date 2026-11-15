@@ -1585,6 +1585,7 @@ pub fn audit_emitter_inputs(root: &Path, model: &Model) -> Result<(), Fail> {
         "schemas/model-document-v5.schema.json",
         "schemas/model-document-v6.schema.json",
         "schemas/model-document-v7.schema.json",
+        "schemas/model-document-v8.schema.json",
         "schemas/model-document.schema.json",
         "schemas/workbench-view-projection.schema.json",
         "vendor/hologram-brand/fonts/Archivo-SemiBold.woff2",
