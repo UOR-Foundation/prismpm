@@ -105,6 +105,7 @@ forge_contexts() {
 forge_verified() {
   local out=$1; shift
   local repo=${GITHUB_REPOSITORY:?} subject="${GITHUB_REPOSITORY}/${delegation_workflow}"
+  mkdir -p "$(dirname "$out")"
   {
     echo "trust-repository $subject"
     echo "event $(forge_event)"
