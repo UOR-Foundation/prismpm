@@ -5,7 +5,7 @@
 #     and re-exported, and the export must equal the committed bundle.
 #  3. The host's tests pass and both committed workflows equal their projection:
 #     factory.yml, release.yml with its job fragments (prism-factory/jobs/),
-#     release-cut.yml, and the delegation wrapper (prism-factory/delegation/).
+#     release-cut.yml, and prism-delegation.yml.
 # It runs in a directory that holds only this obligation's declared inputs.
 set -euo pipefail
 lexlean_target=${CARGO_TARGET_DIR:-$PWD/target}/lexlean
@@ -41,4 +41,4 @@ cargo build --quiet --release --locked --offline --manifest-path prism-factory/h
 prism-factory/host/target/release/prism-factory workflow --name factory --check .github/workflows/factory.yml
 prism-factory/host/target/release/prism-factory workflow --name release --check .github/workflows/release.yml
 prism-factory/host/target/release/prism-factory workflow --name cut --check .github/workflows/release-cut.yml
-prism-factory/host/target/release/prism-factory workflow --name delegate --check prism-factory/delegation/prism-delegation.yml
+prism-factory/host/target/release/prism-factory workflow --name delegate --check .github/workflows/prism-delegation.yml

@@ -1,7 +1,8 @@
 //! The thin host of the Prism factory.
 //!
-//! This crate decides nothing. It hands bytes to the three certified roots
-//! exported from `prism-factory/model` (`plan`, `reweigh`, `workflow`) and
+//! This crate decides nothing. It hands bytes to the four certified roots
+//! exported from `prism-factory/model` (`plan`, `reweigh`, `workflow`,
+//! `delegate`) and
 //! returns their bytes. The same functions back the command-line host on a
 //! laptop or a runner and the WebAssembly page on GitHub Pages.
 #![forbid(unsafe_op_in_unsafe_fn)]
@@ -13,6 +14,15 @@ pub struct Overflow;
 /// The plan of the factory for a request (`tree`, `receipt` and `weight` lines).
 pub fn plan(request: &[u8]) -> Result<Vec<u8>, Overflow> {
     factory_plan::run(factory_plan::Bytes::lit(request))
+        .map(|out| out.octets().to_vec())
+        .map_err(|_| Overflow)
+}
+
+/// The forge's delegation plan for a request (`tree`, `signed`, `trust-*` and
+/// `event` lines): every obligation's route and identity, its sandbox, what a
+/// lent runner establishes, and the check.
+pub fn delegate(request: &[u8]) -> Result<Vec<u8>, Overflow> {
+    factory_delegate::run(factory_delegate::Bytes::lit(request))
         .map(|out| out.octets().to_vec())
         .map_err(|_| Overflow)
 }
