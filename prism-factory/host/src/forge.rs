@@ -179,7 +179,8 @@ pub(crate) fn prepare(options: &Options) -> Result<bool, String> {
     let identity = ["-c", "user.name=prism-factory", "-c", "user.email=prism-factory@users.noreply.github.com", "-c", "commit.gpgsign=false"];
     if !based.is_empty() {
         let by_path: std::collections::BTreeMap<&str, &str> = entries.iter().map(|entry| (entry.path.as_str(), entry.object.as_str())).collect();
-        let index = options.work.join(format!("{name}.base-index"));
+        // GIT_INDEX_FILE resolves against the directory `-C` enters, so name it absolutely.
+        let index = fs::canonicalize(&work).map_err(|error| format!("{}: {error}", work.display()))?.join(".git/prism-base-index");
         let _ = fs::remove_file(&index);
         for path in &based {
             let object = by_path.get(path.as_str()).ok_or(format!("{path} is not in the base"))?;
