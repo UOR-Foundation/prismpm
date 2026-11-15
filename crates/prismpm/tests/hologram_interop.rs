@@ -373,9 +373,9 @@ fn test_hologram_oracle_negative_probes_reject_wrong_subject_edition_and_mutatio
     let doc: ModelDocument = serde_json::from_value(doc_value).unwrap();
     let app = doc.application.as_ref().unwrap();
 
-    let app_kappa = format!("blake3:{}", "a".repeat(64));
+    let app_kappa = format!("sha256:{}", "a".repeat(64));
     let arch_fingerprint = "b".repeat(64);
-    let arch_kappa = format!("blake3:{}", "c".repeat(64));
+    let arch_kappa = format!("sha256:{}", "c".repeat(64));
 
     let identities = json!({
         "application_kappa": app_kappa,
@@ -444,12 +444,13 @@ fn test_hologram_oracle_negative_probes_reject_wrong_subject_edition_and_mutatio
     bad_edition_unknown["schema"] = json!("prismpm/hologram-oracle/3");
     reject(&bad_edition_unknown);
 
-    // 2. Wrong subject / substituted identities
+    // 2. Wrong subject / substituted identities: a v5 holo is named by
+    // sha256 κ-labels alone (ADR-017).
     for field in ["application_kappa", "archive_fingerprint", "archive_kappa"] {
         let wrong_val = if field == "archive_fingerprint" {
             "f".repeat(64)
         } else {
-            format!("blake3:{}", "f".repeat(64))
+            format!("sha256:{}", "f".repeat(64))
         };
         let mut bad_id = valid_report.clone();
         bad_id[field] = json!(wrong_val);
