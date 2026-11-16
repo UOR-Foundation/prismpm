@@ -1,0 +1,4 @@
+{
+  "kib": 654,
+  "reason": "The rule app with no build (#692): the Forge kernel holo that carries the rule judge (642 KiB), and the record and loader that name it with a spec's numbers (about 652 KiB)."
+}

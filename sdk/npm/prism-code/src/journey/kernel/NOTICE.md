@@ -11,6 +11,7 @@ the kernel runs. Do not edit them: a changed byte is refused.
 | `lean-kernel.mjs` | The loader Emscripten generated for that module. Shipped unpacked so Node can import it. |
 | `library.ndjson.gz` | The lean4export (format 3.1.0) export of `PrismLive.Kernel.ruleJudge_sound` and what it depends on, from foundry's `studio/proof`. |
 | `manifest.json` | The addresses, and the record that this kernel judged this library whole. |
+| `kernel.holo` | The Forge kernel: a holo built and verified once by the SDK, whose guest carries the rule judge (foundry `app/src/RuleJudge.lex.tex`). Copied from `studio/shell/kernel/kernel.holo`; `rule-app.mjs` names it by SHA-256 and checks it before it answers. |
 
 How they are built: foundry `v2/in-tab-kernel/` (`build-wasm.sh`, `bind-library.mjs`, `make-dist.mjs`).
 

@@ -255,6 +255,52 @@ async function proveKernel(dir, session, { log }) {
 }
 
 /**
+ * The build with no SDK image: Lean's kernel checks the guarantees, then the
+ * app is written as the pinned rule judge's holo and this spec's numbers,
+ * named together, and its vectors are replayed through that judge. It writes
+ * no holo, so `status.holo` and `status.proved` are left alone.
+ */
+async function buildKernel(dir, session, { log, overwrite }) {
+  const first = writeApp(dir, session, { overwrite });
+  if (first.edited) return { ok: false, edited: true, stage: 'prove', message: `${relative(dir, first.path)} was edited by hand since Prism wrote it. Call the same tool again with overwrite: true to replace it from the spec, or change the spec to match.` };
+  const started = Date.now();
+  const checked = await proveKernel(dir, session, { log });
+  if (!checked.ok) return { ...checked, stage: 'prove' };
+  const { loadRuleApp, ruleAppRecord } = await import('./rule-app.mjs');
+  log("Writing the app as the verified rule judge and this spec's numbers. Nothing is compiled.");
+  const { bytes, address } = ruleAppRecord(session.spec, { proof: checked.evidence });
+  const path = join(dir, '.prism', 'build', `${session.spec.name}.rule-app.json`);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, bytes);
+  let app;
+  let acceptance;
+  try {
+    app = await loadRuleApp(readFileSync(path));
+    acceptance = await app.acceptance();
+  } catch (error) {
+    return { ok: false, stage: 'build', where: 'kernel', message: `The rule judge could not run this app (${error.message}). This is a Prism bug, not a problem with your spec.` };
+  }
+  const seconds = Math.round((Date.now() - started) / 100) / 10;
+  session.status.ruleApp = { path, address, at: new Date().toISOString(), seconds, passed: acceptance.passed, total: acceptance.total, holo: app.record.kernel.holo };
+  writeSpecDocument(dir, session);
+  const ok = acceptance.failed.length === 0;
+  const count = session.spec.properties.length;
+  return {
+    ok,
+    stage: 'build',
+    where: 'kernel',
+    seconds,
+    app: path,
+    address,
+    holo: app.record.kernel.holo,
+    vectors: { passed: acceptance.passed, total: acceptance.total },
+    message: ok
+      ? `Built in ${seconds} s with no SDK image and nothing compiled: the app is the verified rule judge and this spec's numbers, named together as ${address}. Lean's kernel accepted ${count === 0 ? 'no guarantee, because none is stated' : `all ${count} guarantee${count === 1 ? '' : 's'}`} for that rule judge. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it. The text of a request is read outside the guest, so refusing malformed text is tested, not proved. This is not a holo: prism_try and publishing still need a build in the SDK image (unset PRISM_CODE_TIER).`
+      : `Written, but ${acceptance.failed.length} of ${acceptance.total} acceptance vectors fail through the rule judge. That is a Prism bug: the evaluator and the rule judge disagree.`,
+  };
+}
+
+/**
  * Say why a proof failed. Two failures are not the user's and are recorded as
  * gaps: a property Lean did not prove that no sampled request breaks, and a
  * generated model the toolchain refused.
@@ -323,6 +369,8 @@ function codeOf(diagnostics, p, byTheorem, source) {
  * Docker and no SDK image are needed here.
  */
 export async function build(dir, session, { log = () => {}, overwrite = false, remote = null, root = null, repository = null, env = process.env, gaps = gapLedger() } = {}) {
+  // Asked for by name only, and never for a GitHub build: the rule app with no build (rule-app.mjs).
+  if (env.PRISM_CODE_TIER === 'kernel' && !remote && !repository) return buildKernel(dir, session, { log, overwrite });
   const proved = session.status.proved && session.status.proved.modelSha === session.status.modelSha && existsSync(modelPath(dir, session.spec)) && session.status.lastSpec === JSON.stringify(session.spec);
   if (!proved) {
     const p = await prove(dir, session, { log, overwrite, gaps });
