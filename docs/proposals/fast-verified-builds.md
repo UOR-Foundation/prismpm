@@ -187,7 +187,7 @@ A module's name is part of its content identity. `prism-code` writes every app's
 1. Render the foundation modules under one fixed prefix that every app imports, as the template's Foundation modules are. The store then shares them across apps.
 2. Ship them as LexLean proof blocks (#343) in the SDK image, as step 4 above proposes, so no app elaborates them.
 
-Option 2 is the end state; option 1 is a small renderer change that compounds with the store meanwhile.
+Option 2 is the end state; option 1 is a small renderer change that compounds with the store meanwhile, and is done (#713). Every app now has `module_prefix = "Prism"` and a Lake package of that name, so two apps' `lakefile.toml`, `lake-manifest.json` and foundation modules are the same bytes, and each app's own modules keep their own names (`Prism.PaymentRequestApproved`, `Prism.DinnerSeats`). Proved in the SDK image on 2026-11-16, the payment and seats apps compiled `Prism.Foundation.Bytes` and `Prism.Foundation.View.Text.V1.Model` to the same `.olean` bytes, as they already did for the runtime. Before the change the Lake files named each app's package, which would have put every process of two apps in a different context under SPEC 22.13, the runtime's included.
 
 ### Reuse across machines: the mesh, a later step
 

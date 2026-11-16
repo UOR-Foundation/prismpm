@@ -39,10 +39,12 @@ const sha = (text) => createHash('sha256').update(text).digest('hex');
 // Each pair was written to a project and found unchanged by `lexlean fmt --all` in the SDK image
 // prismpm-sdk-candidate@sha256:cd3b47d7… on 2026-11-09. A renderer change that moves a digest needs that
 // check again (the template's gate runs `lexlean fmt --check`), then the new digest here.
+// The models' digests moved when every app took one module prefix, and were checked again with
+// `lexlean fmt --check --all` in prismpm-sdk@sha256:d6c263a7… on 2026-11-16: all canonical.
 const CANONICAL = {
-  payment: ['48189fe3dd81333e9300d2e82b33ee31698b16439b5fff587251ce129093dd25', 'b7002a55a9f3123026f1d3ea5f89ce62da8f45141460784d8cece7a8bd9543f8'],
-  shipping: ['9fcb9a40a788a4f5b7eb5137ddca1c30a40a211d8f29752d83aaaf83ebd7ef96', '54a3d324beedb8fa1e6d1e0bacd33d62e6f99e1f09426ba86ef8e21c55bc49f4'],
-  door: ['d72d6c299ee977e35149c7cdbba7800a92dab9596f5cb4754fa42b8846828332', 'e56b0b825ea4469ba1eb33d7563e070c5c09f8757d1c424f029ea063141385dd'],
+  payment: ['6b19538d65564b6e5eea313f98472113a9190770815a777c663d994bf5f5c675', 'b7002a55a9f3123026f1d3ea5f89ce62da8f45141460784d8cece7a8bd9543f8'],
+  shipping: ['59c67f4320107fac1c6c04b9b72436bd54562640c72268df18ddc92b4242bb4e', '54a3d324beedb8fa1e6d1e0bacd33d62e6f99e1f09426ba86ef8e21c55bc49f4'],
+  door: ['24810a2f8dd88bd2ddf2fb41020d88413c5b3865e1a85b0f5a287a76fcc9a732', 'e56b0b825ea4469ba1eb33d7563e070c5c09f8757d1c424f029ea063141385dd'],
 };
 
 test('the model and proofs are the bytes lexlean fmt leaves unchanged, for three specs of different shapes', () => {
