@@ -21,6 +21,8 @@ import { names, proofDeclarations } from './render.mjs';
 
 /** The template's example app, which a new instance replaces. */
 export const TEMPLATE_EXAMPLE = Object.freeze(['app/src/Contract.lex.tex', 'crates/conformance/tests/contract.rs', 'features/suites/contract.feature']);
+/** Where the app's Rust test is written: the path of the example's, which it replaces. */
+export const TEMPLATE_TEST = 'crates/conformance/tests/contract.rs';
 
 /** The Gherkin suite, the feature file's name and every test name's start: the spec's name with underscores. */
 export const suiteOf = (spec) => spec.name.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'app';

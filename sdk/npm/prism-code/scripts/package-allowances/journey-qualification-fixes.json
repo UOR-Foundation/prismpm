@@ -1,0 +1,4 @@
+{
+  "kib": 6,
+  "reason": "What the qualification run of 2026-11-16 found (docs/proposals/666-journey-qualification.md), about 5 KiB: a GitHub build writes its test where the template's example was and publishes app/spec.json, and says when the page is live though the gate failed (journey/engine.mjs and journey/template.mjs, about 2 KiB); the local route's image is the release the template pins (journey/sdk.mjs, journey/github.mjs); and the journey fixes that follow in the same release."
+}

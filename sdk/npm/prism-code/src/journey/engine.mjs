@@ -17,7 +17,7 @@ import { BUILD_SCRIPT, DEFAULT_SDK_IMAGE, buildProgress, axiomViolations, declar
 import { SDK_IMAGE_DOWNLOAD } from '../setup-machine.mjs';
 import { parseRepository } from '../github.mjs';
 import { TEMPLATE_REPOSITORY, commitApp, createFromTemplate, fetchLive, gitRoot, originRepository, publishRepository, pushClone, readyForGitHub, signedInLogin, suggestedRepository, waitForWorkflows } from './github.mjs';
-import { TEMPLATE_EXAMPLE, appJson, conformanceText, featureText, idsToml, lexleanLockText, liveUrl, rustTestText, suiteOf } from './template.mjs';
+import { TEMPLATE_EXAMPLE, TEMPLATE_TEST, appJson, conformanceText, featureText, idsToml, lexleanLockText, liveUrl, rustTestText, suiteOf } from './template.mjs';
 import { VERSION } from '../version.mjs';
 import { gapLedger, propertyShape } from '../gaps.mjs';
 import { checkSpecBinding } from './binding.mjs';
@@ -497,6 +497,12 @@ export function writeTemplateApp(clone, dir, session) {
     mkdirSync(dirname(join(clone, path)), { recursive: true });
     writeFileSync(join(clone, path), text);
   };
+  // The app's Rust test takes the place of the example's, so the template's ratchet (audit-prism:
+  // no new non-Prism file, no growth in non-Prism lines) sees the example's file replaced by a
+  // smaller one, not a file added. An instance an earlier prism-code wrote keeps the file it has.
+  // Measured on 2026-11-16: written as `<suite>.rs`, the gate refused every app.
+  const earlier = `crates/conformance/tests/${suiteOf(spec)}.rs`;
+  const test = existsSync(join(clone, earlier)) ? earlier : TEMPLATE_TEST;
   for (const path of TEMPLATE_EXAMPLE) rmSync(join(clone, path), { force: true });
   for (const entry of readdirSync(join(clone, 'app', 'src'))) if (entry.endsWith('.lex.tex')) rmSync(join(clone, 'app', 'src', entry));
   const sources = [`src/${n.module}.lex.tex`, ...(existsSync(join(dir, 'src', `${n.proofs}.lex.tex`)) ? [`src/${n.proofs}.lex.tex`] : [])];
@@ -507,7 +513,10 @@ export function writeTemplateApp(clone, dir, session) {
   write('app/lexlean.lock', lexleanLockText(read('app/lexlean.lock'), files));
   write('model/ids.toml', idsToml(spec, read('model/ids.toml')));
   write(`features/suites/${suiteOf(spec)}.feature`, featureText(spec));
-  write(`crates/conformance/tests/${suiteOf(spec)}.rs`, rustTestText(spec));
+  write(test, rustTestText(spec));
+  // The spec the app is sealed to, beside its model: without it, nobody holding the repository can
+  // run `prism-code check --spec` on the app it publishes.
+  write('app/spec.json', readFileSync(join(dir, 'spec.json')));
   write('CONFORMANCE.md', conformanceText(spec, read('CONFORMANCE.md')));
   // The spec a reader opens first, where OpenSpec's tools look for it.
   write(`openspec/specs/${spec.name}/spec.md`, renderSpecDocument(spec, session.status));
@@ -554,6 +563,28 @@ async function buildFromTemplate(dir, session, { log, repository, clone, create 
   }
   const seconds = Math.round((Date.now() - started) / 1000);
   const failed = Object.entries(runs).filter(([, r]) => r.conclusion !== 'success');
+  // The page can be live while the gate failed: pages builds, verifies and publishes on its own. Say
+  // so, and check what is live, rather than report that nothing is (measured on 2026-11-16).
+  if (failed.length && runs['pages.yml']?.conclusion === 'success') {
+    const gate = runs['bootstrap.yml'];
+    let check = null;
+    try {
+      const holo = join(dir, '.prism', 'live', sha, `${session.spec.title}.holo`);
+      await s.fetchLive({ live, into: holo });
+      const binding = checkSpecBinding(new Uint8Array(readFileSync(holo)), session.spec);
+      check = binding.ok ? `The live holo matches prism/spec.json (${binding.specAddress}).` : `The live holo does not match prism/spec.json: ${binding.message}`;
+    } catch (error) {
+      check = `The live holo could not be checked: ${error.message}.`;
+    }
+    return {
+      ok: false,
+      stage: 'build',
+      seconds,
+      live,
+      repository: `https://github.com/${repository}`,
+      message: `The page is live at ${live}, built and verified by pages.yml. ${check} But the gate, bootstrap.yml, ended ${gate?.conclusion ?? 'without a result'}: ${gate?.html_url ?? ''}. The app does not meet the template's contract until it passes; the log there says why.`,
+    };
+  }
   if (failed.length) {
     return { ok: false, stage: 'build', seconds, repository: `https://github.com/${repository}`, message: `${failed.map(([w, r]) => `${w} ended ${r.conclusion}: ${r.html_url}`).join('; ')}. The log there says why; nothing is live from this commit.` };
   }
