@@ -2580,15 +2580,21 @@ pub(super) fn inspection_v5(bytes: &[u8]) -> Result<Value, PrismError> {
             .iter()
             .any(|finding| finding.id == id && finding.ok)
     };
-    let manifest = passed("manifest.wire")
-        .then(|| document(0))
-        .unwrap_or(Value::Null);
-    let provenance = passed("provenance.schema")
-        .then(|| document(2))
-        .unwrap_or(Value::Null);
-    let model_document = passed("model.schema")
-        .then(|| document(6))
-        .unwrap_or(Value::Null);
+    let manifest = if passed("manifest.wire") {
+        document(0)
+    } else {
+        Value::Null
+    };
+    let provenance = if passed("provenance.schema") {
+        document(2)
+    } else {
+        Value::Null
+    };
+    let model_document = if passed("model.schema") {
+        document(6)
+    } else {
+        Value::Null
+    };
     let application = model_document
         .get("application")
         .cloned()
