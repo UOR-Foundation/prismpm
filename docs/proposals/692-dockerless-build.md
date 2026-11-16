@@ -244,6 +244,26 @@ One run each. The forged input matters: Lean's front end can be told to skip the
 
 Not measured: this lemma over a resident library. Foundry's library holds its own lemma, not this one, so the 1.69 s includes re-checking every dependency. Foundry reports 42 to 136 ms for an app over its resident library.
 
+**A whole proof with no Docker, using foundry's prover (measured).** Foundry's studio already holds the rest of design C for rule apps: a writer that turns a spec into numbers ("words"), a lemma proved once (`PrismLive.Kernel.ruleJudge_sound`, `studio/proof/PrismLive/Regions.lean`), and code that writes each proof as kernel terms with no Lean (`studio/shell/prism.js`, `ruleWordsOf` and `leanWorker`). It was written for a browser tab. I ran it unchanged under Node 22.21 on Windows 11, from foundry `7755331`, on `prism/spec/1` files:
+
+| Spec | Result | Time |
+|---|---|---|
+| Start: load the code, check three hashes, open the kernel, load the library | Ready | 1.27 s |
+| Parking fee: 2 fields, 4 rules, 3 properties | All 3 accepted. Axioms `Quot.sound`, `propext`, the set declared today | 204 ms |
+| Parking fee with rule 2 changed to answer `premium` | INV-001 refused by the kernel, the other two accepted | 125 ms |
+| A 10-rule spec whose properties use `is not` | 2 of 4 accepted | 670 ms |
+| Whole process, all three specs | | 2.4 s, 179 MB |
+
+One run. The brief reports 75 s for a local proof in Docker.
+
+Three limits, all known in foundry:
+
+- The two refusals on the 10-rule spec are properties that are true. The lemma on foundry's main cannot yet split an `is not`. Foundry #231, open, adds that.
+- A condition that compares two fields is not read at all.
+- The lemma is about foundry's rule judge reading the words. It is not about the `judge` definition that `prism-code` renders per app today. So this proof matches the app only when the app is that rule judge with those words, which is stage 3. Until then it is a fast second opinion, not a replacement for `lexlean verify`.
+
+Its lemma works on boxes of values, not on every combination of representative values, so it does not have the scaling limit measured above. I did not test it at 8 fields.
+
 **An independent kernel was not run.** kefir was cloned at `e00bbd5` and did not compile on this Windows host: its build script failed. I did not pursue it once Lean's own kernel was available. A second, independent kernel is still worth having as a cross-check (section 12).
 
 The experiment source is not in this pull request, because `AGENTS.md` forbids committing handwritten Lean. It is kept outside the repository and can be attached to the issue.
@@ -309,7 +329,8 @@ Each stage ships alone. Docker stays the default until the stage that replaces i
 
 **Stage 2. Prove without Lean on the user's machine.** Weeks.
 - 2a: publish proofs by input hash and check them locally with the kernel (design D). Works for any theorem at once.
-- 2b: start from foundry's pinned library and its lemma, which already serve rule apps and stateful apps in the browser. Add field-to-field conditions. Confirm it scales to 8 fields and 24 rules.
+- 2b: move foundry's prover (`ruleWordsOf`, the term writer, the kernel host) into `prism-code` as a `prove` route that needs no Docker. It ran unchanged under Node in section 7. Add field-to-field conditions. Confirm it scales to 8 fields and 24 rules.
+- Until stage 3, report its verdict under its own name, because it speaks about the rule judge and not about the rendered model.
 - Gate: for every example spec, the local verdict equals the Docker verdict, and the worst-case spec checks in under 2 s.
 - Ships: `prism_prove` in about a second, offline, with no Docker and no hosted verifier.
 
