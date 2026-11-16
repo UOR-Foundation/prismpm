@@ -19,9 +19,9 @@ import { createRequire } from 'node:module';
 import { SpecError, validateSpec } from './spec.mjs';
 import { answersFromSpec, nextTurn, roundTrip, STEPS } from './session.mjs';
 import { appDir, modelPath, readProjectSpec, readSession, writeSession, writeSpecDocument } from './project.mjs';
-import { build, prove, tryRequest } from './engine.mjs';
+import { adoptBuild, build, buildQuietFor, prove, tryRequest } from './engine.mjs';
 import { gapLedger } from '../gaps.mjs';
-import { SPEC_FILE, readSpecFile } from './spec-file.mjs';
+import { SPEC_FILE, parseStrictJson, readSpecFile } from './spec-file.mjs';
 import { checkSpec, completeSpec, repairMessage } from './complete.mjs';
 
 const require = createRequire(import.meta.url);
@@ -170,7 +170,7 @@ const STATEFUL_SPEC_INPUT = {
   required: ['schema', 'purpose', 'state', 'outcomes', 'actions'],
 };
 
-const TOOLS = [
+export const TOOLS = [
   {
     name: 'prism_start',
     description: 'Start or resume the Prism session in this project. Returns a short greeting, and the next question for when you cannot draft the whole spec with prism_spec. Call it first, and whenever you lose track.',
@@ -223,6 +223,44 @@ const TOOLS = [
 ];
 
 const PROMPTS = [{ name: 'prism', description: 'Build a formally verified app with Prism', arguments: [] }];
+
+/** An answer that approves and says nothing else. */
+const APPROVAL = /^\s*(yes|y|ok|okay|approved?|go ahead|looks good|correct|build it|ship it)\s*[.!]?\s*$/i;
+
+/** A build whose server is gone is taken as still running while it wrote this recently. */
+const ORPHAN_QUIET_SECONDS = 90;
+
+/**
+ * What is wrong with a tool call's arguments, in words that say what to send; null
+ * when they fit the tool's schema. A call that does not fit is answered, never
+ * guessed at: measured on 2026-11-15, a draft passed beside `spec` instead of
+ * inside it was read as a request to show the spec, and nothing was said.
+ */
+export function argumentIssue(name, args) {
+  const schema = TOOLS.find((t) => t.name === name).inputSchema;
+  const takes = Object.keys(schema.properties);
+  const shape = takes.length ? `It takes ${takes.map((k) => `\`${k}\``).join(', ')}.` : 'It takes no arguments.';
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return `${name} takes its arguments as one JSON object. ${shape}`;
+  const unknown = Object.keys(args).filter((k) => !takes.includes(k));
+  if (unknown.length) {
+    const listed = unknown.slice(0, 6).map((k) => `\`${k}\``).join(', ');
+    if (name === 'prism_spec' && unknown.some((k) => ['fields', 'rules', 'otherwise', 'title', 'state', 'actions', 'outcomes', 'properties', 'examples', 'schema'].includes(k))) {
+      return `prism_spec takes the spec as one argument named \`spec\`: {"spec": {"title": ..., "fields": [...], "rules": [...], "otherwise": ...}}. It was passed ${listed} beside it, so nothing was read or changed. Call it again with the draft inside \`spec\`.`;
+    }
+    return `${name} does not take ${listed}. ${shape} Nothing was changed.`;
+  }
+  for (const key of schema.required ?? []) if (args[key] === undefined || args[key] === null) return `${name} needs \`${key}\`. ${shape}`;
+  for (const [key, value] of Object.entries(args)) {
+    const type = schema.properties[key].type;
+    if (value === undefined || value === null || !type) continue;
+    const fits = type === 'number' ? typeof value === 'number' && Number.isFinite(value) : typeof value === type;
+    if (!fits) return `${name}: \`${key}\` must be a ${type}, not ${Array.isArray(value) ? 'a list' : typeof value === 'object' ? 'an object' : `the ${typeof value} ${JSON.stringify(value)}`}. Nothing was changed.`;
+  }
+  if (name === 'prism_spec' && args.spec !== undefined && args.spec !== null) {
+    if (Array.isArray(args.spec) || !['object', 'string'].includes(typeof args.spec)) return 'prism_spec: `spec` must be one JSON object, the whole spec or draft. Nothing was changed.';
+  }
+  return null;
+}
 
 /** A server bound to a working directory. `send` writes one JSON-RPC message. */
 /** Whether a process still runs. */
@@ -286,6 +324,24 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
   const save = (session) => {
     const { specFileIssue, adopted, ...kept } = session;
     writeSession(dir, kept);
+  };
+
+  /**
+   * A session started over. The spec.json of the app before is still on disk, and the next call
+   * would adopt it as an edit: the session was then at its review, unseen, and a "yes" approved it
+   * (measured on 2026-11-16, in 0.9.2). So the file as it stands is remembered as already seen:
+   * it is left alone until someone changes it, or a new spec replaces it.
+   */
+  const restarted = () => {
+    const { adopted, specFileIssue, ...before } = load();
+    let seen = {};
+    try {
+      const read = readOrComplete();
+      if (read) seen = { specHash: read.specHash };
+    } catch (error) {
+      if (!(error instanceof SpecError)) throw error;
+    }
+    return { ...before, step: 'purpose', answers: {}, spec: null, status: seen, axioms: {} };
   };
 
   /** A spec that does not come back from its own answers is a Prism bug: record which part. */
@@ -356,6 +412,29 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
       const elapsed = Math.round((Date.now() - elsewhere.started) / 1000);
       return { state: 'running', elapsed, next: `A ${elsewhere.kind} another Prism server started ${elapsed} s ago is still running. Call prism_${kind} again to keep waiting; it returns the result when that one finishes.` };
     }
+    // The server that started a job is gone (an agent restarted it), but the job's container may
+    // not be: it runs on, and when it finishes nobody is there to save what it built. Wait while
+    // it still writes, take the build once the toolchain records it as verified, and only then
+    // start again. Measured on 2026-11-16: such a build finished unseen, and a second one over it failed.
+    let before = null;
+    if (!jobs.get(kind) && elsewhere && elsewhere.pid !== process.pid) {
+      const elapsed = Math.round((Date.now() - elsewhere.started) / 1000);
+      const adopted = elsewhere.kind === 'build' && kind === 'build' ? await adoptBuild(dir, session) : null;
+      if (adopted) {
+        session.status.lastSpec = JSON.stringify(session.spec);
+        session.status.lastBuild = { modelSha: session.status.modelSha, holo: adopted.holo, result: adopted };
+        delete session.status.job;
+        save(session);
+        return { state: 'done', elapsed: 0, ...adopted, note: `This build finished after the Prism server that started it had stopped. It is the build the toolchain verified, so it was taken as it is and not built again.` };
+      }
+      const quiet = elsewhere.kind === 'build' ? buildQuietFor(dir) : null;
+      if (quiet !== null && quiet < ORPHAN_QUIET_SECONDS) {
+        return { state: 'running', elapsed, next: `A build started ${elapsed} s ago is still writing (${quiet} s ago), though the Prism server that started it has stopped. Call prism_${kind} again to keep waiting; its result is taken when it finishes.` };
+      }
+      delete session.status.job;
+      save(session);
+      before = `A ${elsewhere.kind} started ${elapsed} s ago did not finish: the Prism server running it stopped. It was started again.`;
+    }
     if (!jobs.get(kind) && kind === 'build' && session.status.lastBuild && session.status.lastBuild.modelSha === session.status.modelSha && session.status.lastSpec === JSON.stringify(session.spec) && existsSync(session.status.lastBuild.holo ?? '')) {
       return { state: 'done', elapsed: 0, ...session.status.lastBuild.result, note: 'Nothing changed since this build, so it was not built again.' };
     }
@@ -375,14 +454,15 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
         save({ ...latest, status: s.status, axioms: s.axioms, image: s.image ?? latest.image });
         return result;
       });
-    return awaitJob(job, args.wait ?? 45, progress);
+    const waited = await awaitJob(job, args.wait ?? 45, progress);
+    return before ? { ...waited, note: before } : waited;
   }
 
   const tools = {
     prism_start(args) {
       // The kernel opens while the user is still describing the app, so the first check does not wait for it.
       setImmediate(() => import('./kernel-prove.mjs').then((m) => m.warmKernel()).catch(() => {}));
-      const session = args.restart ? { ...load(), step: 'purpose', answers: {}, spec: null, status: {}, axioms: {} } : load();
+      const session = args.restart ? restarted() : load();
       if (session.adopted) save(session);
       const t = turn(session);
       const resumed = Object.keys(session.answers).length > 0;
@@ -392,13 +472,21 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
       const session = load();
       const step = args.step ?? session.step ?? nextTurn(session.answers).step;
       if (step === 'ready') return { message: 'The spec is complete. Call prism_build to prove and build it, or pass step to change an answer.' };
+      // An approval answers the review and nothing else: taken as any other step's answer it would
+      // become the app's purpose, and the app would be called "yes".
+      if (step !== 'review' && APPROVAL.test(String(args.answer))) {
+        const { spec, refusal, notes, ...current } = nextTurn(session.answers);
+        return { ...current, issue: `"${String(args.answer).trim()}" approves a review, and there is no checked spec to review yet: the step is ${step}. Answer the question, or pass the whole draft to prism_spec.` };
+      }
       session.answers[step] = args.answer;
       if (step !== 'review') delete session.answers.review;
       return turn(session, { answered: true });
     },
     prism_spec(args) {
       const session = load();
-      if (!args.spec) {
+      // A model that writes the draft as text meant the object it spells.
+      if (typeof args.spec === 'string') args = { ...args, spec: parseStrictJson(args.spec) };
+      if (args.spec === undefined || args.spec === null) {
         if (session.adopted) save(session);
         const spec = session.spec ?? nextTurn(session.answers).spec ?? null;
         return { spec, step: session.step, specHash: session.status?.specHash ?? null, ...(session.adopted ? { note: session.adopted } : {}), ...(session.specFileIssue ? { issue: session.specFileIssue } : {}) };
@@ -477,6 +565,8 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
         case 'tools/call': {
           const tool = tools[params.name];
           if (!tool) return error(id, -32602, `Unknown tool: ${params.name}`);
+          const wrong = argumentIssue(params.name, params.arguments ?? {});
+          if (wrong) return reply(id, { content: [{ type: 'text', text: wrong }], structuredContent: { issue: wrong }, isError: true });
           const token = params._meta?.progressToken;
           const progress = token === undefined ? null : (n, line) => send({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: n, message: line } });
           let result;
