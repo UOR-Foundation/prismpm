@@ -67,6 +67,9 @@ function workspaceUnitOwnership(source) {
 test('the normative acceptance parts are carried by the delegation, not a main-push workflow', () => {
   assert(!existsSync(new URL('../.github/workflows/vv.yml', import.meta.url)));
   assert.deepEqual(workflow('prism-delegation').on.push.branches, ['main', 'release/v*']);
+  // A newer pull request push supersedes its run, but a push to main or a release line runs its
+  // whole graph to the end: cancelling it there is what kept vv.yml from ever finishing.
+  assert.equal(workflow('prism-delegation').concurrency['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}");
   const model = readFileSync(new URL('../prism-factory/model/src/Factory/PrismPM.lex.tex', import.meta.url), 'utf8');
   for (const part of vvParts) {
     assert.equal(model.split(`"bash prism-factory/obligations/vv-part.sh ${part}"`).length, 2, part);
