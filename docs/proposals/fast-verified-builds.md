@@ -147,3 +147,54 @@ Whole: about 280 s today on a clean machine. With 1 and 2, the longest branch is
 - #539: the cache volume, the tiers and the axiom report; step 6's floor and step 5's table surface in `prism-code`.
 - #288: the floor pattern.
 - The measurements behind this document are beside it in `docs/proposals/fast-verified-builds/`: the sampler, its tool-seconds table, and the LexLean telemetry of the same project.
+
+## Addendum: proofs that compound across apps (2026-11-16)
+
+Prism SDK should get faster the more it is used: a proof one build established is not established again by a later build on the same machine, in any project. The line above holds. Processes and artifacts are reused by content address, and a verdict never is. Every check still runs in the run that publishes.
+
+### Where the time is, across apps
+
+I measured 11 apps from `prism-code` 0.9.5, each cold and warm: six on the kernel route, five in the SDK image, with LexLean's telemetry for the image's verify.
+
+| Route | First proof | Unchanged re-proof | One-rule edit |
+| --- | --- | --- | --- |
+| Kernel (rule apps, no Docker) | 74 to 201 ms | 2 to 4 ms, proofs reused | 93 to 201 ms, none reused |
+| SDK image (`lexlean verify --all`) | 55 to 89 s | 57 to 75 s, nothing reused | 80 s |
+
+One verify, the payment-approval fixture, 54 s:
+
+| Unit | Seconds | Share | Across apps |
+| --- | --- | --- | --- |
+| `LexLeanRuntime.Portable`, `.Collections`, `.Laws`: elaboration, replay, audit | 28.6 | 53% | The same `.olean` bytes in all four apps compared |
+| The app's own modules | 12.0 | 22% | Unchanged on a re-proof, and partly unchanged after an edit |
+| `Foundation.Bytes`, `Foundation.View.Text.V1.Model` | 9.4 | 17% | The same source in every app, under the app's own module prefix |
+| Lock, format, check, container start | about 5 | 8% | Every run |
+
+The kernel route is already under a quarter of a second per app, so the time to win is in the image.
+
+### The lever: LexLean's process store
+
+LexLean #558 adds SPEC 22.13: `LEXLEAN_VERIFY_STORE` names a directory where elaborations, replays and audit members are kept under a key over the tool, the Lean executable, the toolchain tree, the normalized argument vector, and a Merkle content identity of the module's text and every import it reaches. A stored process is restored only for the same executable and exit 0, every file is digest-checked, and its record is judged as the stage judges its own. The published verification is byte-identical with or without the store. Its measurements: a warm run of `examples/production-coverage` took 12 s against 387 s cold, and a one-module edit took 24 s.
+
+`prism-code` sets `LEXLEAN_VERIFY_STORE=/tmp/lexlean-verify-store` on every container with the per-image cache volume at `/tmp`, and on none without it, since a tmpfs dies with the container. The volume is named by the image digest, so a new SDK image starts an empty store. A LexLean without the store ignores the variable, so this changes nothing until the SDK image carries #558.
+
+Expected, from the shares above: the runtime's 28.6 s is paid once per SDK image on a machine, an unchanged re-proof pays only the replays' fixed costs and the container, and an edit re-runs only the modules whose content identity it changed.
+
+### What keeps the foundation modules from compounding
+
+A module's name is part of its content identity. `prism-code` writes every app's foundation modules under the app's `module_prefix`, as `PrismPaymentRequestApproved.Foundation.Bytes`, so two apps never share them although their text is the same. There are two ways to fix that:
+
+1. Render the foundation modules under one fixed prefix that every app imports, as the template's Foundation modules are. The store then shares them across apps.
+2. Ship them as LexLean proof blocks (#343) in the SDK image, as step 4 above proposes, so no app elaborates them.
+
+Option 2 is the end state; option 1 is a small renderer change that compounds with the store meanwhile.
+
+### Reuse across machines: the mesh, a later step
+
+When every user should benefit from every other user's proofs, records move between machines by content address:
+
+- **Transport.** Hologram's HTTP-CAS (`/cas/{kappa}`) or its peer frames, with piece-tree verification while streaming (`hologram-space/src/piece.rs`), so a corrupted piece is refused before the record is used.
+- **What a receiver re-checks.** Everything a local reuse checks: the key, the executable and toolchain digests, every file's digest, and the stage's judgement of the record. Locally the store holds only what this machine ran. A received record must stand without that, so the receiver replays it: `leanchecker` re-checks each declaration of a received `.olean` in its own kernel, which is far cheaper than elaborating it. Only elaboration is shared; replay and audit run on the receiver.
+- **Trust.** No builder is trusted for a verdict. A signed statement from the builder (DSSE, as a `.holo` already carries) names who contributed a record, for reporting, not for admission.
+- **Privacy.** Only the store's entries move: processes about module text. An app's module text carries its rules, so an app opts in. The LexLean runtime and the shared foundation modules carry nothing of any app and can be shared by default.
+- **Poisoning.** A record the receiver's replay refuses is dropped, its source reported, and its key served by elaboration on the receiver.
