@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BIN, SHIPPING_DRAFT, project, startServer } from './support/journey-client.mjs';
 import { createServer } from '../src/journey/mcp.mjs';
+import { completeSpec } from '../src/journey/complete.mjs';
+import { judge, sampleRequests, validateSpec } from '../src/journey/spec.mjs';
 
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
@@ -51,13 +53,23 @@ test('checking and completing a 24-rule draft takes under 100 ms', async () => {
   assert.ok(median(times) < 100, `median ${median(times).toFixed(1)} ms`);
 });
 
-test('the largest draft the spec allows is checked in under 1 s', async () => {
-  // 8 fields make more requests than Prism tries, so nothing is proposed and nothing is scanned twice.
-  // Measured on 2026-11-16: 1.9 s before the scan that claims nothing was skipped, about 0.3 s since.
+test('the largest draft the spec allows costs about one pass over the candidate requests, not seven', async () => {
+  // 8 fields make more requests than Prism tries, so nothing is proposed. The cost is then one pass
+  // to find the examples. Measured on 2026-11-16: about seven passes before the ones that claim
+  // nothing were skipped (1.9 s on a quiet machine), a little over one since (0.3 s). The budget is
+  // in passes timed here and now, so a slow machine does not fail it and a second pass does.
+  const spec = validateSpec(completeSpec(largest()).spec);
+  const pass = median(
+    Array.from({ length: 3 }, () => {
+      const started = performance.now();
+      for (const request of sampleRequests(spec)) judge(spec, request);
+      return performance.now() - started;
+    }),
+  );
   const { times, answer } = await timed(largest());
   assert.ok(answer.notes.some((n) => /^No guarantee is proposed/.test(n)));
-  console.log(`# prism_spec, 8 fields and 24 rules of 8 conditions: median ${median(times).toFixed(1)} ms, slowest ${Math.max(...times).toFixed(1)} ms`);
-  assert.ok(median(times) < 1000, `median ${median(times).toFixed(1)} ms`);
+  console.log(`# prism_spec, 8 fields and 24 rules of 8 conditions: median ${median(times).toFixed(1)} ms; one pass over the candidates ${pass.toFixed(1)} ms`);
+  assert.ok(median(times) < 3 * pass + 100, `median ${median(times).toFixed(1)} ms against a pass of ${pass.toFixed(1)} ms`);
 });
 
 test('a server answers its first tool call within 2 s of being started', async () => {
