@@ -9,6 +9,7 @@ import {copyFileSync,existsSync,mkdirSync,mkdtempSync,readFileSync,readdirSync,r
 import {dirname,join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
+import {workspaceVersion} from '../scripts/workspace-version.mjs';
 
 const canonical=value=>JSON.stringify(value,(_,item)=>item&&typeof item==='object'&&!Array.isArray(item)
   ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
@@ -123,7 +124,7 @@ test('private native evidence survives two-lane roundtrip and refuses missing ch
     const values={'source.json':original,'image.json':[{Os:'linux',Architecture:architecture,RepoDigests:[sdk.image],
       Config:{Entrypoint:['/usr/local/bin/prismpm-devcontainer-init'],Volumes:null,Labels:{
         'org.opencontainers.image.revision':revision,'org.opencontainers.image.source':'https://github.com/UOR-Foundation/prismpm',
-        'org.opencontainers.image.version':'0.4.0'}}}],
+        'org.opencontainers.image.version':workspaceVersion()}}}],
       'acquisition.json':{lock:sdk.lock,metadata,migration},'compiler.json':qualificationFixture(binding,authority),
       'custody.json':{scope:'filesystem-custody-only',checks:6,status:'passed'},'result.json':resultFixture(binding,authority)};
     for(const [name,value] of Object.entries(values))writeFileSync(join(directory,name),name==='acquisition.json'?canonical(value):JSON.stringify(value));
