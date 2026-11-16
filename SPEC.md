@@ -315,8 +315,10 @@ v4 encoding is implemented by the LexLean-generated `Foundation.Holo.V1.Wire`
 codec in `prism-stdlib`. The independent upstream compatibility oracles are
 pinned by `model/dependencies.toml`; neither Hologram platform code nor its
 archive implementation is a production Cargo dependency of PrismPM. A file named
-`*.holo` begins with `HOLO` followed by little-endian physical version 4 and
-canonical flags. Legacy JSON, including the prototype `prismpm/holo/1` JSON,
+`*.holo` written today is a holo v5: a raw UORC archive that begins with
+`UORC` and format 2, profile 1, sealed by UORC-SHA256-CHAIN-v1 (ADR-017). A v4
+file, which begins with `HOLO` followed by little-endian physical version 4 and
+canonical flags, stays readable as legacy. Legacy JSON, including the prototype `prismpm/holo/1` JSON,
 is rejected as a `.holo` file. The old logical projection is now the separate
 canonical JSON artifact `model.prism.json`. Legacy numeric applications and
 architecture models retain the closed `prismpm/model-document/1` schema.
@@ -4399,7 +4401,7 @@ Every row below is normative, has the honesty level registered in `model/ids.tom
 | `FT-13` | `facets` | The SDK checks features and journeys in prismpm check and refuses a feature without a call with PP2014, a feature without an acceptance row with PP2015, a journey step that names an undeclared feature with PP2016, a journey whose actor is not a declared stakeholder with PP2017, and a malformed declaration or a call or acceptance row that names no declaration with PP2018. | §2 |
 | `FT-14` | `facets` | Production.ThreatModel declares assets, threats with a STRIDE category, controls with evidence, their mapping and accepted risks as rows that name Foundation.Sec records, and proves with an empty axiom set that its normalized validator is sound and complete and refuses an unmapped threat, a control without evidence and a threat without a category. | §2 |
 | `FT-15` | `facets` | The SDK checks a threat model over every entrypoint in prismpm check and refuses a threat with no mapped control and no accepted risk with PP2019, a control that names no evidence with PP2020, a threat with no STRIDE category with PP2021, and a malformed or unresolved row with PP2022. | §2 |
-| `HO-01` | `holo` | A Holo/1 artifact is a strict binary Hologram archive with physical version 4 and the HOLO header. | §3 |
+| `HO-01` | `holo` | A Holo/1 artifact is a strict binary Hologram archive: a UORC version 2.1 container (ADR-017). | §3 |
 | `HO-02` | `holo` | Legacy application and architecture model documents retain the closed prismpm/model-document/1 schema and model.prism.json name. | §3 |
 | `HO-03` | `holo` | Prism model documents use deterministic canonical JSON and an exact SHA-256 model identity. | §3 |
 | `HO-04` | `holo` | The model-document projector is a total deterministic function from valid LexLean semantic snapshots. | §3 |

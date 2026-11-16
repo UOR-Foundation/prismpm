@@ -450,11 +450,11 @@ pub fn run_at(root: &Path, id: &str) {
             root,
             id,
             &[
-                ("sdk/npm/prism-code/test/archive.test.mjs", 11),
+                ("sdk/npm/prism-code/test/archive.test.mjs", 12),
                 ("sdk/npm/prism-code/test/blake3.test.mjs", 3),
                 ("sdk/npm/prism-code/test/canonical.test.mjs", 2),
-                ("sdk/npm/prism-code/test/cli.test.mjs", 8),
-                ("sdk/npm/prism-code/test/closure.test.mjs", 4),
+                ("sdk/npm/prism-code/test/cli.test.mjs", 9),
+                ("sdk/npm/prism-code/test/closure.test.mjs", 5),
                 ("sdk/npm/prism-code/test/node.test.mjs", 2),
             ],
             "600000",
@@ -782,7 +782,7 @@ pub fn run_at(root: &Path, id: &str) {
         "DK-44" => node_suite::verify_exact(
             root,
             id,
-            &[("sdk/npm/prism-code/test/system-auth-cli.test.mjs", 16)],
+            &[("sdk/npm/prism-code/test/system-auth-cli.test.mjs", 17)],
             "600000",
         ),
         "DK-35" => verify_node_suite(
@@ -3386,9 +3386,9 @@ fn verify_portable_view_report(root: &Path) {
     prismpm::holo::validate::validate(&document).unwrap();
     let application = document.application.as_ref().unwrap();
     let identities = serde_json::json!({
-        "application_kappa":format!("blake3:{}", "a".repeat(64)),
+        "application_kappa":format!("sha256:{}", "a".repeat(64)),
         "archive_fingerprint":"b".repeat(64),
-        "archive_kappa":format!("blake3:{}", "c".repeat(64))
+        "archive_kappa":format!("sha256:{}", "c".repeat(64))
     });
     let cases = [
         "attachment-assets",
@@ -3406,9 +3406,9 @@ fn verify_portable_view_report(root: &Path) {
     .map(|name| serde_json::json!({"name":name,"status":"passed","attempts":1}))
     .collect::<Vec<_>>();
     let report = serde_json::json!({
-        "application_kappa":format!("blake3:{}", "a".repeat(64)),
+        "application_kappa":format!("sha256:{}", "a".repeat(64)),
         "archive_fingerprint":"b".repeat(64),
-        "archive_kappa":format!("blake3:{}", "c".repeat(64)),
+        "archive_kappa":format!("sha256:{}", "c".repeat(64)),
         "direct_vectors":6,
         "footer_verified":true,
         "guest_allocation_boundary":"verified",
@@ -3442,7 +3442,7 @@ fn verify_portable_view_report(root: &Path) {
         let different = if field == "archive_fingerprint" {
             "d".repeat(64)
         } else {
-            format!("blake3:{}", "d".repeat(64))
+            format!("sha256:{}", "d".repeat(64))
         };
         let mut substituted_report = report.clone();
         substituted_report[field] = serde_json::json!(different);
@@ -3480,14 +3480,19 @@ fn verify_portable_view_report(root: &Path) {
     }
     for (pointer, value) in [
         ("/schema", serde_json::json!("prismpm/hologram-oracle/1")),
-        ("/application_kappa", serde_json::json!("blake3:abc")),
+        ("/application_kappa", serde_json::json!("sha256:abc")),
+        // A well-formed BLAKE3 identity is a v4 identity; a v5 holo is named by SHA-256.
+        (
+            "/application_kappa",
+            serde_json::json!(format!("blake3:{}", "a".repeat(64))),
+        ),
         (
             "/archive_kappa",
-            serde_json::json!(format!("blake3:{}", "A".repeat(64))),
+            serde_json::json!(format!("sha256:{}", "A".repeat(64))),
         ),
         (
             "/archive_fingerprint",
-            serde_json::json!(format!("blake3:{}", "b".repeat(64))),
+            serde_json::json!(format!("sha256:{}", "b".repeat(64))),
         ),
         ("/footer_verified", serde_json::json!(false)),
         ("/guest_allocation_boundary", serde_json::json!("missing")),
@@ -3743,7 +3748,8 @@ fn verify_holo(root: &Path, id: &str) {
     match id {
         "HO-01" => {
             let holo = sample_application_holo(root);
-            assert_eq!(&holo.bytes[..6], b"HOLO\x04\0");
+            // ADR-017: an application holo is a UORC archive, version 2.1.
+            assert_eq!(&holo.bytes[..6], b"UORC\x02\x01");
             prismpm::holo::archive::validate_application(&holo.bytes).unwrap();
         }
         "HO-02" => {

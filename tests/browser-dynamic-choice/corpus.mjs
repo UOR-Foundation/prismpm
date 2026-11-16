@@ -45,8 +45,11 @@ export const labels = ['Application', 'Choose organization', 'Continue', 'Choose
   'Choose an available organization.', 'Skip to main content']
   .map((text, index) => ({id: 'label' + String(index).padStart(2, '0'), text}));
 export const designs = [[
-  [0xffffff, 0x161616, 0x555555, 0x005fcc, 0xffffff, 0xb00020, 0x005fcc, 0, 1000, 1500, 1000, 250, 72, 16, 48, 44],
-  [0x121212, 0xffffff, 0xcccccc, 0x9dc4ff, 0x121212, 0xffb4ab, 0x9dc4ff, 0, 1000, 1500, 1000, 250, 72, 16, 48, 44],
+  [0xffffff, 0x161616, 0x555555, 0x005fcc, 0xffffff, 0xb00020, 0x005fcc, 0, 1000, 1500, 1000, 250, 72, 16, 48, 44,
+    // card, muted, mutedText, hover, input, brand, brandText, success, warning
+    0xffffff, 0xf2f2f2, 0x555555, 0xe8e8e8, 0x767676, 0xe93b01, 0xb52f00, 0x1a7f37, 0x9a5b00],
+  [0x121212, 0xffffff, 0xcccccc, 0x9dc4ff, 0x121212, 0xffb4ab, 0x9dc4ff, 0, 1000, 1500, 1000, 250, 72, 16, 48, 44,
+    0x1e1e1e, 0x2a2a2a, 0xcccccc, 0x2a2a2a, 0x8a8a8a, 0xe93b01, 0xff8a65, 0x7ee2a8, 0xf2cc60],
 ]];
 export const semantic = value => {
   const copy = structuredClone(value); copy[6].push([0, [0, 0]]);
