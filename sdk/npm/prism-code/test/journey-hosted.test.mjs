@@ -283,7 +283,8 @@ test('a new app becomes a template instance: created from the template, written 
   const register = readFileSync(join(clone, 'model/ids.toml'), 'utf8');
   assert.match(register, /^# the register\n\nspec = "template\/1"\n\n\[\[id\]\]\nid = "FR-01"\nlevel = "build"\nsuite = "frame"\nstatement = "the frame"\n\n\[\[id\]\]\nid = "PA-01"/);
   assert.doesNotMatch(register, /TC-01/);
-  assert.match(readFileSync(join(clone, 'CONFORMANCE.md'), 'utf8'), /\n## payment_approval\n[\s\S]*\n## frame\n\n\| ID \| Level \| Statement \|\n\| --- \| --- \| --- \|\n\| `FR-01` \| `build` \| the frame \|\n\n## Cited authorities\n/);
+  // Sections in the order the template's generator writes them, by suite name: the gate regenerates the page and compares.
+  assert.match(readFileSync(join(clone, 'CONFORMANCE.md'), 'utf8'), /\n## frame\n\n\| ID \| Level \| Statement \|\n\| --- \| --- \| --- \|\n\| `FR-01` \| `build` \| the frame \|\n\n## payment_approval\n[\s\S]*\n\n## Cited authorities\n/);
   assert.ok(existsSync(join(clone, 'features/suites/payment_approval.feature')));
   // The app's test replaces the example's file, so the template's ratchet sees no new non-Prism file (measured on 2026-11-16).
   assert.match(readFileSync(join(clone, 'crates/conformance/tests/contract.rs'), 'utf8'), /^\/\/! The `payment_approval` suite/);

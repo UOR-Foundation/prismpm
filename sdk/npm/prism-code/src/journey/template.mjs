@@ -169,7 +169,11 @@ export function conformanceText(spec, current) {
   const kept = current.slice(start, end).split(/(?=\n## )/).filter((section) => !REPLACED_SUITES(spec).includes(/^\n## (\S+)/.exec(section)?.[1]));
   const rows = claims(spec).map((c) => `| \`${c.id}\` | \`build\` | ${c.statement.replace(/\|/g, '\\|').trim()} |`);
   const section = rows.length ? `\n## ${suiteOf(spec)}\n\n| ID | Level | Statement |\n| --- | --- | --- |\n${rows.join('\n')}\n` : '';
-  return `${current.slice(0, start)}${section}${kept.join('')}${current.slice(end)}`;
+  // In the order the template's generator writes them, by suite name, byte for byte: the gate
+  // regenerates this page from the register and refuses any difference (measured on 2026-11-16).
+  const suite = (s) => /^\n## (\S+)/.exec(s)[1];
+  const sections = [...kept, ...(section ? [section] : [])].map((s) => s.replace(/\n*$/, '\n')).sort((a, b) => (suite(a) < suite(b) ? -1 : suite(a) > suite(b) ? 1 : 0));
+  return `${current.slice(0, start)}${sections.join('')}${current.slice(end)}`;
 }
 
 /** The text of the rules, for the page's proposition. */
