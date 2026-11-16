@@ -1,0 +1,7 @@
+receipt 189bdc2e0d0ae4b7a6342e80bfcb45d9ca38b0ee743da7fa1efe354f782960eb pass
+obligation lint
+revision bd5245d1abdb1b7c3640605c78418b56c1df10d8
+sandbox prism/1 ghcr.io/uor-foundation/prismpm-sdk@sha256:d6c263a733a6bc36e0458c3f5b9a1f5ea9c14dfbe8c257d3f650a960b5fe633c 1000:1000 0022 tmp/prismpm-home tmp pinned
+peer runner
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/pull/694/merge
+run 43877576062-1
