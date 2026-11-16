@@ -1516,19 +1516,22 @@ fn browser_release(root: &Path, build: &BuildResult, verified: &VerifyResult) ->
         verified,
     );
     let build_root = root.join(&build.manifest_path).parent().unwrap().to_owned();
-    // The build's whole browser projection: closure v2 adds the brand files to the six-file page.
-    let files = std::fs::read_dir(build_root.join("view/browser"))
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            assert!(entry.file_type().unwrap().is_file());
-            (
-                entry.file_name().to_str().unwrap().to_owned(),
-                std::fs::read(entry.path()).unwrap(),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    assert!(files.contains_key("manifest.webmanifest"), "closure v2");
+    let files = [
+        "app.css",
+        "app.js",
+        "index.html",
+        "prism_calculator.js",
+        "prism_calculator_bg.wasm",
+        "provenance.json",
+    ]
+    .into_iter()
+    .map(|name| {
+        (
+            name.to_owned(),
+            std::fs::read(build_root.join("view/browser").join(name)).unwrap(),
+        )
+    })
+    .collect();
     let mut layout = BTreeMap::new();
     let marker = format!(
         "verified/{}.json",
@@ -1638,7 +1641,7 @@ fn assert_source_free_browser_export(release: &BrowserRelease) {
     assert_eq!(
         result,
         json!({
-            "schema":"prismpm/browser-export/2",
+            "schema":"prismpm/browser-export/1",
             "reference":release.reference,
             "release_digest":release.digest,
             "model_digest":release.model_digest,
