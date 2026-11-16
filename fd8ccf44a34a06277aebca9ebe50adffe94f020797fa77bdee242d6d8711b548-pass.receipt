@@ -1,0 +1,7 @@
+receipt fd8ccf44a34a06277aebca9ebe50adffe94f020797fa77bdee242d6d8711b548 pass
+obligation fixtures-golden
+revision 59bc670a84c19e1962ffc46ee98fb8feca323e44
+sandbox prism/1 ghcr.io/uor-foundation/prismpm-sdk@sha256:d6c263a733a6bc36e0458c3f5b9a1f5ea9c14dfbe8c257d3f650a960b5fe633c 1000:1000 0022 tmp/prismpm-home tmp pinned
+peer runner
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/pull/698/merge
+run 43862163588-1
