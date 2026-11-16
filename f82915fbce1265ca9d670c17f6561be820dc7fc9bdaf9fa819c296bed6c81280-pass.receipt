@@ -1,7 +1,7 @@
 receipt f82915fbce1265ca9d670c17f6561be820dc7fc9bdaf9fa819c296bed6c81280 pass
 obligation factory-model
-revision c6bf1e5c9366c90ed2e3c52ed1d88ac2afa0bac1
+revision 82520031731d1622c211e1dd1d7e62353de30c64
 sandbox prism/1 ghcr.io/uor-foundation/prismpm-sdk@sha256:d6c263a733a6bc36e0458c3f5b9a1f5ea9c14dfbe8c257d3f650a960b5fe633c 1000:1000 0022 tmp/prismpm-home tmp pinned
 peer runner
-workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/pull/689/merge
-run 43800123056-1
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/heads/claude/project-thread-vm659i
+run 43800131580-1
