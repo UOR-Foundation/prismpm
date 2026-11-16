@@ -21,6 +21,28 @@ export const LEAN_RESERVED = new Set([
   'axiom', 'example', 'abbrev', 'universe', 'local', 'private', 'protected', 'noncomputable', 'partial', 'unsafe', 'macro', 'syntax', 'calc', 'suffices', 'obtain', 'this', 'fields', 'value', 'request', 'text', 'number', 'code', 'type', 'prop', 'sort',
 ]);
 
+/**
+ * Module names LexLean refuses (LLT4001): a module is a namespace of the project, which Lean
+ * searches first, so one spelled like a namespace the generated code writes qualified would
+ * capture it. LexLean's own lists (`BACKEND_BARE_NAMES` and `QUALIFIED_NAMESPACES` in
+ * `vendor/lexlean/src/ir/semantic.rs`, the shipped, library and reserved roots in
+ * `vendor/lexlean/src/config.rs`); a test holds this set to them. Measured on 2026-11-16: an app
+ * titled "Result" was refused at the proof, as a Prism bug.
+ */
+export const RESERVED_MODULE_NAMES = new Set([
+  'And', 'BitVec', 'Bool', 'ByteArray', 'Except', 'Iff', 'Int', 'Int16', 'Int32', 'Int64', 'Int8', 'List', 'Nat', 'Option', 'Ordering', 'Prod', 'Prop', 'Result', 'String', 'Type',
+  'UInt16', 'UInt32', 'UInt64', 'UInt8', 'Unit',
+  'All', 'Appendable', 'Char', 'Classical', 'Decimal', 'Eq', 'Exists', 'Fixed', 'Indexable', 'Key', 'Lean', 'Lengthable', 'Not', 'Or', 'Ord', 'Quotient', 'Sliceable', 'Star', 'Std',
+  'Subtype', 'ToMathInt', 'True',
+  'Init', 'Lake', 'LakeMain', 'LeanChecker', 'LeanIR', 'IO',
+]);
+
+/** The app's module: its name in PascalCase, with `App` after it where that name is one LexLean refuses. */
+export function moduleName(spec) {
+  const base = pascal(spec.name ?? '') || 'App';
+  return RESERVED_MODULE_NAMES.has(base) || /^LexLean/.test(base) ? `${base}App` : base;
+}
+
 export const pascal = (word) => word.split(/[^a-z0-9]+/i).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
 export const camel = (word) => {
   const p = pascal(word);
@@ -44,7 +66,7 @@ export function names(spec) {
     used.add(name);
     return name;
   };
-  const module = pascal(spec.name) || 'App';
+  const module = moduleName(spec);
   const fields = {};
   for (const f of spec.fields) {
     const id = claim(camel(f.name));
@@ -470,7 +492,7 @@ function firstRequests(spec) {
 export function renderSpecDocument(spec, status = {}) {
   if (isStateful(spec)) return renderStatefulSpecDocument(spec, status);
   const n = names(spec);
-  const badge = (id) => ({ proved: 'proved by Lean for every request', failing: 'not proved: see the counterexample', tested: 'tested only' })[status.properties?.[id]] ?? 'to be proved by Lean for every request';
+  const badge = (id) => ({ proved: 'proved by Lean for every request', failing: 'not proved: see the counterexample', tested: 'tested only', 'kernel-checked': 'checked by the Lean kernel for every request in the bounds' })[status.properties?.[id]] ?? 'to be proved by Lean for every request';
   const because = (why) => (why ? `, because ${why.replace(/[.]$/, '')}` : '');
   const plural = (k, one) => `${k} ${one}${k === 1 ? '' : 's'}`;
   // Every rule asks for a request it decides, among the same candidates and with the same judge:

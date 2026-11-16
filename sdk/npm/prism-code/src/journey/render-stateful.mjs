@@ -23,7 +23,7 @@
  * bytes.
  */
 import { INVALID, MAX_DIGITS } from './spec.mjs';
-import { LEAN_RESERVED, QP, camel, conjunction, describedBy, hex, moduleText, pascal, quote, stem, withAxioms } from './render.mjs';
+import { LEAN_RESERVED, QP, camel, conjunction, describedBy, hex, moduleName, moduleText, pascal, quote, stem, withAxioms } from './render.mjs';
 import {
   SESSION_BYTES,
   act,
@@ -51,7 +51,7 @@ export function statefulNames(spec) {
     used.add(name);
     return name;
   };
-  const module = pascal(spec.name) || 'App';
+  const module = moduleName(spec);
   const width = Math.max(0, ...spec.actions.map((a) => a.inputs.length));
   const args = Array.from({ length: width }, (_, i) => claim(`moveArg${i + 1}`));
   const state = {};
@@ -442,7 +442,7 @@ export function statefulAcceptanceVectors(spec) {
 /** SPEC.md for a stateful app, in the OpenSpec format, each requirement marked proved or tested. */
 export function renderStatefulSpecDocument(spec, status = {}) {
   const n = statefulNames(spec);
-  const badge = (id) => ({ proved: 'proved by Lean for every reachable state', failing: 'not proved: see the counterexample', tested: 'tested only' })[status.properties?.[id]] ?? 'to be proved by Lean for every reachable state';
+  const badge = (id) => ({ proved: 'proved by Lean for every reachable state', failing: 'not proved: see the counterexample', tested: 'tested only', 'kernel-checked': 'checked by the Lean kernel for every request in the bounds' })[status.properties?.[id]] ?? 'to be proved by Lean for every reachable state';
   const because = (why) => (why ? `, because ${why.replace(/[.]$/, '')}` : '');
   const accepts = (f) => (f.kind === 'choice' ? f.values.map((v) => `\`${v}\``).join(', ') : `whole number${f.min !== undefined ? ` from ${f.min}` : ''}${f.max !== undefined ? ` up to ${f.max}` : ''}`);
   const start = initialState(spec);

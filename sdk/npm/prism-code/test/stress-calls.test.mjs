@@ -209,12 +209,39 @@ test('lines that are not requests are answered as the protocol says, and the ser
   }
 });
 
+test('with no Docker at all and nothing set, a rule app is still checked, built and answered from (#692)', async () => {
+  const cwd = project();
+  const server = startServer(cwd, { env: { PRISM_DOCKER: join(cwd, 'no-such-docker'), PRISM_DOCKER_MOUNT: 'native' } });
+  try {
+    await server.call('prism_start', { restart: true });
+    await server.call('prism_spec', { spec: SHIPPING_DRAFT });
+    await server.call('prism_answer', { answer: 'yes' });
+    const proved = (await until(server, 'prism_prove')).answer;
+    assert.equal(proved.data.ok, true, proved.text);
+    assert.equal(proved.data.where, 'kernel');
+    assert.ok(proved.data.properties.every((p) => p.status === 'kernel-checked'));
+    const built = (await until(server, 'prism_build')).answer;
+    assert.equal(built.data.ok, true, built.text);
+    assert.equal(built.data.where, 'kernel');
+    assert.equal(built.data.vectors.passed, built.data.vectors.total);
+    assert.match(built.text, /with no SDK image and nothing compiled/);
+    const status = await server.call('prism_status');
+    assert.equal(status.data.holo, null);
+    assert.equal(status.data.proved, null);
+    assert.equal(status.data.ruleApp.address, built.data.address);
+    const tried = await server.call('prism_try', { request: SHIPPING_DRAFT.examples?.[0]?.request ?? status.data.ruleApp.address });
+    assert.ok(tried.data.from === 'the built app (the rule judge)' || tried.data.answer === 'invalid', tried.text);
+  } finally {
+    await server.close();
+  }
+});
+
 test('no failure of a proof or a build comes back without saying what happened and what to do', async () => {
   const outcomes = [];
-  // Docker not there at all.
+  // Docker not there at all, for an app that is asked to be proved in the SDK image.
   {
     const cwd = project();
-    const server = startServer(cwd, { env: { PRISM_DOCKER: join(cwd, 'no-such-docker'), PRISM_DOCKER_MOUNT: 'native' } });
+    const server = startServer(cwd, { env: { PRISM_DOCKER: join(cwd, 'no-such-docker'), PRISM_DOCKER_MOUNT: 'native', PRISM_CODE_TIER: 'local' } });
     await server.call('prism_start', { restart: true });
     await server.call('prism_spec', { spec: SHIPPING_DRAFT });
     await server.call('prism_answer', { answer: 'yes' });
@@ -248,4 +275,28 @@ test('no failure of a proof or a build comes back without saying what happened a
   }
   // A stopped environment is never called a Prism bug.
   for (const [label, answer] of outcomes.filter(([l]) => /cut/.test(l))) assert.doesNotMatch(answer.text, /Prism bug/, label);
+});
+
+test('a GitHub build with nowhere to build asks where at once, and a repository passed to a running build is not silently ignored', async () => {
+  // Measured on 2026-11-16: the question came after minutes of proving, and the repository then
+  // passed joined that build and was ignored.
+  const cwd = project();
+  const server = startServer(cwd, { env: fakeDocker(cwd, { prove: 'ok', build: 'ok', buildMs: 3000 }) });
+  try {
+    await server.call('prism_start', { restart: true });
+    await server.call('prism_spec', { spec: SHIPPING_DRAFT });
+    await server.call('prism_answer', { answer: 'yes' });
+    const asked = await server.call('prism_build', { remote: 'github', wait: 0 });
+    assert.equal(asked.data.needs, 'repository', asked.text);
+    assert.match(asked.data.message, /it needs a GitHub repository, and there is none yet/);
+    assert.ok(asked.ms < 30000, `${asked.ms} ms: no proof was started before asking`);
+    assert.equal(existsSync(join(cwd, 'docker.log')), false, 'nothing ran in the image');
+    // A local build is running; a call naming a repository is told it is not applied.
+    await server.call('prism_build', { wait: 0 });
+    const named = await server.call('prism_build', { repository: 'octo/prism-shipping-method', wait: 0 });
+    assert.equal(named.data.state, 'running');
+    assert.match(named.data.next, /is still running, and octo\/prism-shipping-method is not applied to it\. Call prism_build again with repository octo\/prism-shipping-method once it returns\./);
+  } finally {
+    await server.close();
+  }
 });
