@@ -8,13 +8,15 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 
 ## [0.9.5](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.9.4...prism-code-v0.9.5) (2026-11-16)
 
-
 ### Features Added
 
 * **prism-code:** a rule app's page asks for every module at once and keeps its kernel's library load as an image ([#709](https://github.com/UOR-Foundation/prismpm/issues/709)) ([ed8c819](https://github.com/UOR-Foundation/prismpm/commit/ed8c819c539956b6b730171769553c34b0c56009))
 * **prism-code:** a rule app's page reuses what this browser already fetched and proved ([#706](https://github.com/UOR-Foundation/prismpm/issues/706)) ([4dc9e88](https://github.com/UOR-Foundation/prismpm/commit/4dc9e8866791658b858d4cc58050fa7e82579934))
 * **prism-code:** prove and build a rule app with no Docker, modelled in LexLean ([#692](https://github.com/UOR-Foundation/prismpm/issues/692)) ([#694](https://github.com/UOR-Foundation/prismpm/issues/694)) ([81af326](https://github.com/UOR-Foundation/prismpm/commit/81af3265299fac2f25949c70a10a76d77727351a))
 
+### Breaking Changes
+
+None.
 
 ### Bugs Fixed
 
