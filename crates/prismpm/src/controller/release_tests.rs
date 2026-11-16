@@ -1516,22 +1516,14 @@ fn browser_release(root: &Path, build: &BuildResult, verified: &VerifyResult) ->
         verified,
     );
     let build_root = root.join(&build.manifest_path).parent().unwrap().to_owned();
-    let files = [
-        "app.css",
-        "app.js",
-        "index.html",
-        "prism_calculator.js",
-        "prism_calculator_bg.wasm",
-        "provenance.json",
-    ]
-    .into_iter()
-    .map(|name| {
-        (
-            name.to_owned(),
-            std::fs::read(build_root.join("view/browser").join(name)).unwrap(),
-        )
-    })
-    .collect();
+    // Closure v2: the six-file page, the brand files and the web app manifest.
+    let files = crate::brand::closure_v2("prism_calculator")
+        .into_iter()
+        .map(|name| {
+            let bytes = std::fs::read(build_root.join("view/browser").join(&name)).unwrap();
+            (name, bytes)
+        })
+        .collect();
     let mut layout = BTreeMap::new();
     let marker = format!(
         "verified/{}.json",
@@ -1641,7 +1633,7 @@ fn assert_source_free_browser_export(release: &BrowserRelease) {
     assert_eq!(
         result,
         json!({
-            "schema":"prismpm/browser-export/1",
+            "schema":"prismpm/browser-export/2",
             "reference":release.reference,
             "release_digest":release.digest,
             "model_digest":release.model_digest,
