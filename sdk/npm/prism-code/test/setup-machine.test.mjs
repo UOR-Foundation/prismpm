@@ -321,6 +321,9 @@ test('the prove refusal for a missing image names a command that pulls that imag
     // Follow the advice from a folder that is no project, as a user in their home folder would.
     rmSync(pulled, { force: true });
     const followed = spawnSync(process.execPath, [bin, ...named[1].split(' ')], { cwd: scratch('prism-machine-elsewhere-'), env, encoding: 'utf8' });
+    // Found on macOS CI, 2026-11-16: the advice ran a whole setup, whose holo:// handler failed and made it exit 1
+    // although the image was pulled. Getting an image is the machine's half only: no agent, no handler, no skill.
+    assert.doesNotMatch(followed.stdout, /your agents|holo:\/\/|skills/, `${named[1]} does more than get the image`);
     assert.equal(followed.status, 0, `${named[1]} exited ${followed.status}:\n${followed.stdout}${followed.stderr}`);
     assert.equal(readText(pulled), `${image}\n`, `${named[1]} pulls the image the refusal asked for`);
   }
