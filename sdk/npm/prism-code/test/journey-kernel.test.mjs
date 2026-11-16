@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compile } from '../src/journey/session.mjs';
 import { appDir, readSession } from '../src/journey/project.mjs';
-import { prove, proveWhere } from '../src/journey/engine.mjs';
+import { beyondKernel, kernelReads, prove, proveWhere } from '../src/journey/engine.mjs';
 import { KERNEL_AXIOMS, KernelUnread, WORD_MAX, kernelProve, readPinned, ruleWords } from '../src/journey/kernel-prove.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
@@ -35,11 +35,32 @@ function app(answers) {
   return { dir, session: { ...readSession(dir), spec: specOf(answers), axioms: {}, status: {} } };
 }
 
-test('where the proof runs: only PRISM_CODE_TIER=kernel chooses the kernel in this process', () => {
+test('where the proof runs: a rule app the judge reads goes to the kernel in this process, with nothing set', () => {
   const { dir, session } = app(PARKING);
+  assert.equal(kernelReads(session.spec), true);
+  assert.equal(proveWhere(dir, session, { env: {} }), 'kernel');
   assert.equal(proveWhere(dir, session, { env: { PRISM_CODE_TIER: 'kernel' } }), 'kernel');
-  assert.equal(proveWhere(dir, session, { env: {} }), 'local');
+  // The user can still name the SDK image or the hosted verifier, and Prism never picks the hosted one.
+  assert.equal(proveWhere(dir, session, { env: { PRISM_CODE_TIER: 'local' } }), 'local');
   assert.equal(proveWhere(dir, session, { env: { PRISM_CODE_TIER: 'hosted' } }), 'hosted');
+  // An app the judge does not read is proved in the SDK image, as before.
+  const other = app(PAYMENT);
+  assert.equal(kernelReads(other.session.spec), false);
+  assert.equal(proveWhere(other.dir, other.session, { env: {} }), 'local');
+  assert.equal(proveWhere(other.dir, other.session, { env: { PRISM_CODE_TIER: 'kernel' } }), 'kernel');
+});
+
+test('planted defect K5: only an answer that is no verdict falls back to the SDK image, never a false guarantee', () => {
+  const unknown = { ok: false, properties: [{ status: 'kernel-checked' }, { status: 'unknown' }] };
+  const failing = { ok: false, properties: [{ status: 'failing' }, { status: 'unknown' }] };
+  assert.equal(beyondKernel(unknown), true);
+  assert.equal(beyondKernel({ ok: false, code: 'kernel.unavailable' }), true);
+  assert.equal(beyondKernel({ ok: false, code: 'kernel.refused' }), true);
+  // A guarantee a request breaks is the user's to fix: the SDK image would only say so more slowly.
+  assert.equal(beyondKernel(failing), false);
+  assert.equal(beyondKernel({ ok: true, properties: [{ status: 'kernel-checked' }] }), false);
+  // A spec the judge does not read never reaches the kernel by default, so its refusal is only seen when named.
+  assert.equal(beyondKernel({ ok: false, code: 'kernel.two-fields' }), false);
 });
 
 test('a spec is written as the numbers the rule judge reads, the same numbers every time', () => {
@@ -83,7 +104,7 @@ test("Lean's kernel accepts every guarantee of a rule app, on the lemma's axioms
   assert.deepEqual(r.properties.map((p) => p.status), ['kernel-checked', 'kernel-checked', 'kernel-checked']);
   assert.match(r.message, /^Lean's kernel accepted all 3 guarantees for every request in the fields' bounds, in [\d.]+ s\. /);
   // Planted defect K4: the kernel route never calls its answer the proof of the built app.
-  assert.match(r.message, /It is not yet the proof of the built app/);
+  assert.match(r.message, /It is not a proof of the rendered model/);
   assert.doesNotMatch(r.message, /Lean proved/);
   assert.equal(session.status.proved, undefined);
   assert.deepEqual(session.status.properties, { 'INV-001': 'kernel-checked', 'INV-002': 'kernel-checked', 'INV-003': 'kernel-checked' });
@@ -134,7 +155,8 @@ test('a spec the route does not read sends the user to the SDK image, and record
   const r = await prove(dir, session, { where: 'kernel' });
   assert.equal(r.ok, false);
   assert.equal(r.code, 'kernel.two-fields');
-  assert.match(r.message, /^Lean's kernel in this process cannot read this spec: it compares `amount` with another field.* unset PRISM_CODE_TIER and call prism_prove again\.$/);
+  assert.match(r.message, /^Lean's kernel in this process cannot read this spec: it compares `amount` with another field.* call prism_prove again\.$/);
+  assert.match(r.message, /set PRISM_CODE_TIER=local/);
   assert.equal(session.status.properties, undefined);
   assert.equal(session.status.kernelChecked, undefined);
 });

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compile } from '../src/journey/session.mjs';
 import { appDir, readSession } from '../src/journey/project.mjs';
-import { build } from '../src/journey/engine.mjs';
+import { build, tryRequest } from '../src/journey/engine.mjs';
 import { respond } from '../src/journey/spec.mjs';
 import { RULE_APP_SCHEMA, RULE_JUDGE_HOLO, RuleAppRefused, loadRuleApp, pinnedHolo, ruleAppRecord } from '../src/journey/rule-app.mjs';
 
@@ -62,7 +62,8 @@ test('the same spec gives the same record, byte for byte, and another spec gives
 test('a build with PRISM_CODE_TIER=kernel writes the app with no SDK image, and it answers as the rules do', { timeout: 120000 }, async () => {
   const { dir, session } = app();
   const lines = [];
-  const r = await build(dir, session, { env: KERNEL, log: (l) => lines.push(l) });
+  // Nothing is set: a rule app the judge reads takes this route on its own.
+  const r = await build(dir, session, { env: {}, log: (l) => lines.push(l) });
   assert.equal(r.ok, true, r.message);
   assert.equal(r.where, 'kernel');
   assert.equal(r.holo, RULE_JUDGE_HOLO);
@@ -70,7 +71,7 @@ test('a build with PRISM_CODE_TIER=kernel writes the app with no SDK image, and 
   assert.ok(r.vectors.total >= 10);
   assert.match(r.message, /^Built in [\d.]+ s with no SDK image and nothing compiled: .* Lean's kernel accepted all 3 guarantees for that rule judge\. Tested: \d+ of \d+ acceptance vectors pass through it\./);
   // Planted defect R6: the route never passes its record off as a holo, or its check as the model's proof.
-  assert.match(r.message, /refusing malformed text is tested, not proved\. This is not a holo/);
+  assert.match(r.message, /refusing malformed text is tested, not proved\. This is not a holo: prism_try answers from it/);
   assert.equal(session.status.holo, undefined);
   assert.equal(session.status.proved, undefined);
   assert.equal(session.status.ruleApp.address, r.address);
@@ -95,6 +96,12 @@ test('a build with PRISM_CODE_TIER=kernel writes the app with no SDK image, and 
   for (const text of ['25 car', '3 bus', '', '3', '3 car car', '3  car', '03 car', '-1 car', 'x car']) assert.equal(dec.decode(await loaded.dispatch(enc.encode(text))), 'invalid', text);
   assert.equal(dec.decode(await loaded.dispatch(Uint8Array.of(0xff))), 'invalid');
   assert.equal(dec.decode(await loaded.dispatch(enc.encode('x'.repeat(600)))), 'invalid');
+  // prism_try answers from the record, and from the spec again once the spec has moved on.
+  const tried = await tryRequest(session, '10 car');
+  assert.deepEqual(tried, { request: '10 car', answer: 'premium', from: 'the built app (the rule judge)', decidedBy: 'REQ-004', agreesWithSpec: true });
+  assert.equal((await tryRequest(session, '25 car')).answer, 'invalid');
+  const moved = { ...session, spec: { ...session.spec, rules: session.spec.rules.map((rule, i) => (i === 3 ? { ...rule, when: [{ ...rule.when[0], value: 12 }] } : rule)) } };
+  assert.deepEqual(await tryRequest(moved, '10 car'), { request: '10 car', answer: 'standard', from: 'the spec (not built yet)', decidedBy: 'otherwise' });
   // The record is the one the spec gives, so a second machine writes the same file.
   assert.deepEqual(Buffer.from(written), Buffer.from(ruleAppRecord(session.spec, { proof: loaded.record.proof }).bytes));
 });

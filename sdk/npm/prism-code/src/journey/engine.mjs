@@ -20,6 +20,7 @@ import { TEMPLATE_EXAMPLE, appJson, conformanceText, featureText, idsToml, lexle
 import { VERSION } from '../version.mjs';
 import { gapLedger, propertyShape } from '../gaps.mjs';
 import { checkSpecBinding } from './binding.mjs';
+import { ruleWords } from './kernel-prove.mjs';
 
 const PROVE_SCRIPT_FULL = [
   'echo "@@step prelock"; lexlean lock 2>&1; code=$?; echo "@@exit prelock $code"; [ $code -eq 0 ] || exit $code',
@@ -35,15 +36,34 @@ const MAX_AXIOM_ROUNDS = 8;
 const imageFor = (dir, session) => (isBound(dir) ? imageOf(dir) : session.image ?? DEFAULT_SDK_IMAGE);
 
 /**
- * Where Lean proves the app: always `local`, in the SDK image on this machine.
- * Only `PRISM_CODE_TIER=hosted` sends the model to the UOR MCP server, which
- * stores it unlisted, not privately; Prism never chooses that on its own.
- * `PRISM_CODE_TIER=kernel` checks the rules with Lean's kernel in this
- * process (kernel-prove.mjs): no image, nothing sent, and a narrower claim.
+ * Whether the rule judge reads this spec, so Lean's kernel can check it in
+ * this process and the app needs no build (kernel-prove.mjs, rule-app.mjs).
+ */
+export function kernelReads(spec) {
+  try {
+    ruleWords(spec);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where the app's guarantees are checked. A rule app the rule judge reads is
+ * `kernel`: Lean's kernel, in this process, with no SDK image and nothing
+ * sent. Any other app is `local`, in the SDK image on this machine.
+ * `PRISM_CODE_TIER` names one instead: `local`, `kernel`, or `hosted`, which
+ * sends the model to the UOR MCP server and stores it unlisted, not
+ * privately; Prism never chooses that on its own.
  */
 export function proveWhere(dir, session, { env = process.env } = {}) {
-  return env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : env.PRISM_CODE_TIER === 'kernel' ? 'kernel' : 'local';
+  const tier = env.PRISM_CODE_TIER;
+  if (tier === 'hosted' || tier === 'kernel' || tier === 'local') return tier;
+  return session?.spec && kernelReads(session.spec) ? 'kernel' : 'local';
 }
+
+/** A kernel answer that is no verdict on the app: the kernel did not run, or a guarantee is beyond this route. The SDK image can still prove it. */
+export const beyondKernel = (r) => !r.ok && (r.code === 'kernel.unavailable' || r.code === 'kernel.refused' || ((r.properties ?? []).some((p) => p.status === 'unknown') && !(r.properties ?? []).some((p) => p.status === 'failing')));
 
 /**
  * Where the app is built: always `local`, in the SDK image on this machine,
@@ -84,12 +104,18 @@ const tail = (text, n = 25) => String(text).split(/\r?\n/).filter((l) => !l.star
  * with each property `proved`, `failing` or `unknown`. `gaps` is the ledger a
  * failure that is Prism's or Lean's, not the user's, is recorded in (gaps.mjs).
  */
-export async function prove(dir, session, { log = () => {}, overwrite = false, where = null, client = null, gaps = gapLedger() } = {}) {
+export async function prove(dir, session, { log = () => {}, overwrite = false, where = null, client = null, gaps = gapLedger(), env = process.env } = {}) {
   const first = writeApp(dir, session, { overwrite });
   if (first.edited) return { ok: false, edited: true, message: `${relative(dir, first.path)} was edited by hand since Prism wrote it. Call the same tool again with overwrite: true to replace it from the spec, or change the spec to match.` };
-  where ??= proveWhere(dir, session);
+  // A route the caller or the user named is kept; one Prism chose may fall back to the SDK image.
+  const named = where !== null || env.PRISM_CODE_TIER === 'kernel';
+  where ??= proveWhere(dir, session, { env });
   if (where === 'hosted') return proveHosted(dir, session, { log, client, gaps });
-  if (where === 'kernel') return proveKernel(dir, session, { log });
+  if (where === 'kernel') {
+    const checked = await proveKernel(dir, session, { log });
+    if (named || !beyondKernel(checked)) return checked;
+    log("Lean's kernel in this process could not settle every guarantee, so Lean proves the model in the SDK image instead.");
+  }
   const ready = await prepare(dir, session, log);
   if (!ready.ok) return { ok: false, message: ready.message };
   overwrite = true;
@@ -203,7 +229,7 @@ async function proveHosted(dir, session, { log, client, gaps }) {
 }
 
 /** What the kernel route does not claim, said with every answer it gives. */
-const KERNEL_SCOPE = 'This checks the rules as the rule judge reads them, in this process, with no SDK image. It is not yet the proof of the built app: prism_prove without PRISM_CODE_TIER=kernel proves the model.';
+const KERNEL_SCOPE = 'This checks the rules as the rule judge reads them, in this process, with no SDK image. prism_build makes the app that rule judge, so the check is about the app it builds. It is not a proof of the rendered model: PRISM_CODE_TIER=local proves that in the SDK image.';
 
 /**
  * The check with Lean's kernel in this process: no Docker, no image, nothing
@@ -220,9 +246,9 @@ async function proveKernel(dir, session, { log }) {
   try {
     result = await kernelProve(spec);
   } catch (error) {
-    if (error instanceof KernelUnread) return { ok: false, where: 'kernel', code: error.code, message: `Lean's kernel in this process cannot read this spec: ${error.message}. Prove it in the SDK image instead: unset PRISM_CODE_TIER and call prism_prove again.` };
+    if (error instanceof KernelUnread) return { ok: false, where: 'kernel', code: error.code, message: `Lean's kernel in this process cannot read this spec: ${error.message}. Prove it in the SDK image instead: set PRISM_CODE_TIER=local and call prism_prove again.` };
     // The kernel not running says nothing about the app, so it is never reported as a failed proof.
-    return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app. Unset PRISM_CODE_TIER and call prism_prove again to prove it in the SDK image.` };
+    return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app. Set PRISM_CODE_TIER=local and call prism_prove again to prove it in the SDK image.` };
   }
   rememberModel(dir, session);
   const seconds = Math.round(result.ms / 100) / 10;
@@ -238,7 +264,7 @@ async function proveKernel(dir, session, { log }) {
   } catch (error) {
     verdict = { ok: false, code: error.code ?? 'verdictRuntimeFailed' };
   }
-  if (!verdict.ok) return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `The verdict guest gave no verdict (${verdict.code}). This says nothing about the app. Unset PRISM_CODE_TIER and call prism_prove again to prove it in the SDK image.` };
+  if (!verdict.ok) return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `The verdict guest gave no verdict (${verdict.code}). This says nothing about the app. Set PRISM_CODE_TIER=local and call prism_prove again to prove it in the SDK image.` };
   if (refused.length === 0 && verdict.verdict !== 'proved') return { ok: false, where: 'kernel', code: 'kernel.refused', message: `Lean's kernel accepted every guarantee, and the verdict guest answered ${verdict.verdict}: a pinned address, the statement or the axioms (${result.evidence.axioms.join(', ') || 'none'}) are not the declared ones. Nothing is recorded.` };
   result.evidence.verdict = verdict.verdict;
   const broken = new Map(refused.map((p) => [p.id, counterexample(spec, p)]));
@@ -263,7 +289,7 @@ async function proveKernel(dir, session, { log }) {
     const found = broken.get(p.id);
     return found.request !== null
       ? `${p.id} is false. The request \`${found.request}\` meets "${describeConditions(p.when)}" and the rules answer ${found.outcome} (${found.rule ?? 'otherwise'}).`
-      : `Lean's kernel did not accept ${p.id} ("${p.says}"), and none of ${found.checked} sampled requests breaks it. This route cannot yet prove every true guarantee, one that says "is not" among them, so this is not a verdict on ${p.id}. Unset PRISM_CODE_TIER and call prism_prove again to prove it in the SDK image.`;
+      : `Lean's kernel did not accept ${p.id} ("${p.says}"), and none of ${found.checked} sampled requests breaks it. This route cannot yet prove every true guarantee, one that says "is not" among them, so this is not a verdict on ${p.id}. Set PRISM_CODE_TIER=local and call prism_prove again to prove it in the SDK image.`;
   });
   return { ok: false, seconds, where: 'kernel', properties, message: `${explained.join('\n')}\n${KERNEL_SCOPE}`, next: refused.some((p) => broken.get(p.id).request !== null) ? 'Change a rule or restate the property (prism_answer with step rules or properties), then prove again.' : undefined };
 }
@@ -309,7 +335,7 @@ async function buildKernel(dir, session, { log, overwrite }) {
     holo: app.record.kernel.holo,
     vectors: { passed: acceptance.passed, total: acceptance.total },
     message: ok
-      ? `Built in ${seconds} s with no SDK image and nothing compiled: the app is the verified rule judge and this spec's numbers, named together as ${address}. Lean's kernel accepted ${count === 0 ? 'no guarantee, because none is stated' : `all ${count} guarantee${count === 1 ? '' : 's'}`} for that rule judge. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it. The text of a request is read outside the guest, so refusing malformed text is tested, not proved. This is not a holo: prism_try and publishing still need a build in the SDK image (unset PRISM_CODE_TIER).`
+      ? `Built in ${seconds} s with no SDK image and nothing compiled: the app is the verified rule judge and this spec's numbers, named together as ${address}. Lean's kernel accepted ${count === 0 ? 'no guarantee, because none is stated' : `all ${count} guarantee${count === 1 ? '' : 's'}`} for that rule judge. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it. The text of a request is read outside the guest, so refusing malformed text is tested, not proved. This is not a holo: prism_try answers from it, a build on GitHub (name a repository) makes a holo there, and PRISM_CODE_TIER=local builds one in the SDK image.`
       : `Written, but ${acceptance.failed.length} of ${acceptance.total} acceptance vectors fail through the rule judge. That is a Prism bug: the evaluator and the rule judge disagree.`,
   };
 }
@@ -383,11 +409,18 @@ function codeOf(diagnostics, p, byTheorem, source) {
  * Docker and no SDK image are needed here.
  */
 export async function build(dir, session, { log = () => {}, overwrite = false, remote = null, root = null, repository = null, env = process.env, gaps = gapLedger() } = {}) {
-  // Asked for by name only, and never for a GitHub build: the rule app with no build (rule-app.mjs).
-  if (env.PRISM_CODE_TIER === 'kernel' && !remote && !repository) return buildKernel(dir, session, { log, overwrite });
+  // A rule app the rule judge reads needs no build (rule-app.mjs). Never for a GitHub build, which makes a holo there.
+  const tier = env.PRISM_CODE_TIER;
+  if (!remote && !repository && (tier === 'kernel' || (tier !== 'local' && tier !== 'hosted' && session.spec && kernelReads(session.spec)))) {
+    const made = await buildKernel(dir, session, { log, overwrite });
+    if (tier === 'kernel' || !(made.stage === 'prove' && beyondKernel(made))) return made;
+    log("Lean's kernel in this process could not settle every guarantee, so the app is proved and built in the SDK image instead.");
+  }
+  // From here the app is a holo built from the rendered model, so the proof is the model's.
+  const modelWhere = tier === 'hosted' ? 'hosted' : 'local';
   const proved = session.status.proved && session.status.proved.modelSha === session.status.modelSha && existsSync(modelPath(dir, session.spec)) && session.status.lastSpec === JSON.stringify(session.spec);
   if (!proved) {
-    const p = await prove(dir, session, { log, overwrite, gaps });
+    const p = await prove(dir, session, { log, overwrite, gaps, where: modelWhere, env });
     session.status.lastSpec = JSON.stringify(session.spec);
     writeSession(dir, session);
     if (!p.ok) return { ...p, stage: 'prove' };
@@ -657,6 +690,20 @@ export async function tryRequest(session, request) {
     const app = await fromFile(session.status.holo);
     const answer = new TextDecoder().decode(await app.dispatch(bytes));
     return { request, answer, from: 'the built app', decidedBy: why, agreesWithSpec: answer === expected };
+  }
+  const record = session.status.ruleApp;
+  if (record?.path && existsSync(record.path)) {
+    const { loadRuleApp, ruleAppRecord } = await import('./rule-app.mjs');
+    try {
+      const app = await loadRuleApp(readFileSync(record.path));
+      // A record written for an earlier spec is not this app: answer from the spec until it is built again.
+      if (ruleAppRecord(session.spec, { proof: app.record.proof }).address === app.address) {
+        const answer = new TextDecoder().decode(await app.dispatch(bytes));
+        return { request, answer, from: 'the built app (the rule judge)', decidedBy: why, agreesWithSpec: answer === expected };
+      }
+    } catch {
+      // A record that is refused answers nothing; the spec still can.
+    }
   }
   return { request, answer: expected, from: 'the spec (not built yet)', decidedBy: why };
 }
