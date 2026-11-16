@@ -61,7 +61,19 @@ test('a build writes the page beside the app, and the page carries the record, t
   // The same record gives the same files, byte for byte.
   const again = writeRuleAppSite(join(dir, '.prism', 'site-again'), at('app.rule-app.json'));
   for (const file of again.files) assert.deepEqual(readFileSync(join(again.directory, file)), at(file), file);
-  assert.equal(again.files.length, 4 + browserClosure().length);
+  assert.equal(again.files.length, 4 + browserClosure().length + 5);
+  // Planted defect P2: the page proves the guarantees itself. It carries Lean's kernel and library, the pinned bytes,
+  // and the same writer of proof terms this package runs, and it does not take the record's word for the proof.
+  const manifest = JSON.parse(at('kernel/manifest.json'));
+  for (const name of [manifest.glue.file, manifest.wasm.file, manifest.library.file]) assert.deepEqual(at(`kernel/${name}`), readFileSync(new URL(`./fixtures/kernel/${name}`, import.meta.url)), name);
+  assert.deepEqual(at('prism-code/src/journey/kernel-terms.mjs'), readFileSync(new URL('../src/journey/kernel-terms.mjs', import.meta.url)));
+  assert.ok(!/\bfrom\s*['"]node:/.test(at('prism-code/src/journey/kernel-terms.mjs').toString('utf8')));
+  assert.match(script, /import \{ HOLDS, KERNEL_AXIOMS, proofLines, readLibrary \} from '\.\/prism-code\/src\/journey\/kernel-terms\.mjs';/);
+  assert.match(script, /const accepted = await prove\(app\.record\);/);
+  assert.match(script, /'Proved here by Lean\\'s kernel, in this browser: '/);
+  assert.match(script, /if \(g !== manifest\.glue\.sha256 \|\| w !== manifest\.wasm\.sha256 \|\| l !== manifest\.library\.sha256\) throw/);
+  // Before its own proof is done the page says it is proving, never that anything is proved.
+  assert.ok(!script.includes("'Checked by Lean"));
 });
 
 test('a title cannot write markup into the page, and an app whose guarantee fails gets no page', { timeout: 120000 }, async () => {

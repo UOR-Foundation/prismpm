@@ -12,6 +12,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readKernelFile } from './kernel-store.mjs';
 import { ANSWER, RULE_APP_SCHEMA, admits, answerKind, greatestAt, kernelChecked, leastAt, pinnedHolo, rulesAt } from './rule-app.mjs';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -37,6 +38,7 @@ const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&am
 function startScript() {
   return `// Written by prism-code. The record decides nothing here: the functions below do, and they are the package's own.
 import { load } from './prism-code/src/browser.mjs';
+import { HOLDS, KERNEL_AXIOMS, proofLines, readLibrary } from './prism-code/src/journey/kernel-terms.mjs';
 
 const SCHEMA_ONE = 1;
 const WORDS_MAX = 1024;
@@ -115,8 +117,46 @@ function values(record) {
   return out;
 }
 
+/**
+ * Lean's kernel, here: every guarantee is written as kernel terms and judged in this page. The kernel, its loader and
+ * its library are used only when their bytes have the addresses the manifest names. Resolves one answer a guarantee.
+ */
+async function prove(record) {
+  const unpack = async (file) => new Uint8Array(await new Response((await fetch('./kernel/' + file, { cache: 'no-store' })).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  const manifest = await (await fetch('./kernel/manifest.json', { cache: 'no-store' })).json();
+  const [glue, wasm, library] = await Promise.all([manifest.glue.file, manifest.wasm.file, manifest.library.file].map(unpack));
+  const [g, w, l] = (await Promise.all([glue, wasm, library].map(sha256))).map((label) => label.slice(7));
+  if (g !== manifest.glue.sha256 || w !== manifest.wasm.sha256 || l !== manifest.library.sha256) throw new Error('the kernel, its loader or its library is not the pinned one');
+  const b = manifest.binding;
+  if (!b || b.kernel !== w || b.loader !== g || b.library !== l) throw new Error('there is no record that this kernel judged this library whole');
+  const said = [];
+  const url = URL.createObjectURL(new Blob([glue], { type: 'text/javascript' }));
+  let module;
+  try {
+    module = await (await import(url)).default({ instantiateWasm: (imports, done) => { WebAssembly.instantiate(wasm, imports).then((r) => done(r.instance, r.module)); return {}; }, print: (s) => said.push(s), printErr: (s) => said.push(s) });
+  } finally { URL.revokeObjectURL(url); }
+  const run = (entry, bytes) => {
+    said.length = 0;
+    module.FS.writeFile('/in.ndjson', bytes);
+    let exit;
+    try { exit = module.ccall(entry, 'number', ['string'], ['/in.ndjson']); } catch (error) { exit = 3; }
+    module.FS.unlink('/in.ndjson');
+    const axioms = {};
+    for (const line of said) { const a = /^axioms ([^:]+): ?(.*)$/.exec(line); if (a) axioms[a[1]] = a[2] ? a[2].split(', ') : []; }
+    return { exit, axioms };
+  };
+  if (module.ccall('checker_ready', 'number', [], []) !== 0) throw new Error('the kernel did not start');
+  if (run('load_library', library).exit !== 0) throw new Error('the kernel refused its library');
+  const lib = readLibrary(dec.decode(library));
+  return record.guarantees.map((guarantee) => {
+    const r = run('check_suffix', enc.encode(proofLines(lib, record.words, guarantee)));
+    const axioms = r.axioms[HOLDS] || null;
+    return r.exit === 0 && axioms !== null && axioms.every((a) => KERNEL_AXIOMS.includes(a));
+  });
+}
+
 const app = await open();
-window.prismRuleApp = { facts: app.facts, address: app.address, admitted: admits(app.facts), kernelChecked: kernelChecked(app.facts), vectors: null, answers: [] };
+window.prismRuleApp = { facts: app.facts, address: app.address, admitted: admits(app.facts), kernelChecked: kernelChecked(app.facts), vectors: null, proved: null, answers: [] };
 $('title').textContent = app.record.title || app.record.name;
 if (!admits(app.facts)) {
   say('status', 'This page was altered and will not answer: its record, its rule judge or its proof is not the one it names.', 'refused');
@@ -148,9 +188,25 @@ if (!admits(app.facts)) {
     say('status', 'This page will not answer: ' + (total - passed) + ' of ' + total + ' of its own examples fail through the rule judge.', 'refused');
   } else {
     form(app.record);
-    say('status', (kernelChecked(app.facts) ? 'Checked by Lean\\'s kernel: ' + app.record.guarantees.length + ' guarantee' + (app.record.guarantees.length === 1 ? '' : 's') + ' for every request in the bounds. ' : 'Not checked by Lean\\'s kernel. ') + passed + ' of ' + total + ' examples pass. Nothing you enter leaves this page.', kernelChecked(app.facts) ? 'checked' : 'unchecked');
+    const count = app.record.guarantees.length;
+    const tail = passed + ' of ' + total + ' examples pass. Nothing you enter leaves this page.';
+    say('status', 'Proving ' + count + ' guarantee' + (count === 1 ? '' : 's') + ' here with Lean\\'s kernel. ' + tail, 'unchecked');
     say('address', app.address);
     $('ask').hidden = false;
+    // The page takes nobody's word for the proof: it proves every guarantee itself, after the form is on screen.
+    // A timer and not an animation frame: a page opened in a background tab must still finish its proof.
+    setTimeout(async () => {
+      const started = performance.now();
+      try {
+        const accepted = await prove(app.record);
+        const all = accepted.every(Boolean);
+        window.prismRuleApp.proved = { accepted, ms: Math.round(performance.now() - started) };
+        say('status', (all ? 'Proved here by Lean\\'s kernel, in this browser: ' + count + ' guarantee' + (count === 1 ? ' holds' : 's hold') + ' for every request in the bounds. ' : 'Lean\\'s kernel, in this browser, did not accept ' + accepted.filter((a) => !a).length + ' of ' + count + ' guarantees. ') + tail, all ? 'checked' : 'refused');
+      } catch (error) {
+        window.prismRuleApp.proved = { error: String(error && error.message ? error.message : error) };
+        say('status', 'Lean\\'s kernel could not run in this browser, so the guarantees are not proved here. ' + tail, 'unchecked');
+      }
+    }, 50);
     $('ask').addEventListener('submit', async (event) => {
       event.preventDefault();
       const answer = await ask(values(app.record));
@@ -216,6 +272,10 @@ export function writeRuleAppSite(directory, recordBytes, { holo = null } = {}) {
     ['kernel.holo', Buffer.from(holo ?? pinnedHolo())],
   ]);
   for (const file of browserClosure()) files.set(`prism-code/src/${file}`, readFileSync(join(SRC, file)));
+  // Lean's kernel, its library and the writer of the proof terms, so the page proves the guarantees itself.
+  files.set('prism-code/src/journey/kernel-terms.mjs', readFileSync(join(SRC, 'journey', 'kernel-terms.mjs')));
+  files.set('kernel/manifest.json', readFileSync(join(SRC, 'journey', 'kernel', 'manifest.json')));
+  for (const name of ['lean-kernel.mjs.gz', 'lean-kernel.wasm.gz', 'library.ndjson.gz']) files.set(`kernel/${name}`, Buffer.from(readKernelFile(name)));
   for (const [path, bytes] of files) {
     const at = join(directory, path);
     mkdirSync(dirname(at), { recursive: true });
