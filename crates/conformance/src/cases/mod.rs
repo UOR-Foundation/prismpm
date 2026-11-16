@@ -465,7 +465,7 @@ pub fn run_at(root: &Path, id: &str) {
             root,
             id,
             &[
-                ("sdk/npm/prism-code/test/replay.test.mjs", 32),
+                ("sdk/npm/prism-code/test/replay.test.mjs", 33),
                 ("sdk/npm/verify/test/replay-statement.test.mjs", 8),
             ],
             "600000",
@@ -2079,10 +2079,22 @@ fn verify_browser_export(root: &Path) {
             .iter()
             .map(|(path, _)| path.as_str())
             .collect::<Vec<_>>(),
+        // Closure v2: the six application files plus the brand fonts,
+        // licences, icons and web manifest.
         [
+            "Archivo-SemiBold.woff2",
+            "Geist-Medium.woff2",
+            "Geist-Regular.woff2",
+            "Geist-SemiBold.woff2",
+            "GeistMono-Regular.woff2",
+            "OFL-Archivo.txt",
+            "OFL-Geist.txt",
             "app.css",
             "app.js",
+            "icon-512.png",
+            "icon.svg",
             "index.html",
+            "manifest.webmanifest",
             "prism_calculator.js",
             "prism_calculator_bg.wasm",
             "provenance.json",
