@@ -1,0 +1,7 @@
+receipt 94dadd5ae9059511756e8c90433a0b060e3ba765495f8ce2a702bfd5e378993d fail
+obligation vv-ho-oc
+revision 37d9e1717630488661c4878b166900fb0a78bbdb
+sandbox prism/1 @devcontainer 1000:1000 0022 tmp/prismpm-home tmp daemon
+peer runner
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/heads/claude/project-thread-vm659i
+run 43819119046-1
