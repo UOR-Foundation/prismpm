@@ -540,10 +540,7 @@ pub fn run_at(root: &Path, id: &str) {
                     // The outer conformance Cargo owner may retain its target
                     // lock while tests execute. Use one disjoint target for the
                     // actual resource suites; never nest into that lock.
-                    .env(
-                        "CARGO_TARGET_DIR",
-                        root.join("target/conformance-text-v2-resources"),
-                    )
+                    .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
                     .current_dir(root)
                     .output()
                     .expect("HO-16 executes its actual generated resource and projection tests");
@@ -2766,10 +2763,7 @@ fn verify_supply_chain(id: &str) {
                     "--",
                     "--nocapture",
                 ])
-                .env(
-                    "CARGO_TARGET_DIR",
-                    root.join("target/conformance-cargo-inventory"),
-                )
+                .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
                 .current_dir(root)
                 .output()
                 .expect("SC-01 executes actual Cargo inventory regressions");
@@ -2846,10 +2840,7 @@ fn verify_supply_chain(id: &str) {
                 ])
                 // The outer conformance process can retain Cargo's target
                 // lock. Keep these executed storage regressions disjoint.
-                .env(
-                    "CARGO_TARGET_DIR",
-                    root.join("target/conformance-image-scan-workspace"),
-                )
+                .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
                 .current_dir(root)
                 .output()
                 .expect("SC-04 executes its actual offline scan storage regressions");
@@ -3624,7 +3615,7 @@ fn verify_assurance(root: &Path, id: &str) {
         "AL-06" => ("inspect::verdict::tests::al_06_", 1),
         _ => unreachable!("AL-03, AL-05 and AL-06 only"),
     };
-    rust_regressions(root, id, filter, expected, "target/conformance-assurance");
+    rust_regressions(root, id, filter, expected, "target/conformance-nested");
 }
 
 /// HO-23 to HO-30: run the named Rust regressions with their exact inventory and, where the
@@ -3641,7 +3632,7 @@ fn verify_attestation(root: &Path, id: &str) {
         "HO-30" => ("attest::tests::ho_30_", 2),
         _ => unreachable!("HO-23 to HO-30 only"),
     };
-    rust_regressions(root, id, filter, expected, "target/conformance-attestation");
+    rust_regressions(root, id, filter, expected, "target/conformance-nested");
 }
 
 /// HO-32 to HO-35: run the named Rust regressions with their exact inventory.
@@ -3653,7 +3644,7 @@ fn verify_build_provenance(root: &Path, id: &str) {
         "HO-35" => ("holo::provenance::tests::ho_35_", 2),
         _ => unreachable!("HO-32 to HO-35 only"),
     };
-    rust_regressions(root, id, filter, expected, "target/conformance-attestation");
+    rust_regressions(root, id, filter, expected, "target/conformance-nested");
 }
 
 /// Run the `prismpm` library tests `filter` names and require exactly `expected` of them to pass.

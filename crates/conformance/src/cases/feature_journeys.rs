@@ -77,7 +77,7 @@ pub(super) fn verify_check(root: &Path) {
         .args(["--", "--nocapture", "--test-threads=1"])
         // The outer conformance Cargo owner may retain its target lock; use a
         // disjoint target for the owning suites.
-        .env("CARGO_TARGET_DIR", root.join("target/conformance-features"))
+        .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
         .output()
         .expect("FT-13 executes its owning suites");
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 owning stdout");
