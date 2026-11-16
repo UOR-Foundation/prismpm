@@ -33,7 +33,8 @@ const WHEN = { type: 'array', minItems: 1, items: CONDITION };
 const closed = (properties, required) => ({ type: 'object', properties, required, additionalProperties: false });
 
 const field = (extra = {}) => closed({ name: WORD, kind: { enum: ['number', 'choice'] }, values: { type: 'array', minItems: 2, maxItems: 32, items: WORD }, min: WHOLE, max: WHOLE, ...extra }, ['name', 'kind']);
-const fields = (extra) => ({ type: 'array', minItems: 1, maxItems: 8, items: field(extra) });
+// maxItems is spec.mjs MAX_FIELDS; this module imports nothing, and test/spec-limits.test.mjs holds the two equal.
+const fields = (extra) => ({ type: 'array', minItems: 1, maxItems: 16, items: field(extra) });
 const rules = (extra = {}) => ({ type: 'array', minItems: 1, maxItems: 24, items: closed({ when: WHEN, then: WORD, ...extra }, ['when', 'then']) });
 const properties = (extra = {}) => ({ type: 'array', items: closed({ kind: { enum: ['never', 'always'] }, when: WHEN, then: WORD, ...extra }, ['kind', 'when', 'then']) });
 

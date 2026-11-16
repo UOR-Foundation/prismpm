@@ -155,8 +155,8 @@ test('detection (a): an answer the spec refuses records the rule that refused it
 test('detection (a): a spec given as data that validation refuses records the rule', async () => {
   const gaps = ledger();
   const s = mcp(gaps);
-  const nine = Array.from({ length: 9 }, (_, i) => ({ name: `f${i}`, kind: 'number' }));
-  const r = await s.tool('prism_spec', { spec: { ...paymentSpec(), fields: nine } });
+  const seventeen = Array.from({ length: 17 }, (_, i) => ({ name: `f${i}`, kind: 'number' }));
+  const r = await s.tool('prism_spec', { spec: { ...paymentSpec(), fields: seventeen } });
   assert.equal(r.isError, true);
   assert.deepEqual(recorded(gaps), [{ kind: 'refusal', construct: 'fields.too-many', code: null }]);
 });
@@ -294,7 +294,7 @@ test('redaction: no text, field name, choice, answer or number a user wrote leav
   await s.tool('prism_answer', { answer: 'yes' });
   const spec = compile({ ...answers, review: 'yes' }).spec;
   assert.equal(spec.fields[0].name, 'zqxrole', 'the canaries are in the spec');
-  await s.tool('prism_spec', { spec: { ...spec, fields: [...spec.fields, ...Array.from({ length: 6 }, (_, i) => ({ name: `zqxextra${i}`, kind: 'number', max: 987654 }))] } }); // (a) fields.too-many
+  await s.tool('prism_spec', { spec: { ...spec, fields: [...spec.fields, ...Array.from({ length: 14 }, (_, i) => ({ name: `zqxextra${i}`, kind: 'number', max: 987654 }))] } }); // (a) fields.too-many
   await s.tool('prism_spec', { spec: { ...spec, title: 'Zqx title that is longer than forty characters 987654' } }); // (b) title
   await s.tool('prism_spec', { spec: { ...spec, fields: [{ name: 'zqxage', kind: 'choice', values: ['under-987654', 'zqxover'] }, ...spec.fields.slice(1)], rules: [{ when: [{ field: 'zqxage', op: 'is', value: 'under-987654' }], then: 'zqxyes' }], properties: [], examples: [] } }); // (b) rules:choice.value
   await refuseProperty(spec, 0, gaps, 'LLV7002'); // (c) unproved

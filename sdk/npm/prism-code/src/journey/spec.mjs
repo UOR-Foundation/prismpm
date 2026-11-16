@@ -19,6 +19,8 @@ export const SPEC_SCHEMA = 'prism/spec/1';
 export const INVALID = 'invalid';
 /** A number is at most 18 decimal digits, so every value fits the guest's 64-bit arithmetic with room to spare. */
 export const MAX_DIGITS = 18;
+/** A request has at most this many fields: its line is decoded by `decodeField1` to `decodeField16`. */
+export const MAX_FIELDS = 16;
 export const NAT_MAX = 10n ** 18n - 1n;
 
 /** How the reason of a guarantee Prism proposed starts (complete.mjs). A surface shows a guarantee whose `why` starts so as proposed. */
@@ -240,7 +242,7 @@ export function validateSpec(input) {
 
   const fields = spec.fields ?? [];
   if (!Array.isArray(fields) || fields.length === 0) refuse('Name at least one field.', 'fields', 'fields.none');
-  if (fields.length > 8) refuse('A request has at most eight fields.', 'fields', 'fields.too-many');
+  if (fields.length > MAX_FIELDS) refuse('A request has at most sixteen fields.', 'fields', 'fields.too-many');
   const seen = new Set();
   for (const [fi, f] of fields.entries()) {
     if (!WORD.test(f.name ?? '')) refuse(`Field name \`${f.name}\` must be a lower-case word.`, 'fields', 'field.name');

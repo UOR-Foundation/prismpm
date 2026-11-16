@@ -16,7 +16,7 @@ import { createInterface } from 'node:readline';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import { SpecError, validateSpec } from './spec.mjs';
+import { MAX_FIELDS, SpecError, validateSpec } from './spec.mjs';
 import { answersFromSpec, nextTurn, roundTrip, STEPS } from './session.mjs';
 import { appDir, modelPath, readProjectSpec, readSession, writeSession, writeSpecDocument } from './project.mjs';
 import { build, prove, tryRequest } from './engine.mjs';
@@ -70,7 +70,7 @@ const SPEC_INPUT = {
     fields: {
       type: 'array',
       minItems: 1,
-      maxItems: 8,
+      maxItems: MAX_FIELDS,
       description: 'One request is these values in order, separated by spaces.',
       items: {
         type: 'object',

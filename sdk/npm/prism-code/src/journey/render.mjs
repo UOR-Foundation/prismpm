@@ -8,7 +8,7 @@
  * splits the `if` chain and calls `omega`. That is what makes each property
  * provable by one fixed proof form, with no proof written by hand.
  */
-import { INVALID, MAX_DIGITS, describeConditions, encodeRequest, holds, judge, requestLimits, respond, sampleRequests } from './spec.mjs';
+import { INVALID, MAX_DIGITS, MAX_FIELDS, describeConditions, encodeRequest, holds, judge, requestLimits, respond, sampleRequests } from './spec.mjs';
 import { STATEFUL_SCHEMA } from './stateful.mjs';
 import { renderStatefulModel, renderStatefulProofs, renderStatefulSpecDocument, statefulAcceptanceVectors, statefulNames } from './render-stateful.mjs';
 
@@ -37,7 +37,7 @@ export const quote = (text) => {
 /** Every identifier the model uses, derived once so the model, the vectors and SPEC.md agree. */
 export function names(spec) {
   if (isStateful(spec)) return statefulNames(spec);
-  const used = new Set(['Request', 'byteAt', 'digitsValue', 'parseDigits', 'parseNumber', 'sliceOf', 'fieldEnd', 'decodeField1', 'decodeField2', 'decodeField3', 'decodeField4', 'decodeField5', 'decodeField6', 'decodeField7', 'decodeField8', 'judge', 'encodeAnswer', 'dispatch', 'application']);
+  const used = new Set(['Request', 'byteAt', 'digitsValue', 'parseDigits', 'parseNumber', 'sliceOf', 'fieldEnd', ...Array.from({ length: MAX_FIELDS }, (_, i) => `decodeField${i + 1}`), 'judge', 'encodeAnswer', 'dispatch', 'application']);
   const claim = (base) => {
     let name = base;
     for (let i = 2; used.has(name) || LEAN_RESERVED.has(name); i++) name = `${base}${i}`;
