@@ -141,7 +141,7 @@ if test "$command" = factory; then
   # such an obligation drives do not fit in memory.
   scratch_args=(--tmpfs "/$sandbox_scratch:rw,exec,nosuid,size=8g")
   case "$access" in
-    sealed) network_args=(--network=none) ;;
+    sealed) network_args=(--network none) ;;
     pinned) network_args=() ;;
     daemon|publish)
       network_args=(--volume /var/run/docker.sock:/var/run/docker.sock --group-add "$(stat -c %g /var/run/docker.sock)")

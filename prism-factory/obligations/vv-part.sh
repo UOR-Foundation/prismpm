@@ -3,7 +3,7 @@
 # parts scripts/vv-assemble.mjs lists), in the devcontainer image the
 # devcontainer obligation built, with its external oracles in the SDK image the
 # vv-sdk obligation built (PRISM_UPSTREAM_VV_SDK_IMAGE, pulled by digest onto
-# this runner's daemon). The same recipe vv.yml ran on the legacy adapter.
+# this runner's daemon). The recipe the retired vv.yml ran on the legacy adapter.
 set -euo pipefail
 part=${1:?usage: vv-part.sh PART}
 here=$(dirname "$0")
@@ -20,4 +20,8 @@ toolchain=$(tr -d '\n' < lean-toolchain)
 elan toolchain list | grep -Fqx "$toolchain" || elan toolchain install "$toolchain"
 lean --version
 ./scripts/fetch.sh
-exec bash scripts/vv.sh --with-sdk bash -euo pipefail -c "just vv-part $part"
+bash scripts/vv.sh --with-sdk bash -euo pipefail -c "just vv-part $part"
+# The part's canonical record (prismpm/vv-part/1), named by its digest.
+record=target/vv-part-$part.json
+test -f "$record"
+printf 'record sha256:%s\n' "$(sha256sum "$record" | cut -d' ' -f1)" >> "${PRISM_OUTPUTS:-/dev/null}"

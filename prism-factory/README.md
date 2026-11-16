@@ -274,7 +274,9 @@ in the devcontainer image that `devcontainer` built, with `daemon` access, and
 runs `prism-factory/obligations/vv-part.sh PART`: the devcontainer's
 preparation, then `scripts/vv.sh --with-sdk … just vv-part PART` with
 `PRISMPM_TEST_SDK_IMAGE` set to the image `vv-sdk` built, instead of each part
-building the SDK image again. They run on a push, a tag or a dispatch.
+building the SDK image again. They run on a push, a tag or a dispatch, and
+replace `vv.yml`, which ran the same parts on the legacy adapter for every push
+to `main`. A part names its canonical record by digest (`record sha256:…`).
 
 A part can start only once both images are proved, so the delegation runs in
 waves. Each `plan` job verifies the kept receipts and this run's, and hands its
