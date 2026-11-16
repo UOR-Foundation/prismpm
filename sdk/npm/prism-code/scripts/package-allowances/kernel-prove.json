@@ -1,0 +1,4 @@
+{
+  "kib": 1712,
+  "reason": "The kernel prove route (#692): Lean's kernel as WebAssembly (411 KiB), its loader (61 KiB), the lemma library (1217 KiB), their manifest and notice, and the prover that writes the proof terms (about 1710 KiB)."
+}

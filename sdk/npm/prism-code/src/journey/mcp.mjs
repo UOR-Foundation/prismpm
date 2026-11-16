@@ -193,7 +193,7 @@ const TOOLS = [
   },
   {
     name: 'prism_prove',
-    description: 'Write the LexLean model and ask Lean to prove every property, in the SDK image on this machine. Nothing is sent anywhere: the hosted verifier at https://mcp.uor.foundation/ is used only when the user sets PRISM_CODE_TIER=hosted, and it stores the files under prism/src/ unlisted, not privately. Takes one to five minutes. Returns state running while it works; call again to keep waiting.',
+    description: 'Write the LexLean model and ask Lean to prove every property, in the SDK image on this machine. Nothing is sent anywhere: the hosted verifier at https://mcp.uor.foundation/ is used only when the user sets PRISM_CODE_TIER=hosted, and it stores the files under prism/src/ unlisted, not privately. With PRISM_CODE_TIER=kernel, the Lean kernel checks the rules in this process in about two seconds, with no SDK image: a check of the rules, reported as kernel-checked, not yet the proof of the built app. Takes one to five minutes. Returns state running while it works; call again to keep waiting.',
     inputSchema: { type: 'object', properties: { wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' }, overwrite: { type: 'boolean', description: 'Replace a model that was edited by hand.' } }, additionalProperties: false },
   },
   {

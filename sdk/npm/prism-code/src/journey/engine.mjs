@@ -38,9 +38,11 @@ const imageFor = (dir, session) => (isBound(dir) ? imageOf(dir) : session.image 
  * Where Lean proves the app: always `local`, in the SDK image on this machine.
  * Only `PRISM_CODE_TIER=hosted` sends the model to the UOR MCP server, which
  * stores it unlisted, not privately; Prism never chooses that on its own.
+ * `PRISM_CODE_TIER=kernel` checks the rules with Lean's kernel in this
+ * process (kernel-prove.mjs): no image, nothing sent, and a narrower claim.
  */
 export function proveWhere(dir, session, { env = process.env } = {}) {
-  return env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : 'local';
+  return env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : env.PRISM_CODE_TIER === 'kernel' ? 'kernel' : 'local';
 }
 
 /**
@@ -85,7 +87,9 @@ const tail = (text, n = 25) => String(text).split(/\r?\n/).filter((l) => !l.star
 export async function prove(dir, session, { log = () => {}, overwrite = false, where = null, client = null, gaps = gapLedger() } = {}) {
   const first = writeApp(dir, session, { overwrite });
   if (first.edited) return { ok: false, edited: true, message: `${relative(dir, first.path)} was edited by hand since Prism wrote it. Call the same tool again with overwrite: true to replace it from the spec, or change the spec to match.` };
-  if ((where ?? proveWhere(dir, session)) === 'hosted') return proveHosted(dir, session, { log, client, gaps });
+  where ??= proveWhere(dir, session);
+  if (where === 'hosted') return proveHosted(dir, session, { log, client, gaps });
+  if (where === 'kernel') return proveKernel(dir, session, { log });
   const ready = await prepare(dir, session, log);
   if (!ready.ok) return { ok: false, message: ready.message };
   overwrite = true;
@@ -196,6 +200,58 @@ async function proveHosted(dir, session, { log, client, gaps }) {
     return explainFailure(dir, session, { run: { code: 1, output }, diagnostics, failed: { step: 'verify', code: 1 }, seconds, gaps });
   }
   return { ok: false, message: 'The axiom sets did not settle after several rounds. This is a Prism bug; the last output is in prism/.prism-last.log.' };
+}
+
+/** What the kernel route does not claim, said with every answer it gives. */
+const KERNEL_SCOPE = 'This checks the rules as the rule judge reads them, in this process, with no SDK image. It is not yet the proof of the built app: prism_prove without PRISM_CODE_TIER=kernel proves the model.';
+
+/**
+ * The check with Lean's kernel in this process: no Docker, no image, nothing
+ * sent. A guarantee the kernel accepts is `kernel-checked`, never `proved`,
+ * because the lemma speaks about the rule judge and not about the rendered
+ * model, so `status.proved` is left alone and a build still proves the model.
+ * A guarantee the kernel refuses is `failing` only when a request breaks it.
+ */
+async function proveKernel(dir, session, { log }) {
+  const spec = session.spec;
+  const { KernelUnread, kernelProve } = await import('./kernel-prove.mjs');
+  log("Asking Lean's kernel, in this process, to check every guarantee. No SDK image is used and nothing is sent.");
+  let result;
+  try {
+    result = await kernelProve(spec);
+  } catch (error) {
+    if (error instanceof KernelUnread) return { ok: false, where: 'kernel', code: error.code, message: `Lean's kernel in this process cannot read this spec: ${error.message}. Prove it in the SDK image instead: unset PRISM_CODE_TIER and call prism_prove again.` };
+    // The kernel not running says nothing about the app, so it is never reported as a failed proof.
+    return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app. Unset PRISM_CODE_TIER and call prism_prove again to prove it in the SDK image.` };
+  }
+  rememberModel(dir, session);
+  const seconds = Math.round(result.ms / 100) / 10;
+  const refused = spec.properties.filter((_, i) => !result.judged[i].accepted);
+  const broken = new Map(refused.map((p) => [p.id, counterexample(spec, p)]));
+  const statusOf = (p) => (!broken.has(p.id) ? 'kernel-checked' : broken.get(p.id).request !== null ? 'failing' : 'unknown');
+  session.status.properties = Object.fromEntries(spec.properties.map((p) => [p.id, statusOf(p)]));
+  session.status.kernelChecked = refused.length ? null : { modelSha: session.status.modelSha, at: new Date().toISOString(), seconds, ...result.evidence };
+  writeSpecDocument(dir, session);
+  const properties = spec.properties.map((p) => ({ id: p.id, says: p.says, status: statusOf(p) }));
+  if (refused.length === 0) {
+    return {
+      ok: true,
+      seconds,
+      where: 'kernel',
+      evidence: result.evidence,
+      properties,
+      message: spec.properties.length
+        ? `Lean's kernel accepted all ${spec.properties.length} guarantee${spec.properties.length === 1 ? '' : 's'} for every request in the fields' bounds, in ${seconds} s. ${KERNEL_SCOPE}`
+        : `No property is stated, so there was nothing for Lean's kernel to check. ${KERNEL_SCOPE}`,
+    };
+  }
+  const explained = refused.map((p) => {
+    const found = broken.get(p.id);
+    return found.request !== null
+      ? `${p.id} is false. The request \`${found.request}\` meets "${describeConditions(p.when)}" and the rules answer ${found.outcome} (${found.rule ?? 'otherwise'}).`
+      : `Lean's kernel did not accept ${p.id} ("${p.says}"), and none of ${found.checked} sampled requests breaks it. This route cannot yet prove every true guarantee, one that says "is not" among them, so this is not a verdict on ${p.id}. Unset PRISM_CODE_TIER and call prism_prove again to prove it in the SDK image.`;
+  });
+  return { ok: false, seconds, where: 'kernel', properties, message: `${explained.join('\n')}\n${KERNEL_SCOPE}`, next: refused.some((p) => broken.get(p.id).request !== null) ? 'Change a rule or restate the property (prism_answer with step rules or properties), then prove again.' : undefined };
 }
 
 /**
