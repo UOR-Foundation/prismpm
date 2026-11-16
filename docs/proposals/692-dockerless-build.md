@@ -264,6 +264,26 @@ Three limits, all known in foundry:
 
 Its lemma works on boxes of values, not on every combination of representative values, so it does not have the scaling limit measured above. I did not test it at 8 fields.
 
+**A whole app with no build, using foundry's fixed guest (measured).** Foundry also holds the build half for rule apps. Its Forge kernel is one holo, built and verified once by the SDK, that carries a rule judge written in LexLean (`app/src/RuleJudge.lex.tex`). A request is the spec's numbers followed by the request's values; the answer is the outcome's number. The lemma above is about that rule judge. So an app needs no compile: it is that holo plus its numbers.
+
+I loaded foundry's `studio/shell/kernel/kernel.holo` (657 KB) with the unchanged `prism-code` runtime under Node 22.21 on Windows, and compared its answers with `prism-code`'s reference judge (`src/journey/spec.mjs`, `judge`):
+
+| Step | Result | Time |
+|---|---|---|
+| Load the holo and check its identity | Verified | 69 ms |
+| Replay the holo's own 334 acceptance vectors | 334 pass | 24 ms |
+| Parking fee: all 75 requests in its bounds | 75 of 75 answers equal | 5 ms, about 70 µs each |
+| The 10-rule spec: all 35 requests | 35 of 35 equal | 1 ms |
+| Parking fee with rule 2 changed: all 75 requests | 75 of 75 equal | 5 ms |
+| A request outside the bounds | Refused as `outOfBounds` | |
+
+One run. So for a rule app, proving and building together take about two seconds with no Docker, against 75 s and 37 minutes in the brief.
+
+What this leaves open is format, not feasibility:
+
+- The request's text (`3 car`) is turned into numbers by JavaScript outside the guest. Today that parser is part of the per-app model and is compiled into the guest. Refusals of malformed text would move out of the verified part.
+- Every app would run the same holo, so the holo's name no longer names the app. The app's identity has to cover the holo's address and the spec's numbers together.
+
 **An independent kernel was not run.** kefir was cloned at `e00bbd5` and did not compile on this Windows host: its build script failed. I did not pursue it once Lean's own kernel was available. A second, independent kernel is still worth having as a cross-check (section 12).
 
 The experiment source is not in this pull request, because `AGENTS.md` forbids committing handwritten Lean. It is kept outside the repository and can be attached to the issue.
@@ -335,7 +355,8 @@ Each stage ships alone. Docker stays the default until the stage that replaces i
 - Ships: `prism_prove` in about a second, offline, with no Docker and no hosted verifier.
 
 **Stage 3. Build without Rust on the user's machine.** Weeks.
-- The interpreter, written once in the pinned library and compiled in CI. The JavaScript packer.
+- 3a: a rule app as foundry's fixed kernel holo plus the spec's numbers, named together. Measured in section 7. The text of a request is read outside the guest.
+- 3b: one fixed guest that also reads the request's text, with the spec in a data segment, so an app is again one holo and the existing runtime needs no change.
 - Gate: for every example spec, the interpreter guest and today's compiled guest give the same response bytes for every acceptance vector and for a large random sample of requests. The holo hash is equal across the three-system CI matrix.
 - Ships: `prism_build` in about a second. Docker becomes optional for users.
 
