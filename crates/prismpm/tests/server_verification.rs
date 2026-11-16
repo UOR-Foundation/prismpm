@@ -67,7 +67,7 @@ fn verify_of_the_example_server_runs_the_application_acceptance() {
     let acceptance = read(&directory.join("application-acceptance.json"));
     let manifest = read(&directory.join("manifest.json"));
 
-    println!("{acceptance:#}\n{manifest:#}");
+    eprintln!("{acceptance:#}\n{manifest:#}");
     assert_eq!(acceptance["schema"], "prismpm/application-acceptance/1");
     assert_eq!(acceptance["status"], "verified");
     assert_eq!(acceptance["artifact_closure"], "verified");

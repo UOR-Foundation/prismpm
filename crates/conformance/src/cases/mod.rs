@@ -2176,7 +2176,7 @@ fn verify_browser_export(root: &Path) {
                 "output":output,
                 "reference":reference,
                 "release_digest":release_digest,
-                "schema":"prismpm/browser-export/1",
+                "schema":"prismpm/browser-export/2",
                 "tree_digest":tree_digest
             })
         );
