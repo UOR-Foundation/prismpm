@@ -295,3 +295,19 @@ fn an_output_is_named_only_for_the_identity_a_trusted_pass_proved() {
         assert!(!plan.contains("output factory-model"), "{receipt}");
     }
 }
+
+#[test]
+fn a_push_also_establishes_the_two_image_builds_and_a_pull_request_never_does() {
+    let push = String::from_utf8(
+        delegate(format!("{TREE}trust-repository {FORGE}\nevent push\n").as_bytes()).expect("no overflow"),
+    )
+    .expect("UTF-8");
+    let established: Vec<&str> = push.lines().filter(|line| line.starts_with("establish ")).collect();
+    assert_eq!(
+        established,
+        ["establish factory-model", "establish vv-sdk", "establish lint", "establish model-audits", "establish fixtures-golden", "establish devcontainer"]
+    );
+    assert!(push.contains("access vv-sdk publish @sdk\n") && push.contains("access devcontainer publish @sdk\n"));
+    let pull = delegated("");
+    assert!(!pull.contains("establish vv-sdk") && !pull.contains("establish devcontainer"));
+}
