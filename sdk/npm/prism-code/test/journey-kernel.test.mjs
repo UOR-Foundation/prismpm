@@ -4,12 +4,15 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { compile } from '../src/journey/session.mjs';
 import { appDir, readSession } from '../src/journey/project.mjs';
 import { beyondKernel, kernelReads, prove, proveWhere } from '../src/journey/engine.mjs';
-import { KERNEL_AXIOMS, KernelUnread, WORD_MAX, kernelProve, readPinned, ruleWords } from '../src/journey/kernel-prove.mjs';
+import { KERNEL_AXIOMS, KernelUnread, WORD_MAX, boundedSpec, kernelProve, readPinned, ruleWords, unboundedFields } from '../src/journey/kernel-prove.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
+// The kernel's files are fetched once in use; here they are the pinned bytes kept beside the tests, so nothing is fetched.
+process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 const PARKING = {
   purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
@@ -88,8 +91,13 @@ test('a spec the rule judge does not read is refused by name, not guessed at', (
   };
   assert.equal(refusal(specOf(PAYMENT)), 'kernel.two-fields');
   const spec = specOf(PARKING);
-  // A number field with no upper bound accepts requests the judge's 32-bit words cannot hold.
-  assert.equal(refusal({ ...spec, fields: [{ ...spec.fields[0], max: undefined }, spec.fields[1]] }), 'kernel.range');
+  // A number field with no upper bound is read up to the judge's 32-bit words, and the numbers say so.
+  const open = { ...spec, fields: [{ name: 'hours', kind: 'number' }, spec.fields[1]] };
+  assert.equal(refusal(open), null);
+  assert.deepEqual(unboundedFields(open), ['hours']);
+  assert.deepEqual(ruleWords(open).words.slice(2, 4), [0, WORD_MAX]);
+  assert.deepEqual(boundedSpec(open).fields[0], { name: 'hours', kind: 'number', max: WORD_MAX });
+  assert.equal(boundedSpec(spec), spec);
   assert.equal(refusal({ ...spec, fields: [{ ...spec.fields[0], max: WORD_MAX + 1 }, spec.fields[1]] }), 'kernel.range');
   assert.equal(refusal({ ...spec, actions: [] }), 'kernel.stateful');
   assert.equal(refusal(spec), null);
@@ -162,10 +170,10 @@ test('a spec the route does not read sends the user to the SDK image, and record
 });
 
 test('planted defect K2 and K3: altered bytes and an unbound library are refused before the kernel runs', () => {
-  const real = (file) => readFileSync(new URL(`../src/journey/kernel/${file}`, import.meta.url));
+  const real = (file) => readFileSync(new URL(file === 'manifest.json' ? '../src/journey/kernel/manifest.json' : `./fixtures/kernel/${file}`, import.meta.url));
   assert.equal(readPinned().addresses.kernel, JSON.parse(real('manifest.json')).wasm.sha256);
-  for (const altered of ['lean-kernel.mjs', 'lean-kernel.wasm.gz', 'library.ndjson.gz']) {
-    const other = altered === 'lean-kernel.mjs' ? Buffer.concat([real(altered), Buffer.from('\n')]) : real(altered === 'lean-kernel.wasm.gz' ? 'library.ndjson.gz' : 'lean-kernel.wasm.gz');
+  for (const altered of ['lean-kernel.mjs.gz', 'lean-kernel.wasm.gz', 'library.ndjson.gz']) {
+    const other = real(altered === 'lean-kernel.wasm.gz' ? 'library.ndjson.gz' : 'lean-kernel.wasm.gz');
     assert.throws(() => readPinned({ read: (file) => (file === altered ? other : real(file)) }), /is not the pinned one/, altered);
   }
   const unbound = JSON.parse(real('manifest.json'));

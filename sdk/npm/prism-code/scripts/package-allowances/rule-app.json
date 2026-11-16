@@ -1,4 +1,4 @@
 {
-  "kib": 664,
-  "reason": "The rule app with no build (#692): the Forge kernel holo that carries the rule judge and the verdict (642 KiB), the record and loader that name it with a spec's numbers, and the codec that asks the guest for the verdict (about 662 KiB)."
+  "kib": 38,
+  "reason": "The rule app with no build (#692): the record and its loader, the codec that asks the verified guest for the verdict, and the writer of the app's page (about 35 KiB). The rule judge's holo is not in the package."
 }

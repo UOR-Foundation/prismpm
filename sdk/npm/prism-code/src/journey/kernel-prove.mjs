@@ -5,8 +5,9 @@
  * The kernel is Lean 4.32.1's C++ kernel compiled to WebAssembly, and the
  * library is the export of one lemma Lean proved once for every rule app
  * (`PrismLive.Kernel.ruleJudge_sound`). Both come from UOR-Foundation/foundry
- * (`studio/shell/kernel/lean`), which runs them in a browser tab; the files
- * under `kernel/` are those bytes, named by SHA-256 in `kernel/manifest.json`.
+ * (`studio/shell/kernel/lean`), which runs them in a browser tab. They are
+ * fetched once and kept on this machine (kernel-store.mjs); `kernel/manifest.json`
+ * names each by SHA-256 and records that this kernel judged this library whole.
  *
  * A guarantee's proof is that lemma applied to the spec written as numbers.
  * This module writes the proof as kernel terms and the kernel judges it, so
@@ -17,8 +18,12 @@
  * a check of the rules, and `lexlean verify` remains the proof of the model.
  */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
+import { ensureKernel, readKernelFile } from './kernel-store.mjs';
 
 const KERNEL = new URL('./kernel/', import.meta.url);
 const NAMESPACE = 'PrismLive.Kernel.';
@@ -39,8 +44,15 @@ export class KernelUnread extends Error {
   }
 }
 
+/** The number fields the spec gives no upper bound: the rule judge's words hold numbers up to `WORD_MAX`, so the app reads them up to there. */
+export const unboundedFields = (spec) => (spec?.fields ?? []).filter((f) => f.kind === 'number' && f.max === undefined).map((f) => f.name);
+
+/** The spec with every number field bounded as the rule judge reads it. A spec that states its bounds is returned as it is. */
+export const boundedSpec = (spec) => (unboundedFields(spec).length === 0 ? spec : { ...spec, fields: spec.fields.map((f) => (f.kind === 'number' && f.max === undefined ? { ...f, max: WORD_MAX } : f)) });
+
 /**
  * The spec as the numbers the rule judge decides with, and each guarantee as data.
+ * A number field with no upper bound is read up to `WORD_MAX` (`boundedSpec`).
  * Throws `KernelUnread` for a spec the rule judge does not read.
  */
 export function ruleWords(spec) {
@@ -62,9 +74,7 @@ export function ruleWords(spec) {
   };
   const bounds = spec.fields.flatMap((f) => {
     if (f.kind === 'choice') return [0, f.values.length - 1];
-    // A field with no upper bound accepts numbers the judge's words cannot hold, so a verdict would not cover them.
-    if (f.max === undefined) throw new KernelUnread('kernel.range', `\`${f.name}\` has no upper bound, and the rule judge reads numbers up to ${WORD_MAX}`);
-    return [whole(f.min ?? 0, `the least \`${f.name}\``), whole(f.max, `the greatest \`${f.name}\``)];
+    return [whole(f.min ?? 0, `the least \`${f.name}\``), whole(f.max ?? WORD_MAX, `the greatest \`${f.name}\``)];
   });
   const words = [1, spec.fields.length, ...bounds, outcomes.indexOf(spec.otherwise), spec.rules.length, ...spec.rules.flatMap((r) => [r.when.length, outcomes.indexOf(r.then), ...r.when.flatMap(cond)])];
   // A guarantee about an answer no rule gives names the next number: no rule answers it.
@@ -193,9 +203,9 @@ export function proofLines(lib, index, words, guarantee) {
 }
 
 /** The pinned files, each checked against the address the manifest names. Throws when one is not the pinned one. */
-export function readPinned({ read = (file) => readFileSync(new URL(file, KERNEL)) } = {}) {
+export function readPinned({ read = (file) => (file === 'manifest.json' ? readFileSync(new URL(file, KERNEL)) : readKernelFile(file)) } = {}) {
   const manifest = JSON.parse(read('manifest.json').toString('utf8'));
-  const glue = read('lean-kernel.mjs');
+  const glue = gunzipSync(read(manifest.glue.file));
   const wasm = gunzipSync(read(manifest.wasm.file));
   const library = gunzipSync(read(manifest.library.file));
   const got = { loader: sha256(glue), kernel: sha256(wasm), library: sha256(library) };
@@ -203,7 +213,7 @@ export function readPinned({ read = (file) => readFileSync(new URL(file, KERNEL)
   // The library is entered without being judged again: sound only for one this same kernel judged whole.
   const b = manifest.binding;
   if (!b || b.kernel !== got.kernel || b.loader !== got.loader || b.library !== got.library) throw new Error('there is no record that this kernel judged this library whole');
-  return { manifest, wasm, library, addresses: got };
+  return { manifest, glue, wasm, library, addresses: got };
 }
 
 let opened = null;
@@ -211,9 +221,24 @@ let opened = null;
 /** The kernel with the library resident, opened once per process. Resolves `{ manifest, addresses, judge }`. */
 export function openKernel() {
   opened ??= (async () => {
-    const { manifest, wasm, library, addresses } = readPinned();
+    const { manifest, glue, wasm, library, addresses } = readPinned();
     const said = [];
-    const factory = (await import(new URL('lean-kernel.mjs', KERNEL).href)).default;
+    // Node imports a module from a file, so the loader's checked bytes are written under their own address.
+    let loader = join(tmpdir(), `prism-lean-kernel-${addresses.loader.slice(0, 24)}.mjs`);
+    const kept = () => existsSync(loader) && sha256(readFileSync(loader)) === addresses.loader;
+    if (!kept()) {
+      // Written under this process's own name and moved into place: two processes starting at once must never
+      // import half a file. Where the move is refused because another process holds the name, its file is used
+      // when it is the checked bytes, and this process's own otherwise.
+      const own = join(tmpdir(), `prism-lean-kernel-${addresses.loader.slice(0, 24)}-${process.pid}.mjs`);
+      writeFileSync(own, glue);
+      try {
+        renameSync(own, loader);
+      } catch {
+        if (!kept()) loader = own;
+      }
+    }
+    const factory = (await import(pathToFileURL(loader).href)).default;
     const module = await factory({
       instantiateWasm: (imports, done) => {
         WebAssembly.instantiate(wasm, imports).then((r) => done(r.instance, r.module));
@@ -262,8 +287,10 @@ export function openKernel() {
  * whole check is the verified guest's. Throws `KernelUnread` for a spec this
  * route does not read.
  */
-export async function kernelProve(spec, { kernel = null } = {}) {
+export async function kernelProve(spec, { kernel = null, log = () => {}, env = process.env, fetch = globalThis.fetch } = {}) {
   const { words, guarantees } = ruleWords(spec);
+  // The spec is read first, so nothing is fetched for an app this route cannot take.
+  if (!kernel) await ensureKernel({ env, fetch, log });
   const started = performance.now();
   const k = kernel ?? (await openKernel());
   const texts = [];

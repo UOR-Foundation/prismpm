@@ -20,7 +20,7 @@ import { TEMPLATE_EXAMPLE, appJson, conformanceText, featureText, idsToml, lexle
 import { VERSION } from '../version.mjs';
 import { gapLedger, propertyShape } from '../gaps.mjs';
 import { checkSpecBinding } from './binding.mjs';
-import { ruleWords } from './kernel-prove.mjs';
+import { WORD_MAX, boundedSpec, ruleWords, unboundedFields } from './kernel-prove.mjs';
 
 const PROVE_SCRIPT_FULL = [
   'echo "@@step prelock"; lexlean lock 2>&1; code=$?; echo "@@exit prelock $code"; [ $code -eq 0 ] || exit $code',
@@ -229,6 +229,12 @@ async function proveHosted(dir, session, { log, client, gaps }) {
 }
 
 /** What the kernel route does not claim, said with every answer it gives. */
+/** What a rule app reads of a number field the spec leaves unbounded, said wherever the bounds are claimed. */
+const boundsNote = (spec) => {
+  const open = unboundedFields(spec);
+  return open.length ? ` The spec gives ${open.map((n) => `\`${n}\``).join(', ')} no upper bound; this app reads ${open.length === 1 ? 'it' : 'them'} up to ${WORD_MAX} and refuses more.` : '';
+};
+
 const KERNEL_SCOPE = 'This checks the rules as the rule judge reads them, in this process, with no SDK image. prism_build makes the app that rule judge, so the check is about the app it builds. It is not a proof of the rendered model: PRISM_CODE_TIER=local proves that in the SDK image.';
 
 /**
@@ -244,7 +250,7 @@ async function proveKernel(dir, session, { log }) {
   log("Asking Lean's kernel, in this process, to check every guarantee. No SDK image is used and nothing is sent.");
   let result;
   try {
-    result = await kernelProve(spec);
+    result = await kernelProve(spec, { log });
   } catch (error) {
     if (error instanceof KernelUnread) return { ok: false, where: 'kernel', code: error.code, message: `Lean's kernel in this process cannot read this spec: ${error.message}. Prove it in the SDK image instead: set PRISM_CODE_TIER=local and call prism_prove again.` };
     // The kernel not running says nothing about the app, so it is never reported as a failed proof.
@@ -281,7 +287,7 @@ async function proveKernel(dir, session, { log }) {
       evidence: result.evidence,
       properties,
       message: spec.properties.length
-        ? `Lean's kernel accepted all ${spec.properties.length} guarantee${spec.properties.length === 1 ? '' : 's'} for every request in the fields' bounds, in ${seconds} s. ${KERNEL_SCOPE}`
+        ? `Lean's kernel accepted all ${spec.properties.length} guarantee${spec.properties.length === 1 ? '' : 's'} for every request in the fields' bounds, in ${seconds} s.${boundsNote(spec)} ${KERNEL_SCOPE}`
         : `No property is stated, so there was nothing for Lean's kernel to check. ${KERNEL_SCOPE}`,
     };
   }
@@ -320,8 +326,14 @@ async function buildKernel(dir, session, { log, overwrite }) {
   } catch (error) {
     return { ok: false, stage: 'build', where: 'kernel', message: `The rule judge could not run this app (${error.message}). This is a Prism bug, not a problem with your spec.` };
   }
+  // The app as a page: static files any host serves, written only for an app whose vectors all pass.
+  let site = null;
+  if (acceptance.failed.length === 0) {
+    const { writeRuleAppSite } = await import('./rule-app-site.mjs');
+    site = writeRuleAppSite(join(dir, '.prism', 'site'), bytes).directory;
+  }
   const seconds = Math.round((Date.now() - started) / 100) / 10;
-  session.status.ruleApp = { path, address, at: new Date().toISOString(), seconds, passed: acceptance.passed, total: acceptance.total, holo: app.record.kernel.holo };
+  session.status.ruleApp = { path, address, site, at: new Date().toISOString(), seconds, passed: acceptance.passed, total: acceptance.total, holo: app.record.kernel.holo };
   writeSpecDocument(dir, session);
   const ok = acceptance.failed.length === 0;
   const count = session.spec.properties.length;
@@ -332,10 +344,11 @@ async function buildKernel(dir, session, { log, overwrite }) {
     seconds,
     app: path,
     address,
+    site,
     holo: app.record.kernel.holo,
     vectors: { passed: acceptance.passed, total: acceptance.total },
     message: ok
-      ? `Built in ${seconds} s with no SDK image and nothing compiled: the app is the verified rule judge and this spec's numbers, named together as ${address}. Lean's kernel accepted ${count === 0 ? 'no guarantee, because none is stated' : `all ${count} guarantee${count === 1 ? '' : 's'}`} for that rule judge. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it. The text of a request is read outside the guest, so refusing malformed text is tested, not proved. This is not a holo: prism_try answers from it, a build on GitHub (name a repository) makes a holo there, and PRISM_CODE_TIER=local builds one in the SDK image.`
+      ? `Built in ${seconds} s with no SDK image and nothing compiled: the app is the verified rule judge and this spec's numbers, named together as ${address}. Lean's kernel accepted ${count === 0 ? 'no guarantee, because none is stated' : `all ${count} guarantee${count === 1 ? '' : 's'}`} for that rule judge. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it.${boundsNote(session.spec)} The text of a request is read outside the guest, so refusing malformed text is tested, not proved. Its page is the folder ${relative(process.cwd(), site) || site}: static files any host serves, which check the app in the browser before it answers. This is not a holo: prism_try answers from it, a build on GitHub (name a repository) makes a holo there, and PRISM_CODE_TIER=local builds one in the SDK image.`
       : `Written, but ${acceptance.failed.length} of ${acceptance.total} acceptance vectors fail through the rule judge. That is a Prism bug: the evaluator and the rule judge disagree.`,
   };
 }
@@ -699,7 +712,9 @@ export async function tryRequest(session, request) {
       // A record written for an earlier spec is not this app: answer from the spec until it is built again.
       if (ruleAppRecord(session.spec, { proof: app.record.proof }).address === app.address) {
         const answer = new TextDecoder().decode(await app.dispatch(bytes));
-        return { request, answer, from: 'the built app (the rule judge)', decidedBy: why, agreesWithSpec: answer === expected };
+        // The built app is the bounded one, so that is the spec it is held to.
+        const bounded = respond(boundedSpec(session.spec), bytes);
+        return { request, answer, from: 'the built app (the rule judge)', decidedBy: bounded === 'invalid' ? 'malformed' : why, agreesWithSpec: answer === bounded };
       }
     } catch {
       // A record that is refused answers nothing; the spec still can.

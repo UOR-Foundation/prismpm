@@ -20,11 +20,11 @@
  * so refusing malformed text is tested by vectors, not carried by the guest.
  */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { loadArchive } from '../index.mjs';
 import { acceptanceVectors } from './render.mjs';
 import { INVALID, decodeRequest, requestLimits } from './spec.mjs';
-import { KernelUnread, ruleWords } from './kernel-prove.mjs';
+import { KernelUnread, WORD_MAX, boundedSpec, ruleWords } from './kernel-prove.mjs';
+import { readKernelFile } from './kernel-store.mjs';
 
 export const RULE_APP_SCHEMA = 'prism/rule-app/1';
 /** The rule judge's holo this package carries. A record names the holo it was made for by this address. */
@@ -69,7 +69,7 @@ export const answerKind = (wellFormed, inBounds, judgeAnswered) => (wellFormed !
 export const statementOf = (words, guarantees) => sha256(JSON.stringify(['prism/kernel-statement/1', words, guarantees]));
 
 /** The pinned rule judge's holo, checked against its address. */
-export function pinnedHolo({ read = () => readFileSync(new URL('./kernel/kernel.holo', import.meta.url)) } = {}) {
+export function pinnedHolo({ read = () => readKernelFile('kernel.holo') } = {}) {
   const bytes = new Uint8Array(read());
   if (sha256(bytes) !== RULE_JUDGE_HOLO) throw new RuleAppRefused('rule-app.holo', "the rule judge's holo is not the pinned one");
   return bytes;
@@ -88,11 +88,12 @@ export function ruleAppRecord(spec, { proof = null } = {}) {
     name: spec.name,
     title: spec.title,
     kernel: { holo: RULE_JUDGE_HOLO },
-    fields: spec.fields.map((f) => (f.kind === 'choice' ? { name: f.name, kind: 'choice', values: [...f.values] } : { name: f.name, kind: 'number', min: f.min ?? 0, max: f.max })),
+    fields: spec.fields.map((f) => (f.kind === 'choice' ? { name: f.name, kind: 'choice', values: [...f.values] } : { name: f.name, kind: 'number', min: f.min ?? 0, max: f.max ?? WORD_MAX })),
     outcomes: [...new Set([spec.otherwise, ...spec.rules.map((r) => r.then)])],
     words,
     guarantees,
-    vectors: acceptanceVectors(spec).map((v) => ({ request: hexOf(v.bytes), response: hexOf(new TextEncoder().encode(v.response)) })),
+    // The vectors are the bounded app's: a number past the judge's words is refused, and a vector says so.
+    vectors: acceptanceVectors(boundedSpec(spec)).map((v) => ({ request: hexOf(v.bytes), response: hexOf(new TextEncoder().encode(v.response)) })),
     proof,
   };
   const bytes = new TextEncoder().encode(`${JSON.stringify(record, null, 1)}\n`);

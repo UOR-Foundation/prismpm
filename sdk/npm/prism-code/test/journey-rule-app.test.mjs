@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { compile } from '../src/journey/session.mjs';
 import { appDir, readSession } from '../src/journey/project.mjs';
 import { build, tryRequest } from '../src/journey/engine.mjs';
@@ -11,6 +12,8 @@ import { respond } from '../src/journey/spec.mjs';
 import { RULE_APP_SCHEMA, RULE_JUDGE_HOLO, RuleAppRefused, loadRuleApp, pinnedHolo, ruleAppRecord } from '../src/journey/rule-app.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
+// The kernel's files are fetched once in use; here they are the pinned bytes kept beside the tests, so nothing is fetched.
+process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 const PARKING = {
   purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
@@ -71,7 +74,7 @@ test('a build with PRISM_CODE_TIER=kernel writes the app with no SDK image, and 
   assert.ok(r.vectors.total >= 10);
   assert.match(r.message, /^Built in [\d.]+ s with no SDK image and nothing compiled: .* Lean's kernel accepted all 3 guarantees for that rule judge\. Tested: \d+ of \d+ acceptance vectors pass through it\./);
   // Planted defect R6: the route never passes its record off as a holo, or its check as the model's proof.
-  assert.match(r.message, /refusing malformed text is tested, not proved\. This is not a holo: prism_try answers from it/);
+  assert.match(r.message, /refusing malformed text is tested, not proved\. Its page is the folder .* This is not a holo: prism_try answers from it/);
   assert.equal(session.status.holo, undefined);
   assert.equal(session.status.proved, undefined);
   assert.equal(session.status.ruleApp.address, r.address);
@@ -156,4 +159,20 @@ test('planted defects R2 to R5: an altered record is refused, or its own vectors
   // The untouched record still loads and passes.
   const again = await (await loadRuleApp(good)).acceptance();
   assert.equal(again.failed.length, 0);
+});
+
+test('a number field with no upper bound: the app reads it up to the judge\'s words, says so, and refuses more', { timeout: 120000 }, async () => {
+  const dir = appDir(mkdtempSync(join(tmpdir(), 'prism-rule-app-open-')));
+  const open = compile({ ...PARKING, fields: 'hours: number, vehicle: car|motorcycle|truck', review: 'yes' }).spec;
+  assert.equal(open.fields[0].max, undefined);
+  const session = { ...readSession(dir), spec: open, axioms: {}, status: {} };
+  const r = await build(dir, session, { env: {} });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.where, 'kernel');
+  assert.match(r.message, /The spec gives `hours` no upper bound; this app reads it up to 4294967295 and refuses more\./);
+  const loaded = await loadRuleApp(readFileSync(r.app));
+  assert.deepEqual(loaded.record.fields[0], { name: 'hours', kind: 'number', min: 0, max: 4294967295 });
+  for (const [text, want] of [['4294967295 car', 'premium'], ['4294967296 car', 'invalid'], ['0 car', 'free'], ['8 car', 'standard']]) assert.equal(dec.decode(await loaded.dispatch(enc.encode(text))), want, text);
+  // prism_try holds the built app to the bounded spec, and says a number past the bound is not read.
+  assert.deepEqual(await tryRequest(session, '4294967296 car'), { request: '4294967296 car', answer: 'invalid', from: 'the built app (the rule judge)', decidedBy: 'malformed', agreesWithSpec: true });
 });
