@@ -1689,11 +1689,12 @@ fn assert_source_free_browser_export(release: &BrowserRelease) {
             *bytes
         );
     }
+    // The export writes the closure-v2 browser files and nothing else.
     assert_eq!(
         std::fs::read_dir(root.join("browser-output"))
             .unwrap()
             .count(),
-        6
+        release.files.len()
     );
     std::fs::write(root.join("existing-file"), b"preserve").unwrap();
     assert_browser_refused(&root, &release.reference, Path::new("existing-file"));
