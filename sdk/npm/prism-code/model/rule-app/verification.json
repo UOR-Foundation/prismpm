@@ -5,10 +5,10 @@
   "image": "ghcr.io/uor-foundation/prismpm-sdk-candidate@sha256:cd3b47d7a370c4a26b8285f5e9c3bb15e639973c55505c3809ddbe55352fea58",
   "lean": "4.32.1",
   "result": "verified 2 modules",
-  "attestation": "b8922eafe357a92480d1e1f264806abbf44e423e7273e89670eb33a975ce33ae",
+  "attestation": "f7127605827e863b4548f9aef848a0e6934473134395a80f81b1639b2ac89daf",
   "sources": {
     "lexlean.toml": "sha256:78e8f1774aad8325c668f0ebfee8e41021aab74cfb41028f48ef607691153f87",
-    "lexlean.lock": "sha256:257edee6aedeee26aedbe5f7f0a948d6fb9633e27e5a6b57f3578dc3bf7fb1f0",
+    "lexlean.lock": "sha256:a03672a7f077c0aa9c5fdf99caa7137cdc22b36ea76bfe5e03ca398373dc23cf",
     "src/RuleApp.lex.tex": "sha256:42c6a74263b86285168345647121302fa0e73bd61f0cd0f2c7559b95b2d58f80",
     "src/RuleAppProofs.lex.tex": "sha256:896c418909dcdc852fdabb1e2d22ccc14f35f24f9f09084426de9a51f483e3f7"
   },
