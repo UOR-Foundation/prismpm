@@ -2525,6 +2525,188 @@ pub fn verify(bytes: &[u8], policy: &Policy) -> Result<Verdict, NoVerdict> {
     })
 }
 
+/// The `prismpm/holo-inspection/1` object of a holo v5 (ADR-017), as the
+/// JavaScript verifier's `inspectionOfV5` gives it: every section is one object
+/// of the UORC archive, its kind name is the object's role, every digest is the
+/// object's κ alone, the footer is the UORC-SHA256-CHAIN-v1 seal and the
+/// manifest labels are the κ the holo manifest names. Unlike the verifier, the
+/// statements of the attestation object are listed, as for a v4 holo.
+pub(super) fn inspection_v5(bytes: &[u8]) -> Result<Value, PrismError> {
+    use crate::holo::v5 as uorc;
+    let analysis = v5::analyze(bytes).map_err(|refusal| {
+        PrismError::new(
+            if refusal.check == "archive.magic" {
+                "PP3001"
+            } else {
+                "PP3003"
+            },
+            refusal.message,
+        )
+    })?;
+    let (objects, _) = uorc::layout(bytes, uorc::APPLICATION_BUDGET)?;
+    let base = bytes.as_ptr() as usize;
+    let role_of = |index: usize| {
+        crate::holo::archive::ROLES_V5
+            .get(index)
+            .copied()
+            .unwrap_or(crate::holo::archive::ROLE_ATTESTATIONS)
+    };
+    let sections = objects
+        .iter()
+        .enumerate()
+        .map(|(index, object)| {
+            json!({
+                "index": index,
+                "kind": Value::Null,
+                "kind_name": role_of(index),
+                "role": role_of(index),
+                "offset": object.as_ptr() as usize - base,
+                "length": object.len(),
+                "digest": { "sha256": sha256_hex(object) },
+                "label": uorc::kappa(object),
+            })
+        })
+        .collect::<Vec<_>>();
+    let known = analysis.layout_known;
+    let object = |index: usize| known.then(|| objects.get(index).copied()).flatten();
+    let document = |index: usize| {
+        object(index)
+            .and_then(|bytes| serde_json::from_slice::<Value>(bytes).ok())
+            .unwrap_or(Value::Null)
+    };
+    let passed = |id: &str| {
+        analysis
+            .findings
+            .iter()
+            .any(|finding| finding.id == id && finding.ok)
+    };
+    let manifest = passed("manifest.wire")
+        .then(|| document(0))
+        .unwrap_or(Value::Null);
+    let provenance = passed("provenance.schema")
+        .then(|| document(2))
+        .unwrap_or(Value::Null);
+    let model_document = passed("model.schema")
+        .then(|| document(6))
+        .unwrap_or(Value::Null);
+    let application = model_document
+        .get("application")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let label = |index: usize| object(index).map(uorc::kappa);
+    let member = |value: &Value, key: &str| super::member(value, key);
+    let name = match member(&application, "name") {
+        Value::Null => member(&manifest, "name"),
+        value => value,
+    };
+    let contract = manifest
+        .get("layers")
+        .and_then(Value::as_array)
+        .and_then(|layers| {
+            layers
+                .iter()
+                .find(|layer| layer.get("kind").and_then(Value::as_str) == Some("wasm"))
+        })
+        .and_then(|layer| layer.get("contract").and_then(Value::as_str))
+        .map(str::to_owned);
+    let capabilities = object(3).map(|content| super::Section {
+        index: 3,
+        kind: KIND_CONTENT_BLOB,
+        offset: 0,
+        length: content.len() as u64,
+        bytes: content.to_vec(),
+        label: Some(uorc::kappa(content)),
+        content: Some(content.to_vec()),
+        name: None,
+        role: "capabilities",
+    });
+    let world = if capabilities.is_some() {
+        super::world_member(contract.as_deref(), object(4), capabilities.as_ref())
+    } else {
+        Value::Null
+    };
+    let attestations = analysis
+        .attestations
+        .as_ref()
+        .map_err(|message| PrismError::new("PP3003", message.clone()))?
+        .iter()
+        .map(|statement| {
+            json!({
+                "predicate_type": statement.predicate_type,
+                "subjects": statement
+                    .subjects
+                    .iter()
+                    .map(|subject| json!({ "name": subject.name, "digest": { "sha256": subject.sha256 } }))
+                    .collect::<Vec<Value>>(),
+            })
+        })
+        .collect::<Vec<Value>>();
+    Ok(json!({
+        "schema": super::INSPECTION_SCHEMA,
+        "name": name,
+        "revision": passed("format.revision").then_some(FORMAT_REVISION),
+        "physical_version": 5,
+        "flags": 0,
+        "size": bytes.len(),
+        "digest": { "sha256": sha256_hex(bytes) },
+        "footer": hex(&bytes[bytes.len() - uorc::SEAL..]),
+        "sections": sections,
+        "manifest": if manifest.is_null() {
+            Value::Null
+        } else {
+            json!({
+                "uri": member(&manifest, "schema"),
+                "labels": { "capability_set": label(3), "guest": label(4), "view": label(5) },
+                "entry": super::MANIFEST_ENTRY,
+                "contract": wire::contractName(),
+                "view_entry": super::VIEW_ENTRY,
+                "surface": super::MANIFEST_SURFACE,
+            })
+        },
+        "model": match object(6) {
+            Some(model) if !model_document.is_null() => json!({
+                "schema": member(&model_document, "schema"),
+                "name": member(&application, "name"),
+                "cargo_name": member(&application, "cargo_name"),
+                "cargo_version": member(&application, "cargo_version"),
+                "description": member(&application, "cargo_description"),
+                "profile": member(&application, "profile"),
+                "function": member(&application, "function_name"),
+                "vectors": application
+                    .get("acceptance_vectors")
+                    .and_then(Value::as_array)
+                    .map_or(0, Vec::len),
+                "limits": {
+                    "request": member(&application, "request_maximum"),
+                    "response": member(&application, "response_maximum"),
+                    "guest_allocation": member(&application, "guest_allocation_maximum"),
+                },
+                "digest": { "sha256": sha256_hex(model) },
+            }),
+            _ => Value::Null,
+        },
+        "provenance": if provenance.is_null() {
+            Value::Null
+        } else {
+            json!({
+                "schema": member(&provenance, "schema"),
+                "application_kappa": member(&provenance, "application_kappa"),
+                "model_id": member(&provenance, "model_id"),
+                "compiler_semantics_id": member(&provenance, "compiler_semantics_id"),
+                "stdlib_semantics_id": member(&provenance, "stdlib_semantics_id"),
+                "lexlean_commit": member(&provenance, "lexlean_commit"),
+            })
+        },
+        "world": world,
+        "attestations": attestations,
+        "verification": {
+            "footer": analysis.footer_matches,
+            "labels": passed("blob.labels"),
+            "cross_references": passed("references"),
+        },
+    }))
+}
+
 #[path = "verdict_v5.rs"]
 mod v5;
 
