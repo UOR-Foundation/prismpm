@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { PrismError } from '../errors.mjs';
 import { fromFile } from '../node.mjs';
-import { counterexample, describeConditions } from './spec.mjs';
+import { counterexample, describeConditions, isProposed, triesEveryCase } from './spec.mjs';
 import { isStateful, names, renderSpecDocument } from './render.mjs';
 import { respondSession, runSession, statefulCounterexample } from './stateful.mjs';
 import { bind, isBound, modelMismatches, modelPath, newestHolo, rememberModel, writeApp, writeSession, writeSpecDocument } from './project.mjs';
@@ -337,9 +337,13 @@ function explainFailure(dir, session, { run, diagnostics, failed, seconds, gaps 
       }
       const found = counterexample(spec, p);
       if (found.request === null) gaps?.record({ kind: 'unproved', construct: propertyShape(p), code: codeOf(diagnostics, p, byTheorem, source) });
-      return found.request !== null
-        ? `${p.id} is false. The request \`${found.request}\` meets "${describeConditions(p.when)}" and the rules answer ${found.outcome} (${found.rule ?? 'otherwise'}).`
-        : `Lean could not prove ${p.id} ("${p.says}"), and none of ${found.checked} sampled requests breaks it. It may hold only for requests the sampling missed, such as very large numbers. Restate it more narrowly, or drop it and keep it as a tested example.`;
+      if (found.request !== null) return `${p.id} is false. The request \`${found.request}\` meets "${describeConditions(p.when)}" and the rules answer ${found.outcome} (${found.rule ?? 'otherwise'}).`;
+      // Measured on 2026-11-16: a guarantee Prism proposed for a spec of 24 rules, true for every
+      // request, was refused by Lean's arithmetic step, and this message blamed the sampling.
+      const strike = `strike it to build without it (pass the spec to prism_spec again without ${p.id}); what it says stays tested by the acceptance vectors.${isProposed(p) ? ' Prism proposed it; the user did not state it.' : ''}`;
+      return triesEveryCase(spec)
+        ? `${p.id} ("${p.says}") holds for every request: Prism tried every case the rules tell apart (${found.checked}), and none breaks it. Lean could not finish its proof; that is a limit of the prover on this spec, not a fault in it. So ${strike}`
+        : `Lean could not prove ${p.id} ("${p.says}"), and none of ${found.checked} sampled requests breaks it. ${spec.fields.every((f) => f.kind === 'choice' || f.max !== undefined) ? 'A request the sampling did not try may break it: one where two fields are compared.' : 'It may hold only for requests the sampling missed, such as very large numbers.'} Restate it more narrowly, or ${strike}`;
     });
     return { ok: false, seconds, properties: spec.properties.map((p) => ({ id: p.id, status: session.status.properties[p.id] })), message: explained.join('\n'), next: 'Change a rule or restate the property (prism_answer with step rules or properties), then prove again.' };
   }
@@ -428,6 +432,29 @@ const defaultRoot = (dir) => (basename(dir) === 'prism' && !existsSync(join(dir,
  * paths and nothing else, create or connect the repository, and build that
  * commit. `steps` is injectable for tests.
  */
+/**
+ * What a GitHub build asks first when there is nowhere to build yet: no repository named, no clone
+ * this journey made, and no origin. Null when there is somewhere. The server asks it before any
+ * proof starts: measured on 2026-11-16, the question came only after minutes of proving, and a
+ * repository passed meanwhile joined that build and was ignored.
+ */
+export function askForRepository(dir, session, { repository = null, steps = {} } = {}) {
+  const s = { gitRoot, originRepository, signedInLogin, ...steps };
+  if (repository) return null;
+  const made = session.status?.repository;
+  if (made?.clone && existsSync(made.clone)) return null;
+  const top = s.gitRoot(dir);
+  if (top && s.originRepository(top)) return null;
+  const suggested = suggestedRepository(s.signedInLogin(), session.spec);
+  return {
+    ok: false,
+    stage: 'build',
+    needs: 'repository',
+    suggested,
+    message: `The app builds on GitHub Actions, so it needs a GitHub repository, and there is none yet. Ask the user to approve creating the public repository ${suggested} (or another name they choose) from the UOR-Foundation/template, then call prism_build with repository set to it. It gets the template's frame, page and gate, and a live URL on GitHub Pages.`,
+  };
+}
+
 export async function buildRemote(dir, session, { log = () => {}, root, repository = null, steps = {} } = {}) {
   const s = { gitRoot, originRepository, signedInLogin, readyForGitHub, commitApp, publishRepository, remoteBuild: null, ...steps };
   const started = Date.now();
@@ -441,16 +468,7 @@ export async function buildRemote(dir, session, { log = () => {}, root, reposito
   if (made?.clone && existsSync(made.clone) && (!named || named.full.toLowerCase() === made.full.toLowerCase())) return buildFromTemplate(dir, session, { log, repository: made.full, clone: made.clone, steps });
   // A new app becomes an instance of the template: its frame, page, gate and Pages URL.
   if (!origin && named) return buildFromTemplate(dir, session, { log, repository: named.full, clone: join(base, named.repo), create: true, steps });
-  if (!origin && !named) {
-    const suggested = suggestedRepository(s.signedInLogin(), session.spec);
-    return {
-      ok: false,
-      stage: 'build',
-      needs: 'repository',
-      suggested,
-      message: `The app builds on GitHub Actions, so it needs a GitHub repository, and there is none yet. Ask the user to approve creating the public repository ${suggested} (or another name they choose) from the UOR-Foundation/template, then call prism_build with repository set to it. It gets the template's frame, page and gate, and a live URL on GitHub Pages.`,
-    };
-  }
+  if (!origin && !named) return askForRepository(dir, session, { steps: s });
   if (origin && named && origin.full.toLowerCase() !== named.full.toLowerCase()) {
     return { ok: false, stage: 'build', message: `This folder's origin is ${origin.full}, not ${named.full}. Call prism_build without repository to build in ${origin.full}.` };
   }

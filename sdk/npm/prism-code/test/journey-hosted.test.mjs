@@ -235,8 +235,8 @@ function templateSkeleton(into) {
   w('app/src/Contract.lex.tex', 'the example\n');
   w('crates/conformance/tests/contract.rs', '// the example\n');
   w('features/suites/contract.feature', 'Feature: contract\n');
-  w('model/ids.toml', '# the register\n\nspec = "template/1"\n\n[[id]]\nid = "TC-01"\nlevel = "build"\nsuite = "contract"\nstatement = "the example"\n');
-  w('CONFORMANCE.md', '# CONFORMANCE\n\nThe levels.\n\n## contract\n\n| ID | Level | Statement |\n| --- | --- | --- |\n| `TC-01` | `build` | the example |\n\n## Cited authorities\n\nNever re-derived.\n');
+  w('model/ids.toml', '# the register\n\nspec = "template/1"\n\n[[id]]\nid = "TC-01"\nlevel = "build"\nsuite = "contract"\nstatement = "the example"\n\n[[id]]\nid = "FR-01"\nlevel = "build"\nsuite = "frame"\nstatement = "the frame"\n');
+  w('CONFORMANCE.md', '# CONFORMANCE\n\nThe levels.\n\n## contract\n\n| ID | Level | Statement |\n| --- | --- | --- |\n| `TC-01` | `build` | the example |\n\n## frame\n\n| ID | Level | Statement |\n| --- | --- | --- |\n| `FR-01` | `build` | the frame |\n\n## Cited authorities\n\nNever re-derived.\n');
   w('site/app.json', '{"name": "Template contract", "trusted": [{"name": "SDK image"}]}\n');
 }
 
@@ -279,7 +279,11 @@ test('a new app becomes a template instance: created from the template, written 
   assert.ok(existsSync(join(clone, 'app/src/PaymentApproval.lex.tex')) && existsSync(join(clone, 'app/src/PaymentApprovalProofs.lex.tex')));
   assert.match(readFileSync(join(clone, 'app/lexlean.toml'), 'utf8'), /^entrypoints = \["src\/PaymentApproval\.lex\.tex", "src\/PaymentApprovalProofs\.lex\.tex"\]$/m, 'the proofs are an entrypoint, so the gate checks the theorems');
   assert.doesNotMatch(readFileSync(join(clone, 'app/lexlean.lock'), 'utf8'), /0{64}/, 'every digest the lock binds is recomputed');
-  assert.match(readFileSync(join(clone, 'model/ids.toml'), 'utf8'), /^# the register\n\nspec = "template\/1"\n\n\[\[id\]\]\nid = "PA-01"/);
+  // The template's frame keeps its IDs and its section: its scenarios still name them (measured on 2026-11-16).
+  const register = readFileSync(join(clone, 'model/ids.toml'), 'utf8');
+  assert.match(register, /^# the register\n\nspec = "template\/1"\n\n\[\[id\]\]\nid = "FR-01"\nlevel = "build"\nsuite = "frame"\nstatement = "the frame"\n\n\[\[id\]\]\nid = "PA-01"/);
+  assert.doesNotMatch(register, /TC-01/);
+  assert.match(readFileSync(join(clone, 'CONFORMANCE.md'), 'utf8'), /\n## payment_approval\n[\s\S]*\n## frame\n\n\| ID \| Level \| Statement \|\n\| --- \| --- \| --- \|\n\| `FR-01` \| `build` \| the frame \|\n\n## Cited authorities\n/);
   assert.ok(existsSync(join(clone, 'features/suites/payment_approval.feature')));
   // The app's test replaces the example's file, so the template's ratchet sees no new non-Prism file (measured on 2026-11-16).
   assert.match(readFileSync(join(clone, 'crates/conformance/tests/contract.rs'), 'utf8'), /^\/\/! The `payment_approval` suite/);
