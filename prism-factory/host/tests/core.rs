@@ -52,8 +52,11 @@ fn the_plumbing_is_outside_source_vv_and_the_build_reads_only_its_own() {
     assert_eq!(route(&before, "source-vv").1, route(&factory, "source-vv").1);
     assert_eq!(route(&before, "build").1, route(&factory, "build").1);
     // release-phases.mjs is plumbing the build executes: a longer include wins over the exclusion.
+    // The SDK image carries it too, because the SBOM tests that run inside the image import it,
+    // so vv-sdk reads it and source V&V, which runs in that image, follows.
     let phases = planned(&TREE.replace("cccc scripts", "cdef scripts"));
-    assert_eq!(route(&before, "source-vv").1, route(&phases, "source-vv").1);
+    assert_ne!(route(&before, "vv-sdk").1, route(&phases, "vv-sdk").1);
+    assert_ne!(route(&before, "source-vv").1, route(&phases, "source-vv").1);
     assert_ne!(route(&before, "build").1, route(&phases, "build").1);
 }
 
