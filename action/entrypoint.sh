@@ -108,7 +108,13 @@ if test "$command" = factory; then
         test -n "${PRISMPM_ACTION_REGISTRY_TOKEN:-}" || { printf '%s\n' 'factory: publish access needs a registry token' >&2; exit 2; }
         docker_config=$RUNNER_TEMP/prism-docker-$target
         rm -rf "$docker_config" && mkdir -p "$docker_config"
-        printf '%s' "$PRISMPM_ACTION_REGISTRY_TOKEN" | DOCKER_CONFIG=$docker_config docker login ghcr.io -u "${GITHUB_ACTOR:?}" --password-stdin >/dev/null
+        # The registry refuses a login now and then; a refusal is retried
+        # before it is taken as the token's.
+        for attempt in 1 2 3 4; do
+          printf '%s' "$PRISMPM_ACTION_REGISTRY_TOKEN" | DOCKER_CONFIG=$docker_config docker login ghcr.io -u "${GITHUB_ACTOR:?}" --password-stdin >/dev/null && break
+          test "$attempt" -lt 4 || { printf '%s\n' 'factory: the registry refused the login four times' >&2; exit 1; }
+          sleep $((attempt * 15))
+        done
         chmod -R a+rwX "$docker_config"
         network_args+=(--volume "$docker_config:/prism-docker" --env DOCKER_CONFIG=/prism-docker)
       fi
