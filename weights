@@ -1,9 +1,9 @@
-weight policy 3
+weight policy 2
 weight factory-model 3
-weight plumbing 3
-weight vv-sdk 6
-weight source-vv 4
-weight build 6
+weight plumbing 2
+weight vv-sdk 5
+weight source-vv 6
+weight build 8
 weight gate 4
 weight oci-native 4
 weight crates 4
