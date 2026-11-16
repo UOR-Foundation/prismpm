@@ -8,6 +8,9 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 
 ## [0.9.4](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.9.3...prism-code-v0.9.4) (2026-11-16)
 
+### Breaking Changes
+
+None.
 
 ### Bugs Fixed
 
