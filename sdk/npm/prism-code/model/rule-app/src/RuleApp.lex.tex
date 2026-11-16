@@ -80,5 +80,29 @@ definition{
   result: Nat,
   body: (if (not (wellFormed =? 1)) then (answerInvalid) else (if (not (inBounds =? 1)) then (answerInvalid) else (if (judgeAnswered =? 1) then (answerOutcome) else (answerFault))))
 }
+
+structure{
+  name: Stored,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: present, type: Nat},
+    {name: storedKey, type: Nat},
+    {name: computedKey, type: Nat},
+    {name: storedKernel, type: Nat},
+    {name: kernelPinned, type: Nat},
+    {name: storedLibrary, type: Nat},
+    {name: libraryPinned, type: Nat},
+    {name: storedBytes, type: Nat},
+    {name: derivedBytes, type: Nat}
+  ]
+}
+
+definition{
+  name: reuseAdmits,
+  parameters: [s : Stored],
+  result: Bool,
+  body: (((((project s present) =? 1) && ((project s storedKey) =? (project s computedKey))) && (((project s storedKernel) =? (project s kernelPinned)) && ((project s storedLibrary) =? (project s libraryPinned)))) && ((project s storedBytes) =? (project s derivedBytes)))
+}
 \end{semanticmodule}
 \end{lexlean}

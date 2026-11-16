@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { ANSWER, admits, answerKind, greatestAt, kernelChecked, leastAt, rulesAt } from '../src/journey/rule-app.mjs';
+import { reuseAdmits } from '../src/journey/kappa-store.mjs';
 
 const read = (file) => readFileSync(new URL(`../model/rule-app/${file}`, import.meta.url), 'utf8');
 const MODEL = read('src/RuleApp.lex.tex');
@@ -89,7 +90,7 @@ function* records(count) {
 
 test('the model states the record and every rule the JavaScript follows', () => {
   const defs = definitions(MODEL);
-  assert.deepEqual([...defs.keys()], ['schemaOne', 'wordsMaximum', 'holoAdmitted', 'numbersAdmitted', 'proofAdmitted', 'admits', 'kernelChecked', 'leastAt', 'greatestAt', 'rulesAt', 'answerOutcome', 'answerInvalid', 'answerFault', 'answerKind']);
+  assert.deepEqual([...defs.keys()], ['schemaOne', 'wordsMaximum', 'holoAdmitted', 'numbersAdmitted', 'proofAdmitted', 'admits', 'kernelChecked', 'leastAt', 'greatestAt', 'rulesAt', 'answerOutcome', 'answerInvalid', 'answerFault', 'answerKind', 'reuseAdmits']);
   for (const field of FIELDS) assert.ok(MODEL.includes(`{name: ${field}, type: Nat}`), field);
   assert.equal(model('wordsMaximum', []), 1024);
   assert.deepEqual([model('answerOutcome', []), model('answerInvalid', []), model('answerFault', [])], [ANSWER.outcome, ANSWER.invalid, ANSWER.fault]);
@@ -118,10 +119,38 @@ test('the layout of the numbers and the kind of every answer are the model\'s', 
   for (const w of [0, 1, 2]) for (const b of [0, 1, 2]) for (const j of [0, 1, 2]) assert.equal(answerKind(w, b, j), model('answerKind', [w, b, j]), `${w}${b}${j}`);
 });
 
+const STORED = ['present', 'storedKey', 'computedKey', 'storedKernel', 'kernelPinned', 'storedLibrary', 'libraryPinned', 'storedBytes', 'derivedBytes'];
+// Stored proofs that may be reused, each with none, one or two facts changed, so every clause of the rule is broken alone.
+function* stored(count) {
+  let seed = 0x51ed27;
+  const next = (n) => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return (seed >>> 8) % n;
+  };
+  for (let i = 0; i < count; i++) {
+    const [key, kernel, library, bytes] = [next(3), next(3), next(3), next(3)];
+    const s = { present: 1, storedKey: key, computedKey: key, storedKernel: kernel, kernelPinned: kernel, storedLibrary: library, libraryPinned: library, storedBytes: bytes, derivedBytes: bytes };
+    for (let changes = next(3); changes > 0; changes--) s[STORED[next(STORED.length)]] = next(3);
+    yield s;
+  }
+}
+
+test('reuse of a stored proof is the model\'s, on 20,000 stored proofs', () => {
+  let reused = 0;
+  for (const s of stored(20000)) {
+    assert.equal(reuseAdmits(s), model('reuseAdmits', [s]), JSON.stringify(s));
+    assert.equal(proofs('breaksReuse', [s]), false);
+    assert.equal(proofs('breaksNothingStored', [s]), false);
+    reused += reuseAdmits(s) ? 1 : 0;
+  }
+  assert.ok(reused > 4000 && reused < 16000, String(reused));
+  for (const field of STORED) assert.ok(MODEL.includes(`{name: ${field}, type: Nat}`), field);
+});
+
 test('every theorem says its counterexample is impossible, and none is found among the records', () => {
   const theorems = [...PROOFS.matchAll(/theorem\{\s*name: (\w+),\s*parameters: \[([^\]]*)\],\s*statement: \(\((\w+) [^)]*\) = false\),\s*proof: linear_arithmetic\{/g)];
-  assert.equal(theorems.length, 10);
-  assert.equal((PROOFS.match(/theorem\{/g) || []).length, 10, 'every theorem has that one form');
+  assert.equal(theorems.length, 12);
+  assert.equal((PROOFS.match(/theorem\{/g) || []).length, 12, 'every theorem has that one form');
   assert.ok(!/sorry|native_decide|axiom\{/.test(MODEL + PROOFS));
   const about = theorems.filter((t) => t[2].includes('RuleApp::Record')).map((t) => t[3]);
   assert.equal(about.length, 6);

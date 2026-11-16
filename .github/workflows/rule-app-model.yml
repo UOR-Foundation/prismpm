@@ -83,7 +83,7 @@ jobs:
           proofs = open('src/RuleAppProofs.lex.tex', encoding='utf8').read()
           named = re.findall(r'theorem\{\s*name: (\w+),', proofs)
           assert named == [t['name'] for t in record['theorems']], named
-          assert len(named) == 10
+          assert len(named) == 12
           PY
       - name: "Planted defect: admission that does not compare the holo is rejected by Lean"
         shell: bash

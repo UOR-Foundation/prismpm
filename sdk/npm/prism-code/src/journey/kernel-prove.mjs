@@ -23,7 +23,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { ensureKernel, readKernelFile } from './kernel-store.mjs';
+import { PROOF_SCHEMA, derivationKey, findProof, kappaStore, keepProof, reuseAdmits } from './kappa-store.mjs';
+import { ensureKernel, hasKernel, readKernelFile } from './kernel-store.mjs';
 
 const KERNEL = new URL('./kernel/', import.meta.url);
 const NAMESPACE = 'PrismLive.Kernel.';
@@ -116,7 +117,7 @@ function readLibrary(text) {
  * guarantee as data, `wordsCheck` on them stated true by evaluation, and
  * `ruleJudge_sound` applied to that. Returns the lines the kernel reads.
  */
-export function proofLines(lib, index, words, guarantee) {
+export function proofLines(lib, words, guarantee) {
   const out = [];
   const own = new Map();
   const ownExpr = [];
@@ -193,7 +194,8 @@ export function proofLines(lib, index, words, guarantee) {
   const Nat = C('Nat');
   const Bool = C('Bool');
   const True = C('Bool.true');
-  const at = `Prism.g${index}.`;
+  // One name for every guarantee: each is judged on its own, so a proof's bytes do not depend on where it sits.
+  const at = 'Prism.guarantee.';
   const cond = ([field, op, value]) => app(C(`${NAMESPACE}Cond.mk`), nat(field), nat(op), nat(value));
   const P = declare('def', `${at}words`, app(C('List', [0]), Nat), list(Nat, words.map(nat)));
   const p = declare('def', `${at}guarantee`, C(`${NAMESPACE}Property`), app(C(`${NAMESPACE}Property.mk`), C(guarantee.always ? 'Bool.true' : 'Bool.false'), list(C(`${NAMESPACE}Cond`), guarantee.when.map(cond)), nat(guarantee.outcome)));
@@ -272,7 +274,7 @@ export function openKernel() {
     const loaded = run('load_library', library);
     if (loaded.exit !== 0) throw new Error(`the kernel refused its library: ${loaded.output}`);
     const lib = readLibrary(library.toString('utf8'));
-    return { manifest, addresses, judge: (index, words, guarantee) => ({ text: proofLines(lib, index, words, guarantee), run }) };
+    return { manifest, addresses, judge: (words, guarantee) => ({ text: proofLines(lib, words, guarantee), run }) };
   })();
   opened.catch(() => {
     opened = null;
@@ -281,34 +283,78 @@ export function openKernel() {
 }
 
 /**
- * Lean's kernel judges every guarantee of `spec`. Resolves
- * `{ judged: [{ accepted, axioms, output }], evidence, ms }`, one entry per
- * property in order. `accepted` is the kernel's own answer; the verdict on the
- * whole check is the verified guest's. Throws `KernelUnread` for a spec this
- * route does not read.
+ * Open the kernel ahead of the first proof, when its files are already on this
+ * machine, so that proof does not wait for it. Fetches nothing and never throws:
+ * a kernel that cannot be opened here is found out by the proof that needs it.
  */
-export async function kernelProve(spec, { kernel = null, log = () => {}, env = process.env, fetch = globalThis.fetch } = {}) {
+export function warmKernel({ env = process.env } = {}) {
+  if (hasKernel({ env })) openKernel().catch(() => {});
+}
+
+/** The manifest this package carries: what the kernel and its library must be, by address. Reading it needs no kernel file. */
+export function pinnedAddresses() {
+  const manifest = JSON.parse(readFileSync(new URL('manifest.json', KERNEL), 'utf8'));
+  return { manifest, kernel: `sha256:${manifest.wasm.sha256}`, library: `sha256:${manifest.library.sha256}` };
+}
+
+/** The statement one guarantee's proof is about: the spec's numbers and that guarantee, and nothing of where it sits. */
+export const guaranteeStatement = (words, guarantee) => `sha256:${sha256(JSON.stringify(['prism/kernel-guarantee/1', words, guarantee]))}`;
+
+/**
+ * Lean's kernel judges every guarantee of `spec`. Resolves
+ * `{ judged: [{ accepted, axioms, output, reused }], evidence, pinned, ms, reused }`,
+ * one entry per property in order. `accepted` is the kernel's own answer; the
+ * verdict on the whole check is the verified guest's.
+ *
+ * A guarantee already proved under the same kernel, library and statement is
+ * not proved again: its proof is found by its derivation key and reused when
+ * `reuseAdmits` allows (kappa-store.mjs). When every guarantee is found, the
+ * kernel is not opened at all. Throws `KernelUnread` for a spec this route
+ * does not read.
+ */
+export async function kernelProve(spec, { kernel = null, log = () => {}, env = process.env, fetch = globalThis.fetch, store = kappaStore({ env }) } = {}) {
   const { words, guarantees } = ruleWords(spec);
-  // The spec is read first, so nothing is fetched for an app this route cannot take.
-  if (!kernel) await ensureKernel({ env, fetch, log });
   const started = performance.now();
-  const k = kernel ?? (await openKernel());
+  const pinned = pinnedAddresses();
+  const keys = guarantees.map((guarantee) => {
+    const statement = guaranteeStatement(words, guarantee);
+    return { statement, key: derivationKey(PROOF_SCHEMA, [pinned.kernel, pinned.library, statement]) };
+  });
+  const found = keys.map(({ key }) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library }));
+  const reusable = found.map((f) => reuseAdmits(f.facts));
+  // The spec is read and the store asked first, so nothing is fetched or opened for work already done.
+  let k = kernel;
+  if (!k && reusable.some((yes) => !yes)) {
+    await ensureKernel({ env, fetch, log });
+    k = await openKernel();
+  }
   const texts = [];
   const judged = guarantees.map((guarantee, i) => {
-    const { text, run } = k.judge(i, words, guarantee);
+    if (reusable[i]) {
+      texts.push(found[i].text);
+      return { accepted: true, axioms: found[i].proof.axioms, output: '', reused: true };
+    }
+    const { text, run } = k.judge(words, guarantee);
     texts.push(text);
     const r = run('check_suffix', Buffer.from(text, 'utf8'));
+    const axioms = r.axioms['Prism.guarantee.holds'] ?? null;
+    // Only an accepted proof is kept: a refusal carries no bytes that could be checked again.
+    if (r.exit === 0 && axioms !== null) keepProof(store, { key: keys[i].key, kernel: `sha256:${k.addresses.kernel}`, library: `sha256:${k.addresses.library}`, statement: keys[i].statement, text, axioms });
     // Only what the kernel answered. Whether that is a verdict is the guest's to say (kernel-verdict.mjs).
-    return { accepted: r.exit === 0, axioms: r.axioms[`Prism.g${i}.holds`] ?? null, output: r.output };
+    return { accepted: r.exit === 0, axioms, output: r.output, reused: false };
   });
+  // What was derived: the files' own addresses when the kernel ran, and what the reused proofs name otherwise.
+  const ran = reusable.some((yes) => !yes);
+  const derived = ran ? { kernel: `sha256:${k.addresses.kernel}`, library: `sha256:${k.addresses.library}` } : { kernel: found[0]?.proof.kernel ?? pinned.kernel, library: found[0]?.proof.library ?? pinned.library };
   return {
     judged,
+    reused: reusable.filter(Boolean).length,
     ms: Math.round(performance.now() - started),
-    pinned: { kernel: `sha256:${k.manifest.wasm.sha256}`, library: `sha256:${k.manifest.library.sha256}` },
+    pinned: { kernel: pinned.kernel, library: pinned.library },
     evidence: {
-      lean: k.manifest.lean,
-      kernel: `sha256:${k.addresses.kernel}`,
-      library: `sha256:${k.addresses.library}`,
+      lean: pinned.manifest.lean,
+      kernel: derived.kernel,
+      library: derived.library,
       bundle: `sha256:${sha256(texts.join(''))}`,
       statement: `sha256:${sha256(JSON.stringify(['prism/kernel-statement/1', words, guarantees]))}`,
       axioms: [...new Set(judged.flatMap((j) => j.axioms ?? []))].sort(),

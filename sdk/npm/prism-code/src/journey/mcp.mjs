@@ -380,6 +380,8 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
 
   const tools = {
     prism_start(args) {
+      // The kernel opens while the user is still describing the app, so the first check does not wait for it.
+      setImmediate(() => import('./kernel-prove.mjs').then((m) => m.warmKernel()).catch(() => {}));
       const session = args.restart ? { ...load(), step: 'purpose', answers: {}, spec: null, status: {}, axioms: {} } : load();
       if (session.adopted) save(session);
       const t = turn(session);

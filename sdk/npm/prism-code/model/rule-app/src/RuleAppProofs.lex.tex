@@ -232,5 +232,35 @@ theorem{
   },
   axioms: [Quot.sound, propext]
 }
+
+definition{
+  name: breaksReuse,
+  parameters: [s : RuleApp::Stored],
+  result: Bool,
+  body: ((RuleApp::reuseAdmits s) && (((not ((project s present) =? 1)) || (not ((project s storedKey) =? (project s computedKey)))) || (((not ((project s storedKernel) =? (project s kernelPinned))) || (not ((project s storedLibrary) =? (project s libraryPinned)))) || (not ((project s storedBytes) =? (project s derivedBytes))))))
+}
+
+theorem{
+  name: reuseOnlyUnderTheSameKeyKernelLibraryAndBytes,
+  parameters: [s : RuleApp::Stored],
+  statement: ((breaksReuse s) = false),
+  proof: linear_arithmetic{definitions: [RuleApp::reuseAdmits, breaksReuse]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksNothingStored,
+  parameters: [s : RuleApp::Stored],
+  result: Bool,
+  body: ((RuleApp::reuseAdmits s) && ((project s present) =? 0))
+}
+
+theorem{
+  name: nothingStoredIsNeverReused,
+  parameters: [s : RuleApp::Stored],
+  statement: ((breaksNothingStored s) = false),
+  proof: linear_arithmetic{definitions: [RuleApp::reuseAdmits, breaksNothingStored]},
+  axioms: [Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}
