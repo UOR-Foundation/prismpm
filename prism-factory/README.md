@@ -45,7 +45,7 @@ by the certified core in every place it runs, including the release run itself.
 | `policy` | hermetic | release contracts, `@mode`, `@run` | `policy` |
 | `factory-model` | hermetic, host | `prism-factory/`, `vendor/lexlean/`, both workflows | the `factory` job, hermetically |
 | `plumbing` | hermetic | everything, `@run` | `devcontainer-image` |
-| `vv-sdk` | fetch | the source without the plumbing, its job | `vv-sdk` |
+| `vv-sdk` | fetch | the whole tracked source: the image's conformance root is that source, file for file (OC-10) | `vv-sdk` |
 | `source-vv` | fetch | the source without the plumbing, and `vv-sdk` | `source-vv` (8 parts) and `gate` |
 | `build` | fetch | the source without the plumbing, the build plumbing and jobs | `image-platforms`, `images`, `reproducibility`, `installed-sdk`, `native` |
 | `gate` | hermetic | everything, `@run` | `gate` |

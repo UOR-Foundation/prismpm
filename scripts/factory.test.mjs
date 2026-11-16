@@ -151,12 +151,14 @@ test('the certified factory\'s source V&V reads every path except exactly this p
   assert.deepEqual(inputs.slice(1).map(value => value.slice(1)).sort(), [...plumbing].sort());
 });
 
-test('the vv-sdk image carries every module its in-image tests import', () => {
+test('the vv-sdk image carries the whole tracked source, so every module its in-image tests import', () => {
   // xtask runs these inside the image's conformance root, which is vv-sdk's closure.
   const model = read('prism-factory/model/src/Factory/PrismPM.lex.tex');
   const graph = definition(model, 'graph');
   const vvSdk = graph.slice(graph.indexOf('(obligation "vv-sdk"'), graph.indexOf('(obligation "source-vv"'));
   const inputs = strings(vvSdk).slice(3).filter(value => value === '' || value.includes('/') || value.startsWith('!'));
+  // OC-10 requires the image's conformance root to be the complete tracked source, file for file.
+  assert.deepEqual(inputs, ['']);
   const reach = (input, path) => {
     const prefix = input.startsWith('!') ? input.slice(1) : input;
     return path.startsWith(prefix) ? prefix.length + 1 : 0;
