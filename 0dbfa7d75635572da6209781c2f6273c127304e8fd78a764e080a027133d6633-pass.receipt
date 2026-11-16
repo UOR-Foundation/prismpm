@@ -1,0 +1,8 @@
+receipt 0dbfa7d75635572da6209781c2f6273c127304e8fd78a764e080a027133d6633 pass
+obligation devcontainer
+revision 8de905fdd91a21b45858a6157770fab1f8741563
+sandbox prism/1 ghcr.io/uor-foundation/prismpm-sdk@sha256:d6c263a733a6bc36e0458c3f5b9a1f5ea9c14dfbe8c257d3f650a960b5fe633c 1000:1000 0022 tmp/prismpm-home tmp publish
+peer runner
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/heads/claude/project-thread-vm659i
+run 43788657790-1
+output image ghcr.io/uor-foundation/prismpm-devcontainer@sha256:363cfe9f378b416f4ed73660a0217c25f883512f90576bfc8cbf4e880455edc0
