@@ -18,7 +18,7 @@ The spec language is small and closed: at most 8 fields, 24 rules, eight compari
 
 1. **One guest.** A single WebAssembly module that reads the spec as data and answers requests. It is compiled once, in CI, by today's pipeline. An app's guest is those fixed bytes plus the spec bytes.
 2. **One lemma.** A decision procedure for the rule language, proved sound once in Lean. An app's theorem is that lemma applied to the spec data. No tactic search runs per app.
-3. **One small kernel.** An independent Lean proof checker compiled to WebAssembly, run by Node. It checks the lemma's application on the user's machine.
+3. **One kernel.** Lean's own kernel, compiled to WebAssembly, run by Node. It checks the lemma's application on the user's machine. Foundry already ships this module for its studio (section 8).
 
 A build on the user's machine then becomes: read the JSON, write the data, check it with the kernel, pack the holo, replay the acceptance vectors in the existing JavaScript runtime. No Lean, no Rust, no container, no server.
 
@@ -26,7 +26,7 @@ Expected result (inferred from the parts measured or reported below): a first do
 
 This is design C in section 4. It extends issue #647, which already proposes the kernel half for the browser. This proposal adds the build half and the plan to retire Docker from the user's machine. Docker stays in CI, where the three fixed things are made.
 
-The riskiest assumption was that app theorems can be proved without Lean's tactics. Section 7 tests it. It holds for a real app, and the test also found the limit that the full design must fix.
+The riskiest assumption was that app theorems can be proved without Lean's tactics. Section 7 tests it. It holds for a real app, the proof is accepted by Lean's kernel as WebAssembly under Node on Windows, and the test also found the limit that the full design must fix.
 
 ## 2. Inventory: what the image holds and which step uses it
 
@@ -102,9 +102,9 @@ Figures marked "today" come from the task brief (reported): 5.5 GB download, 20.
 
 Made once in CI, in today's SDK image: the interpreter guest, the pinned library, and the kernel module. Each is built twice on separate runners and must match byte for byte. Lean's own kernel checks the library there.
 
-- **Download.** Kernel: 252 KB compressed (reported, #647, nanoda). Library: 4.06 MB compressed today, about 1 MB once pruned (reported, #647). The decision procedure of section 7 compiles to a 0.97 MB object file (measured). Interpreter guest: not built yet, so unknown. A few megabytes in total (inferred).
+- **Download.** Kernel: 421 KB compressed, plus an 18 KB loader. Library: 1.25 MB compressed. Both measured, as shipped in foundry at `7755331` (`studio/shell/kernel/lean/`). The export of section 7's lemma with the app is 885 KB compressed (measured). Interpreter guest: not built yet, so unknown. About 2 MB plus the guest (inferred).
 - **Disk.** The same few megabytes, once. Nothing per project beyond the holo.
-- **Time to prove.** A whole app checked in about 0.5 s in a browser tab (reported, #647). The three parking-fee theorems checked in 0.1 to 1.1 s by native Lean (measured, section 7).
+- **Time to prove.** With the library already loaded, an app is judged in 42 to 136 ms under Node (reported, foundry `v2/in-tab-kernel/REPORT.md`). Loading the library took 433 ms here (measured). With nothing loaded, the section 7 proof and all 1,844 declarations it depends on checked in 1.7 s (measured).
 - **Time to build.** No compile step remains. Encoding and packing are byte copies. Under a second (inferred).
 - **Platforms.** Anywhere Node 22 or later runs. A browser too, which #647 needs.
 - **Trusted base.** See section 6.
@@ -154,7 +154,7 @@ Made once in CI, in today's SDK image: the interpreter guest, the pinned library
 1. The interpreter becomes the most important program in the system. A bug in it is a bug in every app. Today a compiler bug has the same reach, but the interpreter is new code.
 2. The spec language and the lemma must grow together. A new operator needs a proof before it ships. That is a real brake on features. It is also the point.
 3. Users lose the local independent oracle. They keep the JavaScript replay.
-4. Lean's own kernel no longer runs on the user's machine. A second, independent kernel does. #647 calls these two verdicts "kernel-checked" and "proved", and that wording should carry over.
+4. The kernel on the user's machine is Lean's, but a WebAssembly build of it with four small changes. Its agreement with native Lean rests on tests (14 of 14 reported, 2 of 2 here), not on a proof.
 5. The work is larger than A.
 
 ## 6. Trusted base, before and after
@@ -164,7 +164,7 @@ Made once in CI, in today's SDK image: the interpreter guest, the pinned library
 | | Today (Docker) | Design C |
 |---|---|---|
 | Statement says what the spec says | `render.mjs` and `render-stateful.mjs`, unverified JavaScript | The emitter of the data form. Smaller, and it can be checked by printing the data back as JSON and comparing bytes (#647, D1). |
-| Proof is valid | Lean elaborator output, checked by Lean's kernel | An independent kernel on the user's machine. Lean's kernel on the pinned library, in CI. |
+| Proof is valid | Lean elaborator output, checked by Lean's kernel | Lean's kernel as WebAssembly on the user's machine, plus the Emscripten build that made it. Native Lean on the pinned library, in CI. |
 | Guest matches the model | `prod-export`, `prod-codegen`, `rustc`, LLVM, run per app | The same chain, run once for the interpreter and reproduced by two builders. |
 | Tools are the right tools | Image digest, registry, Docker | Three hashes, checked on every read. |
 | Packing | `prismpm`, then a byte-identical rebuild | JavaScript packer, checked by recomputing every hash. Proved, under E. |
@@ -232,7 +232,19 @@ theorem inv001Holds (request : Request) : breaksInv001 request = false :=
 - Stateful apps.
 - The exact axiom list. Today each theorem declares `[Quot.sound, propext]`. This proof also uses `Classical.choice`, through `omega`. It is on the allowed list (`src/journey/sdk.mjs:159`), but the declared set would change.
 
-**The second half was not run.** The plan was to export the proof with `lean4export` and check it with two independent kernels, nanoda and kefir, natively and as WebAssembly under Node. The three repositories were cloned. Building them was refused by this session's permission policy, which blocks compiling and running freshly downloaded third-party code. So this study has no measurement of its own for a WebAssembly kernel. The figures used are reported ones: #647's prototype (nanoda, 252 KB, 0.5 s per app) and the Lean Kernel Arena's kefir-wasm entry. To finish it: build `lean4export` at tag `v4.32.2`, export `Reflect.App`, and run kefir's `wasm32-wasip1` build on the output under Node.
+**Checked by Lean's kernel as WebAssembly (measured).** The proof was exported with `lean4export` (tag `v4.32.2`, built on Lean 4.32.1) and given to the kernel module foundry ships: `lean-kernel.wasm`, `sha256:4b48480b…`, 2.24 MB, 421 KB compressed. It is Lean 4.32.1's C++ kernel built single-threaded with Emscripten. Run under Node 22.21 on Windows 11, with foundry's own `run-wasm.mjs`:
+
+| Input | Verdict | Time | Memory |
+|---|---|---|---|
+| The three app theorems and everything they depend on: 1,844 declarations, 5.5 MB, 885 KB compressed | Accepted | ready in 80 ms, checked in 1.69 s | 64 MB |
+| A forged proof: the planted defect, with `check … = true` inserted past Lean's front end (`debug.skipKernelTC`) | Refused: "(kernel) declaration type mismatch" at `Forged.checked` | 173 ms | 64 MB |
+| Foundry's pinned library made resident (2,116 declarations) | Loaded | 433 ms | 64 MB |
+
+One run each. The forged input matters: Lean's front end can be told to skip the kernel, and it then writes a false theorem to disk. The WebAssembly kernel refused it.
+
+Not measured: this lemma over a resident library. Foundry's library holds its own lemma, not this one, so the 1.69 s includes re-checking every dependency. Foundry reports 42 to 136 ms for an app over its resident library.
+
+**An independent kernel was not run.** kefir was cloned at `e00bbd5` and did not compile on this Windows host: its build script failed. I did not pursue it once Lean's own kernel was available. A second, independent kernel is still worth having as a cross-check (section 12).
 
 The experiment source is not in this pull request, because `AGENTS.md` forbids committing handwritten Lean. It is kept outside the repository and can be attached to the issue.
 
@@ -243,10 +255,11 @@ Two different jobs are often confused.
 - **Elaboration** turns Lean source and tactics into proof terms. It needs Lean itself. No maintained WebAssembly build of Lean exists.
 - **Kernel checking** type-checks finished proof terms from an export file. It is small and has been rewritten many times.
 
-All figures here are reported, read from each project's pages through a summarising fetcher. They were not verified byte for byte.
+Except for the first row, all figures here are reported, read from each project's pages through a summarising fetcher. They were not verified byte for byte.
 
 | Project | Checks | Language | WebAssembly | Speed and size | Licence | Maintained |
 |---|---|---|---|---|---|---|
+| **Lean's kernel, built by foundry** | Kernel only. It is Lean's own C++ kernel, not a rewrite | C++ via Emscripten | Yes: single-threaded, no isolation headers, runs under Node and in Chromium | 2.24 MB, 421 KB compressed. Measured here: section 7. Reported: 14 of 14 verdicts agree with native Lean; an app in 42 to 136 ms over a resident library | Apache-2.0 (Lean) | Built in foundry `v2/in-tab-kernel/`, shipped in `studio/shell/kernel/lean/` |
 | kefir | Kernel only. Rebuilds recursors itself | Rust | Yes: `wasm32-wasip1` under Node 24, one thread | All of Mathlib in 9.23 min as WebAssembly, 6.18 min native. Passes all arena tests. Binary size not stated | Apache-2.0 | New: first commit 2026-10-24, one author |
 | nanoda_lib | Kernel only | Rust | Not stated upstream. #647 reports a 252 KB build | Mathlib in 15.3 min on 4 threads. Fails 2 of 138 accept tests | Apache-2.0 | Yes, last commit 2026-11-07 |
 | nano-lean | Kernel only | Rust | Not stated | Mathlib in 64.4 s, fastest listed | MIT | Unconfirmed |
@@ -255,6 +268,8 @@ All figures here are reported, read from each project's pages through a summaris
 | `leanchecker` | Lean's own kernel, replayed. Not independent | Lean | No | Ships in every toolchain since v4.28.0 | Apache-2.0 | Yes |
 | Lean official build | Everything | C++ and Lean | Last at v4.15.0, 190 MB | "Slower than native" (2021) | Apache-2.0 | WebAssembly build dropped |
 | lean4export | Checks nothing. Writes the export | Lean | Needs Lean | Format 3.1.0. The arena calls it "still in flux" | Apache-2.0 | Yes |
+
+Foundry's module is the natural choice for design C. It is the same kernel that judges proofs in the SDK image, so the verdict on the user's machine is Lean's verdict and no second name for it is needed. Its build makes four small changes to Lean, listed in foundry's report; the main one is that `Lean.reduceBool` refuses, so `native_decide` cannot pass. Foundry's pinned library already holds a lemma of the kind section 7 tests (`PrismLive.Kernel.ruleJudge_sound`), and foundry #227 and #230 use it to prove rule apps and stateful apps in the browser. I did not read that lemma's source. Foundry's notes say comparisons between two fields are still unproved there, which matches the gap in section 7.
 
 Work in this repository's vendored code:
 
@@ -288,12 +303,13 @@ Each stage ships alone. Docker stays the default until the stage that replaces i
 - Ships: lower disk use, a smaller attack surface, honest errors.
 
 **Stage 1. Finish the experiment.** Days.
-- Run the exported proof through kefir and nanoda as WebAssembly under Node on Windows, macOS and Linux. Record size, time and memory.
-- Gate: the same verdict on all three, and the planted defect refused by both kernels.
+- Done on Windows in section 7, with Lean's kernel as WebAssembly. Repeat on macOS and Linux, and on Node 24 and 26.
+- Move the kernel build from foundry's `v2/in-tab-kernel/` to a place `prism-code` can depend on, built twice in CI with matching bytes.
+- Gate: the same verdict on all three systems, and the forged proof refused on each.
 
 **Stage 2. Prove without Lean on the user's machine.** Weeks.
 - 2a: publish proofs by input hash and check them locally with the kernel (design D). Works for any theorem at once.
-- 2b: the pinned library with a certificate-checking lemma that covers field-to-field conditions and scales to 8 fields and 24 rules. Then stateful apps.
+- 2b: start from foundry's pinned library and its lemma, which already serve rule apps and stateful apps in the browser. Add field-to-field conditions. Confirm it scales to 8 fields and 24 rules.
 - Gate: for every example spec, the local verdict equals the Docker verdict, and the worst-case spec checks in under 2 s.
 - Ships: `prism_prove` in about a second, offline, with no Docker and no hosted verifier.
 
@@ -319,7 +335,7 @@ The same spec must give the same holo on every platform.
 
 1. That `DEFAULT_SDK_IMAGE` (`sha256:cd3b47d7…`) was built from `sdk/Dockerfile` at the commit read. The inventory describes the image family.
 2. That a build passes with the Docker socket removed. Inferred from source only.
-3. Any WebAssembly kernel measurement of my own (section 7).
+3. The WebAssembly kernel on macOS, Linux, a phone, or any Node but 22.21. One run each on one Windows desktop.
 4. The brief's cost and fragility figures. They are quoted, not re-measured.
 5. External project figures. They came through a summarising fetcher.
 6. The size and speed of an interpreter guest. None exists.
@@ -330,9 +346,10 @@ The same spec must give the same holo on every platform.
 **Open questions.**
 
 1. Where does the pinned library live? `AGENTS.md` forbids handwritten Lean in PrismPM, and the soundness proof needs induction. #647 says LexLean has no induction proof form. Either LexLean gains one, or the library lives in LexLean under its own rules. This decides the schedule of stage 2b.
-2. Which kernel? kefir passes every arena test and already targets WASI, but it is three weeks old with one author. nanoda is established but fails two accept tests. #647 already lists this comparison as a task.
+2. Which second kernel, as a cross-check beside Lean's? kefir passes every arena test and targets WASI, but it is three weeks old, has one author, and did not build on Windows here. nanoda is established but fails two accept tests. A second kernel is optional; Lean's own is the verdict.
+   Also: who owns the kernel build? It lives in foundry today. `prism-code` needs it as a published, hash-named artifact.
 3. Lean 4.32.1 has a known soundness bug, fixed in 4.33.1 (#647, D9). The library should be pinned to a fixed version before its hash is published.
 4. How is the spec placed in the guest: a patched data segment, or passed by the host on each call? A data segment keeps the runtime unchanged. The host route is simpler but moves trust to the host.
 5. Is the one-time change of every app's holo hash acceptable, and how is it announced?
 6. Does the independent oracle still have to run per app for any conformance claim in `CONFORMANCE.md`? If so, that claim needs a new owner in CI.
-7. `node:wasi` is still marked experimental in Node 26 (reported). A kernel that needs no system calls avoids it. Does kefir's build need WASI for anything but reading its input?
+7. Foundry's kernel uses Emscripten's own loader, not `node:wasi`, so Node's experimental WASI module is not needed. The loader is 62 KB of generated JavaScript. Should it be trusted as it is, or replaced by a smaller hand-checked host?
