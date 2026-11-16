@@ -214,7 +214,7 @@ const KERNEL_SCOPE = 'This checks the rules as the rule judge reads them, in thi
  */
 async function proveKernel(dir, session, { log }) {
   const spec = session.spec;
-  const { KernelUnread, kernelProve } = await import('./kernel-prove.mjs');
+  const { KERNEL_AXIOMS, KernelUnread, kernelProve, ruleWords } = await import('./kernel-prove.mjs');
   log("Asking Lean's kernel, in this process, to check every guarantee. No SDK image is used and nothing is sent.");
   let result;
   try {
@@ -227,6 +227,20 @@ async function proveKernel(dir, session, { log }) {
   rememberModel(dir, session);
   const seconds = Math.round(result.ms / 100) / 10;
   const refused = spec.properties.filter((_, i) => !result.judged[i].accepted);
+  // The verdict is the verified guest's (kernel-verdict.mjs): it compares what was pinned with what was derived,
+  // the spec's statement with the one the kernel was shown, and the axioms observed with those declared.
+  const { guestVerdict } = await import('./kernel-verdict.mjs');
+  const { pinnedHolo, statementOf } = await import('./rule-app.mjs');
+  const stated = ruleWords(spec);
+  let verdict;
+  try {
+    verdict = await guestVerdict(pinnedHolo(), { pinned: result.pinned, derived: { kernel: result.evidence.kernel, library: result.evidence.library }, bundle: result.evidence.bundle, statement: statementOf(stated.words, stated.guarantees), checked: result.evidence.statement, declared: KERNEL_AXIOMS, observed: result.evidence.axioms, accepted: refused.length === 0 });
+  } catch (error) {
+    verdict = { ok: false, code: error.code ?? 'verdictRuntimeFailed' };
+  }
+  if (!verdict.ok) return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `The verdict guest gave no verdict (${verdict.code}). This says nothing about the app. Unset PRISM_CODE_TIER and call prism_prove again to prove it in the SDK image.` };
+  if (refused.length === 0 && verdict.verdict !== 'proved') return { ok: false, where: 'kernel', code: 'kernel.refused', message: `Lean's kernel accepted every guarantee, and the verdict guest answered ${verdict.verdict}: a pinned address, the statement or the axioms (${result.evidence.axioms.join(', ') || 'none'}) are not the declared ones. Nothing is recorded.` };
+  result.evidence.verdict = verdict.verdict;
   const broken = new Map(refused.map((p) => [p.id, counterexample(spec, p)]));
   const statusOf = (p) => (!broken.has(p.id) ? 'kernel-checked' : broken.get(p.id).request !== null ? 'failing' : 'unknown');
   session.status.properties = Object.fromEntries(spec.properties.map((p) => [p.id, statusOf(p)]));

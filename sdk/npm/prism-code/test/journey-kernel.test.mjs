@@ -150,3 +150,28 @@ test('planted defect K2 and K3: altered bytes and an unbound library are refused
   unbound.binding.library = '0'.repeat(64);
   assert.throws(() => readPinned({ read: (file) => (file === 'manifest.json' ? Buffer.from(JSON.stringify(unbound)) : real(file)) }), /no record that this kernel judged this library whole/);
 });
+
+test('planted defects V1 to V5: the verdict is the verified guest\'s, and it refuses what is not pinned, stated or declared', { timeout: 120000 }, async () => {
+  const { guestVerdict, decodeVerdictResponse, encodeVerdictRequest } = await import('../src/journey/kernel-verdict.mjs');
+  const { pinnedHolo, statementOf } = await import('../src/journey/rule-app.mjs');
+  const spec = specOf(PARKING);
+  const result = await kernelProve(spec);
+  const stated = ruleWords(spec);
+  const good = { pinned: result.pinned, derived: { kernel: result.evidence.kernel, library: result.evidence.library }, bundle: result.evidence.bundle, statement: statementOf(stated.words, stated.guarantees), checked: result.evidence.statement, declared: [...KERNEL_AXIOMS], observed: result.evidence.axioms, accepted: true };
+  const holo = pinnedHolo();
+  const other = `sha256:${'ab'.repeat(32)}`;
+  assert.deepEqual(await guestVerdict(holo, good), { ok: true, code: 0, verdict: 'proved' });
+  // V1: another kernel. V2: another library. V3: the kernel was shown another statement.
+  assert.equal((await guestVerdict(holo, { ...good, derived: { ...good.derived, kernel: other } })).verdict, 'refused');
+  assert.equal((await guestVerdict(holo, { ...good, derived: { ...good.derived, library: other } })).verdict, 'refused');
+  assert.equal((await guestVerdict(holo, { ...good, checked: other })).verdict, 'refused');
+  // V4: an axiom outside the declared set, sorryAx among them. V5: the kernel did not accept.
+  assert.equal((await guestVerdict(holo, { ...good, observed: ['propext', 'Quot.sound', 'Classical.choice'] })).verdict, 'refused');
+  assert.equal((await guestVerdict(holo, { ...good, observed: ['propext', 'sorryAx'] })).verdict, 'refused');
+  assert.equal((await guestVerdict(holo, { ...good, accepted: false })).verdict, 'refused');
+  // No verdict is made here: a guest that is not the verified one, or a reply that is not its shape, gives none.
+  const calculator = new Uint8Array(readFileSync(new URL('../fixtures/Calculator.holo', import.meta.url)));
+  assert.equal((await guestVerdict(calculator, good)).ok, false);
+  assert.deepEqual(decodeVerdictResponse(new TextEncoder().encode('proved')), { ok: false, code: 'invalidVerdictResponse' });
+  assert.throws(() => encodeVerdictRequest({ version: 1, verdict: 'proved' }), { code: 'malformedVerdictRequest' });
+});

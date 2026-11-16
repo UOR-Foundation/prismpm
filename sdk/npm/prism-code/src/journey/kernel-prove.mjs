@@ -258,8 +258,9 @@ export function openKernel() {
 /**
  * Lean's kernel judges every guarantee of `spec`. Resolves
  * `{ judged: [{ accepted, axioms, output }], evidence, ms }`, one entry per
- * property in order. `accepted` needs the kernel's acceptance and exactly the
- * lemma's axioms. Throws `KernelUnread` for a spec this route does not read.
+ * property in order. `accepted` is the kernel's own answer; the verdict on the
+ * whole check is the verified guest's. Throws `KernelUnread` for a spec this
+ * route does not read.
  */
 export async function kernelProve(spec, { kernel = null } = {}) {
   const { words, guarantees } = ruleWords(spec);
@@ -270,13 +271,13 @@ export async function kernelProve(spec, { kernel = null } = {}) {
     const { text, run } = k.judge(i, words, guarantee);
     texts.push(text);
     const r = run('check_suffix', Buffer.from(text, 'utf8'));
-    const axioms = r.axioms[`Prism.g${i}.holds`] ?? null;
-    const allowed = axioms !== null && axioms.every((a) => KERNEL_AXIOMS.includes(a));
-    return { accepted: r.exit === 0 && allowed, axioms, output: r.exit === 0 && !allowed ? `it rests on ${axioms === null ? 'axioms the kernel did not report' : axioms.join(', ')}` : r.output };
+    // Only what the kernel answered. Whether that is a verdict is the guest's to say (kernel-verdict.mjs).
+    return { accepted: r.exit === 0, axioms: r.axioms[`Prism.g${i}.holds`] ?? null, output: r.output };
   });
   return {
     judged,
     ms: Math.round(performance.now() - started),
+    pinned: { kernel: `sha256:${k.manifest.wasm.sha256}`, library: `sha256:${k.manifest.library.sha256}` },
     evidence: {
       lean: k.manifest.lean,
       kernel: `sha256:${k.addresses.kernel}`,
