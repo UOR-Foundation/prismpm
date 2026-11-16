@@ -487,6 +487,34 @@ definition{
   executable: true
 }
 
+structure{
+  name: Output,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: obligation, type: String},
+    {name: kappa, type: String},
+    {name: key, type: String},
+    {name: value, type: String}
+  ]
+}
+
+definition{
+  name: provedBy,
+  parameters: [wanted : String, kappa : String, receipts : (List Receipt), trust : Trust],
+  result: Bool,
+  body: (prim list_fold (fun [kappa, trust, wanted] (sofar : Bool) (receipt : Receipt) => (sofar || ((prim equal (project receipt obligation) wanted : Bool) && ((prim equal (project receipt kappa) kappa : Bool) && ((project receipt passed) && (trusted receipt trust)))))) false receipts : Bool),
+  executable: true
+}
+
+definition{
+  name: outputsOf,
+  parameters: [wanted : String, kappa : String, receipts : (List Receipt), outputs : (List Output), trust : Trust],
+  result: (List (String * String)),
+  body: (if (provedBy wanted kappa receipts trust) then (prim list_fold (fun [kappa, wanted] (sofar : (List (String * String))) (entry : Output) => (if ((prim equal (project entry obligation) wanted : Bool) && (prim equal (project entry kappa) kappa : Bool)) then (prim append sofar (cons ((project entry key), (project entry value)) (nil (String * String))) : (List (String * String))) else sofar)) (nil (String * String)) outputs : (List (String * String))) else (nil (String * String))),
+  executable: true
+}
+
 inductive{
   name: Status,
   type_parameters: [],
@@ -1102,6 +1130,38 @@ theorem{
   name: the_whole_delegated_graph_needs_every_need_first_and_names_each_obligation_once,
   parameters: [],
   statement: (((Factory.Engine::needsComeFirst (whole)) && (Factory.Engine::sameStrings (Factory.Engine::names (whole)) (prim append (Factory.Engine::names (graph)) (cons "lint" (cons "model-audits" (cons "fixtures-golden" (nil String)))) : (List String)))) = true),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: an_output_is_named_only_for_the_identity_a_trusted_pass_proved,
+  parameters: [],
+  statement: ((outputsOf "vv-sdk" "k1" (cons (record Receipt {obligation := "vv-sdk", kappa := "k1", passed := true, signer := (ctor Signer.workflow), subject := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", peer := (ctor Peer.runner)}) (nil Receipt)) (cons (record Output {obligation := "vv-sdk", kappa := "k1", key := "image", value := "ghcr.io/x@sha256:1"}) (cons (record Output {obligation := "vv-sdk", kappa := "k0", key := "image", value := "ghcr.io/x@sha256:0"}) (nil Output))) (record Trust {repository := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", maintainers := (cons "afflom" (nil String))})) = (cons ("image", "ghcr.io/x@sha256:1") (nil (String * String)))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: an_output_of_a_failed_receipt_is_never_named,
+  parameters: [],
+  statement: ((outputsOf "vv-sdk" "k1" (cons (record Receipt {obligation := "vv-sdk", kappa := "k1", passed := false, signer := (ctor Signer.workflow), subject := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", peer := (ctor Peer.runner)}) (nil Receipt)) (cons (record Output {obligation := "vv-sdk", kappa := "k1", key := "image", value := "ghcr.io/x@sha256:1"}) (cons (record Output {obligation := "vv-sdk", kappa := "k0", key := "image", value := "ghcr.io/x@sha256:0"}) (nil Output))) (record Trust {repository := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", maintainers := (cons "afflom" (nil String))})) = (nil (String * String))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: an_output_of_an_untrusted_receipt_is_never_named,
+  parameters: [],
+  statement: ((outputsOf "vv-sdk" "k1" (cons (record Receipt {obligation := "vv-sdk", kappa := "k1", passed := true, signer := (ctor Signer.anyone), subject := "someone", peer := (ctor Peer.runner)}) (nil Receipt)) (cons (record Output {obligation := "vv-sdk", kappa := "k1", key := "image", value := "ghcr.io/x@sha256:1"}) (cons (record Output {obligation := "vv-sdk", kappa := "k0", key := "image", value := "ghcr.io/x@sha256:0"}) (nil Output))) (record Trust {repository := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", maintainers := (cons "afflom" (nil String))})) = (nil (String * String))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: an_output_of_another_identity_is_never_named,
+  parameters: [],
+  statement: ((outputsOf "vv-sdk" "k1" (cons (record Receipt {obligation := "vv-sdk", kappa := "k0", passed := true, signer := (ctor Signer.workflow), subject := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", peer := (ctor Peer.runner)}) (nil Receipt)) (cons (record Output {obligation := "vv-sdk", kappa := "k1", key := "image", value := "ghcr.io/x@sha256:1"}) (cons (record Output {obligation := "vv-sdk", kappa := "k0", key := "image", value := "ghcr.io/x@sha256:0"}) (nil Output))) (record Trust {repository := "https://github.com/UOR-Foundation/PrismPM/.github/workflows/prism-delegation.yml@refs/heads/main", maintainers := (cons "afflom" (nil String))})) = (nil (String * String))),
   proof: decide{},
   axioms: []
 }

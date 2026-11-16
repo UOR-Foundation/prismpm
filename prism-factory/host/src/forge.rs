@@ -116,7 +116,7 @@ fn entries_with_base(revision: &str) -> Result<Vec<Entry>, String> {
 
 /// The request: the tree and its base, each context (`@key`), then the lines
 /// `factory.sh` wrote after verifying receipts (`signed`, `trust-repository`,
-/// `trust-maintainer`, `event`).
+/// `trust-maintainer`, `event`, and `output` for what a verified receipt names).
 pub(crate) fn request(options: &Options, verified: Option<&Path>) -> Result<String, String> {
     let entries = entries_with_base(&options.revision)?;
     let mut text = String::new();
@@ -130,7 +130,7 @@ pub(crate) fn request(options: &Options, verified: Option<&Path>) -> Result<Stri
         let lines = fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
         for line in lines.lines() {
             let tag = line.split(' ').next().unwrap_or("");
-            if !matches!(tag, "signed" | "trust-repository" | "trust-maintainer" | "event") {
+            if !matches!(tag, "signed" | "output" | "trust-repository" | "trust-maintainer" | "event") {
                 return Err(format!("{}: unexpected line {line:?}", path.display()));
             }
             text.push_str(line);

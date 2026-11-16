@@ -111,6 +111,7 @@ if test "$command" = factory; then
     --env HOME="/$sandbox_home" \
     --env CARGO_HOME="/$sandbox_home/cargo" \
     --env FACTORY_OBLIGATION="$target" \
+    --env PRISM_OUTPUTS=/work/.prism-outputs \
     --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0=/work \
     "${scratch_args[@]}" \
     --cap-drop ALL \
