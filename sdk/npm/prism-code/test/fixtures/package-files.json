@@ -89,6 +89,7 @@
   "src/journey/spec.mjs",
   "src/journey/stateful.mjs",
   "src/journey/template.mjs",
+  "src/journey/verified-store.mjs",
   "src/manifest.mjs",
   "src/middleware.mjs",
   "src/networks.mjs",

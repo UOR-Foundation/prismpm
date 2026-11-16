@@ -1,0 +1,4 @@
+{
+  "kib": 10,
+  "reason": "a model this machine has verified is not verified again: journey/verified-store.mjs keeps LexLean's verified record by content address, and journey/engine.mjs splits the proof so verify runs only when no record is admitted (about 9.5 KiB)."
+}
