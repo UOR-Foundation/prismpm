@@ -30,8 +30,8 @@ const { version } = require('../../package.json');
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 export const INSTRUCTIONS = `Prism builds formally verified apps. For Prism or /prism, call prism_start.
-Every app has one input, prism/spec.json (prism/spec/1; stateful apps prism/spec/2). Translate the user's sentence only: pass prism_spec compact JSON with title, fields, rules and otherwise, plus a property only if stated. Every then and otherwise is an answer itself, such as approved, never a label like result. Prism derives the rest and proposes guarantees. Ask only what you cannot infer; on an issue, fix the draft.
-Show the checked draft for approval, proposed guarantees first: Lean proves them, so the user must agree or strike. Prefer one editable card to a multiple-choice question.
+Every app has one input: prism/spec.json, prism/spec/1 or, stateful, prism/spec/2. Translate the user's sentence only: pass prism_spec compact JSON with title, fields, rules and otherwise, plus a property only if stated. Every then and otherwise is an answer, such as approved, never a label. Prism derives the rest and proposes guarantees. The same JSON gives the same model. Ask only what you cannot infer; on an issue, fix the draft.
+Show the checked draft, proposed guarantees first: Lean proves them, so the user must agree or strike. Prefer an editable card to multiple choice.
 On approval, answer the review yes, then call prism_build.
 Never write LexLean; spec.json is the one file you write.
 prism_prove and prism_build take minutes: while "running", say so and call again.
