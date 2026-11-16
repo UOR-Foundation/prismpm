@@ -150,6 +150,21 @@ fetch_base() {
   git cat-file -e "$parent^{tree}" 2>/dev/null || git fetch --quiet --depth=1 origin "$parent"
 }
 
+# An identity is a function of the tree, never of a receipt, so only kept
+# receipts for an identity of this tree can count. Leave the rest unverified:
+# the branch keeps every receipt ever written, and verifying each one, one
+# Sigstore check at a time, outgrew the plan job's budget.
+forge_relevant() {
+  local identities=target/factory/identities receipt
+  mkdir -p target/factory
+  printf 'trust-repository %s/%s\nevent %s\n' "${GITHUB_REPOSITORY:?}" "$delegation_workflow" "$(forge_event)" > "$identities.request"
+  "$host" delegate "$identities.request" "$@" | sed -n 's/^obligation [a-z][a-z0-9-]* [a-z-]* \([0-9a-f]\{64\}\)$/\1/p' | sort -u > "$identities"
+  for receipt in "$kept"/*.receipt; do
+    [ -e "$receipt" ] || continue
+    grep -qxF "$(basename "$receipt" | sed 's/-\(pass\|fail\)\.receipt$//')" "$identities" || rm -f "$receipt" "${receipt%.receipt}.jsonl"
+  done
+}
+
 # Plans with the kept receipts and this run's (the directories given): a
 # receipt of this run also marks its obligation attempted, so a later wave
 # does not establish it again whatever its verdict.
@@ -157,6 +172,7 @@ forge_plan() {
   local verified=target/factory/verified dir receipt
   mkdir -p target/factory
   mapfile -t contexts < <(forge_contexts)
+  forge_relevant "${contexts[@]}"
   forge_verified "$verified" "$kept" "$@"
   for dir in "$@"; do
     [ -d "$dir" ] || continue
