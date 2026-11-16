@@ -20,7 +20,11 @@ const WRAPPER_SOURCE: &[u8] = include_bytes!("authority.rs");
 const UPSTREAM_CONFORMANCE_SOURCE: &[u8] = include_bytes!("upstream_conformance.rs");
 const ASYNCAPI_WRAPPER_SOURCE: &[u8] = include_bytes!("../sdk/oracles/asyncapi-parser.mjs");
 const KUBERNETES_WRAPPER_SOURCE: &[u8] = include_bytes!("../sdk/oracles/kubernetes-validator.mjs");
-const OSCAL_WRAPPER_SOURCE: &[u8] = include_bytes!("../sdk/oracles/oscal/src/main.rs");
+// The OSCAL wrapper is its own Cargo package, and `cargo package` never ships
+// files from a nested package, so the published crate embeds only the
+// wrapper's digest. The owning test below binds it to the source bytes.
+const OSCAL_WRAPPER_SHA256: &str =
+    "841696c87245f75a92a15aee2f9cf9419324bd4b0cea0812b1a5382f32b9825d";
 const INTOTO_WRAPPER_SOURCE: &[u8] =
     include_bytes!("../sdk/oracles/go/intoto-statement-validator/main.go");
 const OPENAPI_SCHEMA: &[u8] =
@@ -331,12 +335,14 @@ fn oracle_value(row: &OracleRow, wrapper_sha256: &str) -> Value {
 }
 
 fn wrapper_sha256(row: &OracleRow) -> Result<String, PrismError> {
+    if row.wrapper_source == "sdk/oracles/oscal/src/main.rs" {
+        return Ok(OSCAL_WRAPPER_SHA256.to_owned());
+    }
     let bytes = match row.wrapper_source.as_str() {
         "crates/prismpm/src/authority.rs" => WRAPPER_SOURCE,
         "crates/prismpm/src/upstream_conformance.rs" => UPSTREAM_CONFORMANCE_SOURCE,
         "sdk/oracles/asyncapi-parser.mjs" => ASYNCAPI_WRAPPER_SOURCE,
         "sdk/oracles/kubernetes-validator.mjs" => KUBERNETES_WRAPPER_SOURCE,
-        "sdk/oracles/oscal/src/main.rs" => OSCAL_WRAPPER_SOURCE,
         "sdk/oracles/go/intoto-statement-validator/main.go" => INTOTO_WRAPPER_SOURCE,
         _ => {
             return Err(PrismError::new(
@@ -2397,6 +2403,18 @@ pub fn run_oracle_in_project(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_embedded_oscal_wrapper_digest_binds_the_wrapper_source() {
+        let source = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sdk/oracles/oscal/src/main.rs"),
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&source)),
+            super::OSCAL_WRAPPER_SHA256
+        );
+    }
+
     use super::{
         acquired_rows, cache_object, catalog, emit_oracle_attestation, external_invocation, fetch,
         git_tag_sha1, intoto_policy_accepts, oracle_input_archive, replay_tag_signature,
