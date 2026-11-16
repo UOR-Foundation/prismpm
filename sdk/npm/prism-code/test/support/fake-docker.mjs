@@ -31,32 +31,6 @@ const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 const record = (line) => plan.log && appendFileSync(plan.log, `${line}\n`);
 const BUILD_ID = '7'.repeat(64);
 
-/** What verify publishes: the attestation of this build, under its own ID. Returns the ID. */
-function publish() {
-  const build = modelId();
-  const attestation = createHash('sha256').update(`attestation ${build}`).digest('hex');
-  const folder = join(plan.app, '.lexlean', 'verified', attestation);
-  mkdirSync(join(folder, 'oleans'), { recursive: true });
-  writeFileSync(join(folder, 'attestation.json'), JSON.stringify({ attestation_id: attestation, build_id: build, status: 'verified' }));
-  writeFileSync(join(folder, 'oleans', 'Model.olean'), `olean of ${build}`);
-  return attestation;
-}
-
-/** The model's name as LexLean gives it: a hash over every source, so any edit gives another. */
-function modelId() {
-  const src = join(plan.app, 'src');
-  const hash = createHash('sha256');
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else hash.update(entry.name).update(readFileSync(path));
-    }
-  };
-  if (existsSync(src)) walk(src);
-  return hash.digest('hex');
-}
-
 /** The build's work, in a process that outlives the client: what the container does. */
 async function buildWork(done) {
   record('build');
@@ -120,22 +94,14 @@ if (args[0] === '--build-work') {
     }
     say('verified attestation: fake');
     say('@@exit build 0');
-  } else if (script.includes('lexlean build --all')) {
-    // The first run of a proof: lock, format, check, and LexLean names the model by its sources.
-    for (const step of ['prelock', 'format', 'lock', 'check']) ok(step);
-    say('@@step name');
-    say(`built 4 modules at .lexlean/build/${modelId()}`);
-    say('@@exit name 0');
   } else if (script.includes('lexlean verify --all')) {
     record('prove');
-    if (script.includes('lexlean lock')) for (const step of ['prelock', 'format', 'lock', 'check']) ok(step);
+    for (const step of ['prelock', 'format', 'lock', 'check']) ok(step);
     say('@@step verify');
     await wait(plan.proveMs ?? 0);
     if (plan.prove === 'cut') process.exit(137);
     // Lean refuses the first property's theorem, as LexLean reports it (LLV7002, at the theorem).
     if (plan.prove === 'unproved') {
-      // A verifier that left a record behind although it failed: Prism must still not keep it.
-      if (plan.publishOnRefusal) publish();
       const src = join(plan.app, 'src');
       const file = readdirSync(src).find((f) => f.endsWith('Proofs.lex.tex'));
       const lines = readFileSync(join(src, file), 'utf8').split('\n');
@@ -146,7 +112,6 @@ if (args[0] === '--build-work') {
       say('@@exit verify 1');
       process.exit(1);
     }
-    say(`verified 4 modules; attestation ${publish()}`);
     say('@@exit verify 0');
   } else {
     say(`fake docker: a script it does not know: ${script.slice(0, 80)}`);

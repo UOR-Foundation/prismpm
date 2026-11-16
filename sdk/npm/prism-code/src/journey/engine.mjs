@@ -22,52 +22,14 @@ import { VERSION } from '../version.mjs';
 import { gapLedger, propertyShape } from '../gaps.mjs';
 import { checkSpecBinding } from './binding.mjs';
 import { WORD_MAX, boundedSpec, ruleWords, unboundedFields } from './kernel-prove.mjs';
-import { kappaStore } from './kappa-store.mjs';
-import { reuseAdmits } from './kappa-rules.mjs';
-import { buildLabel, findVerified, imageLabel, keepVerified, publishedFor, restoreVerified, verifiedKey, workspaceLabel } from './verified-store.mjs';
 
-// A proof in the SDK image is two runs. The first locks, formats and checks the model and has LexLean name it
-// (its build ID); the second is verify, which runs only when this machine has no verified record of that model.
-const PREPARE_SCRIPT = [
+const PROVE_SCRIPT_FULL = [
   'echo "@@step prelock"; lexlean lock 2>&1; code=$?; echo "@@exit prelock $code"; [ $code -eq 0 ] || exit $code',
   'echo "@@step format"; lexlean fmt --all 2>&1; code=$?; echo "@@exit format $code"; [ $code -eq 0 ] || exit $code',
   'echo "@@step lock"; lexlean lock 2>&1; code=$?; echo "@@exit lock $code"; [ $code -eq 0 ] || exit $code',
   'echo "@@step check"; prismpm check 2>&1; code=$?; echo "@@exit check $code"; [ $code -eq 0 ] || exit $code',
-  'echo "@@step name"; lexlean build --all 2>&1; code=$?; echo "@@exit name $code"; exit $code',
+  'echo "@@step verify"; lexlean verify --all 2>&1; code=$?; echo "@@exit verify $code"; exit $code',
 ].join('; ');
-const VERIFY_SCRIPT = 'echo "@@step verify"; lexlean verify --all 2>&1; code=$?; echo "@@exit verify $code"; exit $code';
-
-/**
- * Prove the model in the SDK image, or reuse this machine's verified record of the very same model
- * (verified-store.mjs): the same image, LexLean build ID and Lake workspace, and files that re-derive, as
- * `reuseAdmits` requires. Resolves `{ run, reused }`, `reused` the attestation ID when nothing was verified.
- */
-async function proveInImage(dir, { log, env }) {
-  const onLine = (l) => /^(error|warning|verified|checked|check passed)/.test(l) && log(l);
-  const first = await runInImage(dir, PREPARE_SCRIPT, { onLine });
-  if (first.code !== 0) return { run: first, reused: null };
-  const store = kappaStore({ env });
-  const image = imageLabel(imageOf(dir));
-  const build = buildLabel(first.output);
-  const workspace = workspaceLabel(dir);
-  const key = image && build ? verifiedKey({ image, build, workspace }) : null;
-  if (key) {
-    const found = findVerified(store, { key, image, build });
-    if (reuseAdmits(found.facts)) {
-      restoreVerified(dir, found);
-      log(`Lean verified this exact model on this machine before (attestation ${found.attestation}); that record is reused, not verified again.`);
-      return { run: { code: 0, output: first.output }, reused: found.attestation };
-    }
-  }
-  const second = await runInImage(dir, VERIFY_SCRIPT, { onLine });
-  const run = { code: second.code, output: `${first.output}${second.output}` };
-  // Only a verify that passed is kept, and only the record it published for this build.
-  if (second.code === 0 && key) {
-    const folder = publishedFor(dir, build);
-    if (folder) keepVerified(store, { key, image, build, workspace, folder });
-  }
-  return { run, reused: null };
-}
 
 const MAX_AXIOM_ROUNDS = 8;
 
@@ -265,7 +227,7 @@ export async function prove(dir, session, { log = () => {}, overwrite = false, w
       return { ok: false, edited: true, message: `${relative(dir, written.path)} was edited by hand since Prism wrote it. Call the same tool again with overwrite: true to replace it from the spec, or change the spec to match.` };
     }
     log(round === 1 ? 'Formatting, locking and checking the model, then asking Lean to prove it...' : `Correcting an axiom set and proving again (round ${round})...`);
-    const { run, reused } = await proveInImage(dir, { log, env });
+    const run = await runInImage(dir, PROVE_SCRIPT_FULL, { onLine: (l) => /^(error|warning|verified|checked|check passed)/.test(l) && log(l) });
     rememberModel(dir, session);
     const diagnostics = parseDiagnostics(run.output);
     const failed = steps(run.output).find((s) => s.code !== 0);
@@ -277,7 +239,7 @@ export async function prove(dir, session, { log = () => {}, overwrite = false, w
       continue;
     }
     const seconds = Math.round((Date.now() - started) / 1000);
-    if (run.code === 0) return provedResult(dir, session, seconds, reused ? { where: 'local', reused } : { where: 'local' });
+    if (run.code === 0) return provedResult(dir, session, seconds, { where: 'local' });
     if (cutOff(run.output)) return interrupted(dir, 'prove', cutOff(run.output), run, seconds);
     return explainFailure(dir, session, { run, diagnostics, failed, seconds, gaps });
   }
@@ -297,11 +259,8 @@ function provedResult(dir, session, seconds, proof) {
     seconds,
     where: proof.where,
     ...(proof.attestation ? { attestation: proof.attestation } : {}),
-    ...(proof.reused ? { reused: proof.reused } : {}),
     properties: spec.properties.map((p) => ({ id: p.id, theorem: theoremsOf(n, p).join(', '), says: p.says, status: 'proved' })),
-    message: proof.reused
-      ? `Lean verified this exact model on this machine before (attestation ${proof.reused}), so that proof is reused, not run again: ${spec.properties.length === 1 ? 'its one property holds for every request' : spec.properties.length ? `all ${spec.properties.length} properties hold for every request` : 'the model checks and verifies; no property is stated'}. ${seconds} s.`
-      : spec.properties.length
+    message: spec.properties.length
       ? `Lean proved all ${spec.properties.length} propert${spec.properties.length === 1 ? 'y' : 'ies'} for every request${where}, in ${seconds} s.`
       : `The model checks and verifies${where} in ${seconds} s. No property is stated, so nothing about the rules is proved.`,
   };
