@@ -943,6 +943,7 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `auth.unavailable` |  | `SE-09` | prism.auth reads and writes Docker's credential stores, which this build of prism-code leaves out; use it in Node. |
 | `axioms.probe` |  | `DK-41` | Lean refused the axiom probe, said nothing about a declaration, or left no audit records. |
 | `axioms.project` |  | `DK-41` | The project has no .lex.tex file under its source roots, so there is nothing to audit. |
+| `build.host-not-allowed` |  | `DK-45` | A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier without PRISM_CODE_TIER=hosted. Nothing was sent, and there is no fallback. |
 | `canonical.algorithm` |  | `DK-41` | The digest algorithm needs node:crypto, which this host does not have; sha256 stays available. |
 | `capabilities.invalid` |  | `AL-07` | A capability file or capability set is malformed, or a set was named without a capability file. |
 | `capabilities.kind` |  | `AL-07` | A capability names a kind this version does not know. |

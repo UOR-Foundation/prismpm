@@ -61,7 +61,7 @@ test('a build writes the page beside the app, and the page carries the record, t
   // The same record gives the same files, byte for byte.
   const again = writeRuleAppSite(join(dir, '.prism', 'site-again'), at('app.rule-app.json'));
   for (const file of again.files) assert.deepEqual(readFileSync(join(again.directory, file)), at(file), file);
-  assert.equal(again.files.length, 4 + browserClosure().length + 8);
+  assert.equal(again.files.length, 4 + browserClosure().length + 9);
   // Planted defect P2: the page proves the guarantees itself. It carries Lean's kernel and library, the pinned bytes,
   // and the same writer of proof terms this package runs, and it does not take the record's word for the proof.
   const manifest = JSON.parse(at('kernel/manifest.json'));
@@ -92,20 +92,22 @@ test('a title cannot write markup into the page, and an app whose guarantee fail
   assert.equal(existsSync(join(app, '.prism', 'site')), false);
 });
 
-test('the page proves only what this browser has not proved, and reuses a proof by the same rule as Node', () => {
+test('the page produces only the terms this browser has not produced, and judges every term again, by the same rule as Node', () => {
   const dir = mkdtempSync(join(tmpdir(), 'prism-rule-app-site-reuse-'));
   const record = { title: 't', name: 't', fields: [], words: [], guarantees: [], vectors: [], outcomes: [], kernel: { holo: RULE_JUDGE_HOLO }, proof: null, schema: 'prism/rule-app/1' };
   const { directory } = writeRuleAppSite(join(dir, 'site'), Buffer.from(JSON.stringify(record)));
   const script = readFileSync(join(directory, 'start.mjs'), 'utf8');
   // The reuse rule and the store are the package's own files, shipped whole, not a second writing of them.
-  for (const name of ['kappa-rules.mjs', 'kappa-opfs.mjs']) assert.deepEqual(readFileSync(join(directory, 'prism-code/src/journey', name)), readFileSync(new URL(`../src/journey/${name}`, import.meta.url)), name);
-  assert.match(script, /import \{ PROOF_SCHEMA, derivationKey, guaranteeStatement, reuseAdmits \} from '\.\/prism-code\/src\/journey\/kappa-rules\.mjs';/);
-  // Planted defect R1: a stored proof stands in for the kernel only when reuseAdmits says so.
-  assert.match(script, /const reusable = found\.map\(\(f\) => reuseAdmits\(f\.facts\)\);/);
-  assert.match(script, /if \(reusable\.every\(Boolean\)\) return \{ accepted: found\.map\(\(f\) => holds\(f\.proof\.axioms\)\)/);
-  assert.match(script, /if \(reusable\[i\]\) \{ accepted\.push\(holds\(found\[i\]\.proof\.axioms\)\); continue; \}/);
-  // Planted defect R2: only a proof the kernel accepted is kept, under the addresses of the bytes it ran.
-  assert.match(script, /if \(r\.exit === 0 && axioms !== null\) await keepProof\(store, \{ key: keys\[i\]\.key, kernel: 'sha256:' \+ w, library: 'sha256:' \+ l,/);
+  for (const name of ['kappa-rules.mjs', 'kappa-opfs.mjs', 'canonical-rules.mjs']) assert.deepEqual(readFileSync(join(directory, 'prism-code/src/journey', name)), readFileSync(new URL(`../src/journey/${name}`, import.meta.url)), name);
+  assert.match(script, /import \{ judgedFacts, proved, termReusable \} from '\.\/prism-code\/src\/journey\/canonical-rules\.mjs';/);
+  // Planted defect R1: a stored term stands in for producing one only when termReusable says so.
+  assert.match(script, /const reusable = found\.map\(\(f\) => termReusable\(f\.facts\)\);/);
+  // Planted defect R4: a reused term is never taken as proved; the page judges every term, and no early return skips it.
+  assert.doesNotMatch(script, /if \(reusable\.every\(Boolean\)\) return/);
+  assert.match(script, /const text = reusable\[i\] \? found\[i\]\.text : proofLines\(lib, record\.words, guarantee\);\n[^\n]*\n[^\n]*\n\s*const r = run\('check_suffix', bytes\);/);
+  assert.match(script, /accepted\.push\(proved\(facts\)\);/);
+  // Planted defect R2: only a proved term is kept, under the addresses of the bytes it ran.
+  assert.match(script, /if \(proved\(facts\) && !reusable\[i\]\) await keepProof\(store, \{ key: keys\[i\]\.key, kernel: 'sha256:' \+ w, library: 'sha256:' \+ l,/);
   // Planted defect R3: kept files are still checked against the manifest, and the guest runs from the bytes hashed.
   assert.match(script, /if \(g !== manifest\.glue\.sha256 \|\| w !== manifest\.wasm\.sha256 \|\| l !== manifest\.library\.sha256\) throw/);
   assert.match(script, /kernel = await loadArchive\(holoBytes, \{ capabilities: null, capabilitySet: undefined, allowUnverified: false \}\);/);

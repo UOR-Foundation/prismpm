@@ -1,0 +1,4 @@
+{
+  "kib": 16,
+  "reason": "The canonical build (docs/proposals/canonical-serverless-build.md): the rules model/canonical-build proves, the serverless boundary every build read goes through, and the public proof store read by GET (about 14 KiB)."
+}

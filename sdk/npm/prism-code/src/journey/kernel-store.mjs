@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { prismHome } from '../agents.mjs';
+import { buildFetch } from './hosts.mjs';
 
 export const KERNEL_REPOSITORY = 'UOR-Foundation/foundry';
 export const KERNEL_COMMIT = '7755331b8d1cba879d89a1956c0703b749868abd';
@@ -65,6 +66,8 @@ export function hasKernel({ env = process.env } = {}) {
  * names that were fetched; throws `KernelMissing` when one could not be.
  */
 export async function ensureKernel({ env = process.env, fetch = globalThis.fetch, log = () => {} } = {}) {
+  // Behind the serverless boundary: the kernel is read from GitHub or not at all.
+  const get = buildFetch({ fetch });
   const directory = kernelDirectory(env);
   const fetched = [];
   for (const [name, want] of Object.entries(KERNEL_FILES)) {
@@ -78,8 +81,9 @@ export async function ensureKernel({ env = process.env, fetch = globalThis.fetch
     const url = `${RAW_URL}/${KERNEL_REPOSITORY}/${KERNEL_COMMIT}/${want.path}`;
     let response;
     try {
-      response = await fetch(url);
+      response = await get(url);
     } catch (error) {
+      if (error.code === 'build.host-not-allowed') throw error;
       throw new KernelMissing(`${url} did not answer: ${error.cause?.code ?? error.message}`);
     }
     if (!response.ok) throw new KernelMissing(`${url} answered HTTP ${response.status}`);

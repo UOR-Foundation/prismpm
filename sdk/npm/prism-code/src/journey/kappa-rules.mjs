@@ -7,10 +7,15 @@
  */
 import { sha256HexSync } from '../sha256.mjs';
 import { isKappa, kappa } from '../uorc.mjs';
+import { axiomPolicy } from './canonical-rules.mjs';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder('utf-8', { fatal: true });
-export const PROOF_SCHEMA = 'prism/kernel-proof/1';
+/** Version 2 names the statement and the exact axiom policy a proof was judged under (model/canonical-build). */
+export const PROOF_SCHEMA = 'prism/kernel-proof/2';
+
+/** A theorem's axiom policy as one κ-label: equal policies, and only those, share it. */
+export const policyLabel = (policy) => kappa(enc.encode(JSON.stringify(['prism/axiom-policy/1', axiomPolicy(policy)])));
 
 /** The key of a derivation: a domain and its operands' κ-labels, in order, each framed by its length. `f(A, B)` is not `f(B, A)`. */
 export function derivationKey(domain, operands) {
@@ -27,6 +32,9 @@ export function derivationKey(domain, operands) {
   return kappa(bytes);
 }
 
+/** A proof's derivation key: the kernel, the library, its own statement and its axiom policy, in that order. */
+export const proofKey = ({ kernel, library, statement, policy }) => derivationKey(PROOF_SCHEMA, [kernel, library, statement, policyLabel(policy)]);
+
 /** The statement one guarantee's proof is about: the spec's numbers and that guarantee, and nothing of where it sits. */
 export const guaranteeStatement = (words, guarantee) => `sha256:${sha256HexSync(enc.encode(JSON.stringify(['prism/kernel-guarantee/1', words, guarantee])))}`;
 
@@ -36,8 +44,8 @@ export const guaranteeStatement = (words, guarantee) => `sha256:${sha256HexSync(
 export const reuseAdmits = (s) => s.present === 1 && s.storedKey === s.computedKey && s.storedKernel === s.kernelPinned && s.storedLibrary === s.libraryPinned && s.storedBytes === s.derivedBytes;
 
 /** The canonical bytes of an accepted proof: it names its key and every input by κ-label, in one fixed order. */
-export function proofRealization({ key, kernel, library, statement, bundle, axioms }) {
-  return enc.encode(`${JSON.stringify({ schema: PROOF_SCHEMA, key, kernel, library, statement, bundle, axioms: [...axioms].sort() })}\n`);
+export function proofRealization({ key, kernel, library, statement, policy, bundle, axioms }) {
+  return enc.encode(`${JSON.stringify({ schema: PROOF_SCHEMA, key, kernel, library, statement, policy: axiomPolicy(policy), bundle, axioms: [...axioms].sort() })}\n`);
 }
 
 /** The κ-labels a proof's canonical bytes name: what it depends on, read back out of it. */
@@ -50,8 +58,9 @@ export function proofReferences(bytes) {
  * What `reuseAdmits` decides on, from what a store returned: the realization's bytes found under the key (or null)
  * and the bytes found under the proof's bundle label (or null). Resolves `{ facts, proof, text }`. Nothing here decides.
  */
-export function proofFacts({ key, kernel, library }, bytes, readBundle) {
-  const absent = { facts: { present: 0, storedKey: '', computedKey: key, storedKernel: '', kernelPinned: kernel, storedLibrary: '', libraryPinned: library, storedBytes: '', derivedBytes: '' }, proof: null, text: null };
+export function proofFacts({ key, kernel, library, statement = '', policy = [] }, bytes, readBundle) {
+  const wanted = policyLabel(policy);
+  const absent = { facts: { present: 0, storedKey: '', computedKey: key, storedKernel: '', kernelPinned: kernel, storedLibrary: '', libraryPinned: library, storedStatement: '', statement, storedPolicy: '', policy: wanted, storedBytes: '', derivedBytes: '' }, proof: null, text: null };
   if (!bytes) return absent;
   let proof;
   try {
@@ -59,7 +68,7 @@ export function proofFacts({ key, kernel, library }, bytes, readBundle) {
   } catch {
     return absent;
   }
-  if (proof?.schema !== PROOF_SCHEMA || !Array.isArray(proof.axioms) || ![proof.key, proof.kernel, proof.library, proof.statement, proof.bundle].every(isKappa)) return absent;
+  if (proof?.schema !== PROOF_SCHEMA || !Array.isArray(proof.axioms) || !Array.isArray(proof.policy) || proof.policy.some((a) => typeof a !== 'string') || ![proof.key, proof.kernel, proof.library, proof.statement, proof.bundle].every(isKappa)) return absent;
   const bundle = readBundle(proof.bundle);
   const facts = {
     present: 1,
@@ -69,6 +78,10 @@ export function proofFacts({ key, kernel, library }, bytes, readBundle) {
     kernelPinned: kernel,
     storedLibrary: proof.library,
     libraryPinned: library,
+    storedStatement: proof.statement,
+    statement,
+    storedPolicy: policyLabel(proof.policy),
+    policy: wanted,
     storedBytes: proof.bundle,
     // What the proof's bytes are now, not what the record says they were.
     derivedBytes: bundle ? kappa(bundle) : '',

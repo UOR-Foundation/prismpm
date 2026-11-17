@@ -280,6 +280,13 @@ Feature: sdk
     Then a holo that fails check exits without the guest running, and an allowUnverified run records when it bypassed check and why
     And a volume is refused with a typed host-effects error kept on the record, and logs come from the stored output
 
+  @DK-45 @build
+  Scenario: The canonical build of prism-code follows model/canonical-build, which Lean proves: a holo is admitted only when its semantic_id recomputes under the pinned kernel, library and compiler; a stored proof term stands in for producing one only under the same derivation key, kernel, library, statement, exact axiom policy and bytes, and never for judging one, so the kernel judges every term, reused or produced, in the run that reports it; a theorem is proved only when the kernel accepted its own term within its policy, a missing term is pending and a refused one refused; where a term came from never decides its verdict; and every network read of a build goes through one boundary that admits GitHub's static hosts and the user's Pages site, admits the hosted verifier only on PRISM_CODE_TIER=hosted, refuses any other host with build.host-not-allowed before anything is sent, and reads a public proof store only by GET, copying bytes only when they re-derive.
+    Given model/canonical-build verified by Lean 4.32.1, the pinned kernel as WebAssembly, and a public store served as static files
+    When the rules are evaluated beside the model's text on generated inputs, a spec is proved twice, and a build asks hosts inside and outside the boundary
+    Then the JavaScript agrees with the model on every input, every reused term is judged again by the kernel, and nothing is reused under another library, statement or axiom policy
+    And a host outside the boundary is refused before anything is sent, and store bytes that do not re-derive are not copied
+
   @DK-44 @build
   Scenario: The prism-code system and auth command groups are the CLI of prism.system and prism.auth: system info and version name the package, the holo format, the runtime and the toolchain and builder image the project's prismpm.lock pins, events replays and follows create, start, die and destroy from the container store with since, until and filters, df counts every record and prune removes exited containers only and asks first unless forced; auth login checks the credential with the registry before storing it where Docker would, refuses a password on the command line, and no password reaches stdout, stderr or an error in any spelling, and logout names an ambient token it cannot clear.
     Given a PRISM_HOME with containers, a project with a prismpm.lock, a Docker config folder and an in-process registry

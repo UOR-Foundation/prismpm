@@ -24,7 +24,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { findProof, kappaStore, keepProof } from './kappa-store.mjs';
-import { PROOF_SCHEMA, derivationKey, guaranteeStatement, reuseAdmits } from './kappa-rules.mjs';
+import { guaranteeStatement, proofKey } from './kappa-rules.mjs';
+import { STATUS, judgedFacts, proved, status, termReusable } from './canonical-rules.mjs';
+import { configuredStore as publicStoreOf, pullProofs } from './proof-store.mjs';
+import { kappa } from '../uorc.mjs';
 import { ensureKernel, hasKernel, readKernelFile } from './kernel-store.mjs';
 import { HOLDS, KERNEL_AXIOMS, proofLines, readLibrary } from './kernel-terms.mjs';
 
@@ -154,7 +157,8 @@ export function openKernel() {
     const loaded = run('load_library', library);
     if (loaded.exit !== 0) throw new Error(`the kernel refused its library: ${loaded.output}`);
     const lib = readLibrary(library.toString('utf8'));
-    return { manifest, addresses, judge: (words, guarantee) => ({ text: proofLines(lib, words, guarantee), run }) };
+    // `judge` produces a term; `check` is the kernel judging one, whoever produced it.
+    return { manifest, addresses, judge: (words, guarantee) => ({ text: proofLines(lib, words, guarantee), run }), check: (text) => run('check_suffix', Buffer.from(text, 'utf8')) };
   })();
   opened.catch(() => {
     opened = null;
@@ -195,39 +199,53 @@ export async function kernelProve(spec, { kernel = null, log = () => {}, env = p
   const { words, guarantees } = ruleWords(spec);
   const started = performance.now();
   const pinned = pinnedAddresses();
+  const policy = KERNEL_AXIOMS;
   const keys = guarantees.map((guarantee) => {
     const statement = guaranteeStatement(words, guarantee);
-    return { statement, key: derivationKey(PROOF_SCHEMA, [pinned.kernel, pinned.library, statement]) };
+    return { statement, key: proofKey({ kernel: pinned.kernel, library: pinned.library, statement, policy }) };
   });
-  const found = keys.map(({ key }) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library }));
-  const reusable = found.map((f) => reuseAdmits(f.facts));
-  // The spec is read and the store asked first, so nothing is fetched or opened for work already done.
+  // A public store, when the user named one, may hold terms produced elsewhere: copied here, then judged like any other.
+  const remote = publicStoreOf({ env, fetch });
+  const pulled = remote && !store.off ? await pullProofs(store, remote, keys.map((k) => k.key)) : 0;
+  const found = keys.map(({ key, statement }) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library, statement, policy }));
+  // A stored term stands in for producing one, never for judging it (model/canonical-build, `termReusable`).
+  const reusable = found.map((f) => termReusable(f.facts));
   let k = kernel;
-  if (!k && reusable.some((yes) => !yes)) {
+  if (!k) {
     await ensureKernel({ env, fetch, log });
     k = await openKernel();
   }
   const texts = [];
   const judged = guarantees.map((guarantee, i) => {
-    if (reusable[i]) {
-      texts.push(found[i].text);
-      return { accepted: true, axioms: found[i].proof.axioms, output: '', reused: true };
-    }
-    const { text, run } = k.judge(words, guarantee);
+    const text = reusable[i] ? found[i].text : k.judge(words, guarantee).text;
     texts.push(text);
-    const r = run('check_suffix', Buffer.from(text, 'utf8'));
+    // The kernel judges every term in this run, reused or produced: "proved" is what it accepts now.
+    const r = k.check(text);
     const axioms = r.axioms[HOLDS] ?? null;
-    // Only an accepted proof is kept: a refusal carries no bytes that could be checked again.
-    if (r.exit === 0 && axioms !== null) keepProof(store, { key: keys[i].key, kernel: `sha256:${k.addresses.kernel}`, library: `sha256:${k.addresses.library}`, statement: keys[i].statement, text, axioms });
-    // Only what the kernel answered. Whether that is a verdict is the guest's to say (kernel-verdict.mjs).
-    return { accepted: r.exit === 0, axioms, output: r.output, reused: false };
+    const derivedTerm = kappa(new TextEncoder().encode(text));
+    const facts = judgedFacts({
+      hasTerm: true,
+      termNamed: reusable[i] ? found[i].facts.storedBytes : derivedTerm,
+      termDerived: derivedTerm,
+      termStatement: reusable[i] ? found[i].proof.statement : keys[i].statement,
+      statement: keys[i].statement,
+      kernelRan: true,
+      kernelAccepted: r.exit === 0 && axioms !== null,
+      axioms,
+      policy,
+      source: reusable[i] ? 2 : 0,
+    });
+    const holds = proved(facts);
+    // Only a proved term is kept, once: a refusal carries no bytes worth judging again.
+    if (holds && !reusable[i]) keepProof(store, { key: keys[i].key, kernel: `sha256:${k.addresses.kernel}`, library: `sha256:${k.addresses.library}`, statement: keys[i].statement, policy, text, axioms });
+    // Whether the whole check is a verdict is the guest's to say (kernel-verdict.mjs).
+    return { accepted: holds, status: STATUS[status(facts)], axioms, output: r.output, reused: reusable[i] };
   });
-  // What was derived: the files' own addresses when the kernel ran, and what the reused proofs name otherwise.
-  const ran = reusable.some((yes) => !yes);
-  const derived = ran ? { kernel: `sha256:${k.addresses.kernel}`, library: `sha256:${k.addresses.library}` } : { kernel: found[0]?.proof.kernel ?? pinned.kernel, library: found[0]?.proof.library ?? pinned.library };
+  const derived = { kernel: `sha256:${k.addresses.kernel}`, library: `sha256:${k.addresses.library}` };
   return {
     judged,
     reused: reusable.filter(Boolean).length,
+    pulled,
     ms: Math.round(performance.now() - started),
     pinned: { kernel: pinned.kernel, library: pinned.library },
     evidence: {
