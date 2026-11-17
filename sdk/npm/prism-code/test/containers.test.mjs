@@ -26,7 +26,7 @@ import {
   ReplayError,
   SigningError,
 } from '../src/index.mjs';
-import { containersDirectory, fileContainerStore } from '../src/node.mjs';
+import { containersDirectory, fileContainerStore, renameReplacing } from '../src/node.mjs';
 import { EXIT as CHECK_EXIT, check } from '../src/check.mjs';
 import { assembleWasm, withGuest } from '../../verify/test/helpers.mjs';
 
@@ -741,4 +741,22 @@ test('containers create --volume keeps the refusal on the record, and the run ne
   const record = JSON.parse(cli(['inspect', created.out.trim(), '--json'], created.home).out);
   assert.equal(record.volumes[0].name, 'rates');
   assert.equal(record.volumes[0].refusal.name, 'CapabilityDeniedError');
+});
+
+test('a record written while a reader holds it open is retried, as Windows refuses that rename for a moment', async () => {
+  const busy = (code) => Object.assign(new Error(code), { code });
+  const tries = [];
+  const flaky = async (from, to) => {
+    tries.push([from, to]);
+    if (tries.length < 3) throw busy(tries.length === 1 ? 'EPERM' : 'EBUSY');
+  };
+  await renameReplacing('a.tmp', 'a.json', { rename: flaky, wait: async () => {} });
+  assert.equal(tries.length, 3);
+  // Any other error is the caller's at once, and a rename that never succeeds stops.
+  let calls = 0;
+  await assert.rejects(renameReplacing('a.tmp', 'a.json', { rename: async () => { calls++; throw busy('ENOENT'); }, wait: async () => {} }), { code: 'ENOENT' });
+  assert.equal(calls, 1);
+  calls = 0;
+  await assert.rejects(renameReplacing('a.tmp', 'a.json', { rename: async () => { calls++; throw busy('EPERM'); }, wait: async () => {} }), { code: 'EPERM' });
+  assert.equal(calls, 9);
 });

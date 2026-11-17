@@ -115,6 +115,22 @@ export function containersDirectory(env = process.env) {
 export { fileImageStore, imagesDirectory, memoryImageStore } from './image-store.mjs';
 
 /**
+ * Rename `from` over `to`. On Windows a rename over a file that another reader
+ * has open at that instant fails with EPERM, EACCES or EBUSY, so those are
+ * retried for up to about a second; any other error is thrown at once.
+ */
+export async function renameReplacing(from, to, { rename: move = rename, wait = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await move(from, to);
+    } catch (error) {
+      if (attempt >= 8 || !['EPERM', 'EACCES', 'EBUSY'].includes(error?.code)) throw error;
+      await wait(10 * 2 ** Math.min(attempt, 5));
+    }
+  }
+}
+
+/**
  * Records as one JSON file per container, readable only by this user. The
  * record holds the output and never the input (docs/proposals/348-container-lifecycle.md).
  */
@@ -131,10 +147,11 @@ export function fileContainerStore(directory = containersDirectory()) {
     put: (record) =>
       guarded('cannot write a container to', async () => {
         await mkdir(directory, { recursive: true, mode: 0o700 });
-        // Write beside the target and rename, so an interrupted run never leaves half a record.
+        // Write beside the target and rename, so an interrupted run never leaves half a record. `system events` reads
+        // these files while they are written, which on Windows can briefly refuse the rename.
         const scratch = `${fileOf(record.id)}.${process.pid}.tmp`;
         await writeFile(scratch, JSON.stringify(record), { mode: 0o600 });
-        await rename(scratch, fileOf(record.id));
+        await renameReplacing(scratch, fileOf(record.id));
       }),
     get: (id) => guarded('cannot read a container from', async () => JSON.parse(await readFile(fileOf(id), 'utf8'))),
     find: (prefix) =>
