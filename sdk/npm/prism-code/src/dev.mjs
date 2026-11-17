@@ -93,10 +93,13 @@ async function walk(root, matches, ignored, prefix = '') {
   return files;
 }
 
+/** How close to its last read a file's time must be for the read to be repeated: covers coarse file system clocks. */
+const RACY_MS = 2000;
+
 /**
  * The hash and times of the files being watched. A file's bytes are read only
- * when its size or time moved, and a change is a change of bytes, so saving a
- * file unchanged rebuilds nothing.
+ * when its size or time moved, or its time is within RACY_MS of the last read,
+ * and a change is a change of bytes, so saving a file unchanged rebuilds nothing.
  *
  * `extra` names files by absolute path, for a policy that lives outside the
  * project; `exclude` keeps a file out, for a holo the build writes in place.
@@ -112,10 +115,14 @@ export function createSnapshot({ root, patterns, ignored = IGNORED_DIRECTORIES, 
     const info = await stat(full).catch(() => null);
     if (!info?.isFile()) return null;
     const previous = known.get(path);
-    if (previous && previous.size === info.size && previous.mtimeMs === info.mtimeMs) return previous;
+    // An unchanged size and time prove nothing about a file written within a timestamp tick of when it was last read:
+    // an edit of the same length in that tick keeps both (git's "racy" case, common on Windows). Such a file is read
+    // again until its time is safely older than the read.
+    if (previous && previous.size === info.size && previous.mtimeMs === info.mtimeMs && info.mtimeMs + RACY_MS < previous.readAt) return previous;
+    const readAt = Date.now();
     const bytes = await readFile(full).catch(() => null);
     if (bytes === null) return null;
-    return { size: info.size, mtimeMs: info.mtimeMs, sha256: createHash('sha256').update(bytes).digest('hex') };
+    return { size: info.size, mtimeMs: info.mtimeMs, readAt, sha256: createHash('sha256').update(bytes).digest('hex') };
   }
 
   /** Scan, keep the result, and return the paths whose bytes changed with the newest edit time among them. */
