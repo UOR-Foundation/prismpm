@@ -192,6 +192,8 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
   const tools = {
     prism_start(args) {
       setImmediate(() => import('./kernel-prove.mjs').then((m) => m.warmKernel()).catch(() => {}));
+      // LexLean as WebAssembly is fetched once, while the user is still describing the app, unless they opted in to the hosted verifier.
+      setImmediate(() => import('./lexlean-wasm.mjs').then((m) => m.lexleanReady()).catch(() => {}));
       const all = starters();
       const list = Object.entries(all).map(([name, s]) => ({ starter: name, module: s.module, shape: s.shape }));
       if (started()) return { greeting: 'Welcome back.', ...status(), note: args.starter ? 'This project already holds a model, so no starter was written.' : undefined, nextSteps: [NO_DOCKER_FREE_BUILD] };

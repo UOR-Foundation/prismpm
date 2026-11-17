@@ -19,7 +19,7 @@ Check after every edit: each diagnostic names the line of `prism/src/` it anchor
 
 ## What runs without Docker
 
-LexLean's front end runs as WebAssembly on your machine once its pinned copy is there: it checks every app and takes its semantic snapshot in under a second, and a rule app is then proved by Lean's kernel on your machine and built, with no Docker and no server. No public copy is pinned in this release yet; `PRISM_LEXLEAN_WASM` names one, held to its BLAKE3 digest. Proving any other app's theorems needs Lean: the SDK image on your machine (Docker), or the hosted verifier, which only you choose, by setting `PRISM_CODE_TIER=hosted`; it stores the model unlisted, not privately. With nothing to run a step on, it fails with `build.frontend-unavailable`.
+LexLean's front end runs as WebAssembly on your machine once its pinned copy is there: it checks every app and takes its semantic snapshot in under a second, and a rule app is then proved by Lean's kernel on your machine and built, with no Docker and no server. Its pinned copy is fetched once, about 4 MB, and used only when it has its BLAKE3 digest; `PRISM_LEXLEAN_FETCH=0` fetches nothing. Proving any other app's theorems needs Lean: the SDK image on your machine (Docker), or the hosted verifier, which only you choose, by setting `PRISM_CODE_TIER=hosted`; it stores the model unlisted, not privately. With nothing to run a step on, it fails with `build.frontend-unavailable`.
 
 ## Next steps
 

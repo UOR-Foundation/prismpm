@@ -10,7 +10,7 @@
  * whether they were just fetched or read from disk. They are kept under
  * `$PRISM_HOME/lexlean/`, or read from `PRISM_LEXLEAN_WASM` when that names a
  * file. Where they are fetched from is `LEXLEAN_WASM.url`, read through the
- * serverless boundary (hosts.mjs); while it is null, nothing is fetched.
+ * serverless boundary (hosts.mjs), once; `PRISM_LEXLEAN_FETCH=0` fetches nothing.
  *
  * It runs in this process on wasi-memory.mjs, a WASI host over the project's
  * files held in memory: `node:wasi` lists no directory on Windows, and the
@@ -41,8 +41,8 @@ export const LEXLEAN_WASM = Object.freeze({
   bytes: 19133367,
   gzipKappa: 'blake3:e79126591773b1f721af3ad911b73d46bceb4c4d6453e4dda04814efeee60f83',
   gzipBytes: 4140342,
-  // No public copy yet: publishing one is a release the user approves. Until then PRISM_LEXLEAN_WASM names these bytes.
-  url: null,
+  // The pre-release asset the user approved; fetched through the serverless boundary and held to `gzipKappa` and `kappa`.
+  url: 'https://github.com/UOR-Foundation/lexlean/releases/download/wasm-snapshot-9ba600d/lexlean-9ba600d.wasm.gz',
 });
 
 
@@ -79,6 +79,21 @@ export function lexleanWasmFile({ env = process.env, pin = null } = {}) {
   return file;
 }
 
+/**
+ * Whether LexLean as WebAssembly can run here, fetching it once when it is not
+ * here yet. Never fetches for a user who opted in to the hosted verifier, and
+ * never throws: a module that cannot be had leaves the other front ends.
+ */
+export async function lexleanReady({ env = process.env, fetch = globalThis.fetch, log = () => {}, pin = null } = {}) {
+  if (env.PRISM_CODE_TIER === 'hosted') return false;
+  try {
+    await ensureLexleanWasm({ env, fetch, log, pin });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Whether LexLean's front end can run here now, as WebAssembly. */
 export function hasLexleanWasm(options = {}) {
   try {
@@ -98,11 +113,14 @@ export async function ensureLexleanWasm({ env = process.env, pin = null, fetch =
   const want = pinOf(pin);
   const kept = lexleanWasmFile({ env, pin: want });
   if (kept) return kept;
+  if (env.PRISM_LEXLEAN_FETCH === '0') throw new PrismCodeError('lexlean.wasm-unavailable', 'LexLean as WebAssembly is not on this machine, and PRISM_LEXLEAN_FETCH=0 says not to fetch it');
   if (!want.url || !want.kappa) throw new PrismCodeError('lexlean.wasm-unavailable', 'no public copy of LexLean as WebAssembly is pinned in this prism-code yet, and PRISM_LEXLEAN_WASM names no file');
   log(`Fetching LexLean's front end as WebAssembly once (about ${Math.round((want.gzipBytes ?? 4e6) / 1e6)} MB); it is checked against its κ-label.`);
   const response = await buildFetch({ fetch })(want.url);
   if (!response.ok) throw new PrismCodeError('lexlean.wasm-unavailable', `${want.url} answered HTTP ${response.status}`);
-  const bytes = gunzipSync(new Uint8Array(await response.arrayBuffer()));
+  const gz = new Uint8Array(await response.arrayBuffer());
+  if (want.gzipKappa && kappa(gz) !== want.gzipKappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave bytes that are ${kappa(gz)}, not the pinned ${want.gzipKappa}`);
+  const bytes = gunzipSync(gz);
   const got = kappa(bytes);
   if (got !== want.kappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave a module that is ${got}, not the pinned ${want.kappa}`);
   const directory = lexleanDirectory(env);

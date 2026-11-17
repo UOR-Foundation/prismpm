@@ -47,4 +47,4 @@ BLAKE3 in prism-code's JavaScript takes 744 ms on the 19 MB module, against 11 m
 ## Decided
 
 - LexLean 0.4.3 and Lean 4.32.2: option A, for Prism, its kernel and its SDK image.
-- The module is to be served as a pre-release asset on UOR-Foundation/lexlean, which the user approved. Publishing it from this session was refused by the permission check, because the approval reached it through another session; it is published once the user confirms here.
+- The module is published, with the user's approval, as a pre-release asset on UOR-Foundation/lexlean: tag `wasm-snapshot-9ba600d`, not marked latest. prism-code fetches it once through the serverless boundary, which now checks every redirect hop as well. Measured from an empty home: one request, redirected to `release-assets.githubusercontent.com`, 4,140,342 bytes, both κ-labels matched, 4.0 s.

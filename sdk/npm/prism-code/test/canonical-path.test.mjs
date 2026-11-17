@@ -11,6 +11,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INSTRUCTIONS } from '../src/journey/mcp.mjs';
 
+// LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
+process.env.PRISM_LEXLEAN_FETCH = '0';
 const bin = fileURLToPath(new URL('../bin/prism-code.mjs', import.meta.url));
 const skill = readFileSync(new URL('../skill/SKILL.md', import.meta.url), 'utf8');
 const scratch = () => mkdtempSync(join(tmpdir(), 'prism-canonical-'));

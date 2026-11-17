@@ -13,6 +13,8 @@ import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
 import { standIn, startedApp } from './support/hosted-stand-in.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
+// LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
+process.env.PRISM_LEXLEAN_FETCH = '0';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 const HOSTED = { PRISM_CODE_TIER: 'hosted' };

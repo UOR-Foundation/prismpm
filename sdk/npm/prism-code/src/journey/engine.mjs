@@ -22,7 +22,7 @@ import { VERSION } from '../version.mjs';
 import { SDK_IMAGE_DOWNLOAD } from '../setup-machine.mjs';
 import { gapLedger } from '../gaps.mjs';
 import { NO_DOCKER_FREE_BUILD, frontendUnavailable, frontendWhere, proverWhere } from './frontend.mjs';
-import { hasLexleanWasm, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
+import { lexleanReady, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
 import { bind, isBound, newestHolo, sourceDigest } from './project.mjs';
 import { BUILD_SCRIPT, CHECK_SCRIPT, DEFAULT_SDK_IMAGE, axiomViolations, buildProgress, docker, forbiddenAxioms, forbiddenMessage, hasImage, imageOf, parseDiagnostics, resolveDocker, runInImage, steps } from './sdk.mjs';
 
@@ -39,6 +39,9 @@ const imageFor = (dir, session) => (isBound(dir) ? imageOf(dir) : session.image 
 
 /** Whether the SDK image can run here now: Docker answers and the image is on this machine. */
 export const hasLocal = (dir, session) => !resolveDocker().error && hasImage(imageFor(dir, session));
+
+/** A front-end probe that answers what was found. */
+const wasmProbe = (here) => () => here;
 
 /** Whether this app is a rule app: started from the `rule-app` starter. */
 export const isRuleApp = (session) => session.starter === 'rule-app';
@@ -188,7 +191,8 @@ async function hostedOf(client, gaps) {
  * Check the model: LexLean reads, links and elaborates it, and every
  * diagnostic is returned anchored to its line. Proves nothing.
  */
-export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), local = () => hasLocal(dir, session), wasm = () => hasLexleanWasm({ env }) } = {}) {
+export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), local = () => hasLocal(dir, session), wasm = null } = {}) {
+  wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
     where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
@@ -232,7 +236,8 @@ export async function check(dir, session, { log = () => {}, env = process.env, c
  * this process from its semantic snapshot; any other app's theorems are proved
  * by `lexlean verify`. Returns `{ ok, where, guarantees | message, diagnostics }`.
  */
-export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, local = () => hasLocal(dir, session), wasm = () => hasLexleanWasm({ env }) } = {}) {
+export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, local = () => hasLocal(dir, session), wasm = null } = {}) {
+  wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
     where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
@@ -345,7 +350,8 @@ async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, en
  * model's numbers, named together, with its page; any other app is proved,
  * then built into a holo in the SDK image, and its vectors are replayed here.
  */
-export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, local = () => hasLocal(dir, session), wasm = () => hasLexleanWasm({ env }) } = {}) {
+export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, local = () => hasLocal(dir, session), wasm = null } = {}) {
+  wasm ??= wasmProbe(await lexleanReady({ env, log }));
   if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. Until it does, an app builds on this machine. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
   if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, local, wasm });
   const current = session.status.proved?.source === sourceDigest(dir);

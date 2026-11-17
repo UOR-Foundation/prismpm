@@ -51,6 +51,23 @@ test('planted defect B1: a build that reaches a non-allowed host is refused befo
   await assert.rejects(fetchPinned('standards.lock', { fetch: spy }), /answered HTTP 404/);
 });
 
+test('planted defect B2: a redirect from an allowed host to one outside the boundary is refused before it is followed', async () => {
+  const asked = [];
+  const fetch = async (url) => {
+    asked.push(String(url));
+    if (String(url).startsWith('https://github.com/')) return new Response(null, { status: 302, headers: { location: 'https://example.com/elsewhere' } });
+    return new Response('x');
+  };
+  const guarded = buildFetch({ fetch, ledger: networkLedger() });
+  await assert.rejects(guarded('https://github.com/a/b/releases/download/t/f'), (e) => e.code === 'build.host-not-allowed' && e.url === 'https://example.com/elsewhere');
+  assert.deepEqual(asked, ['https://github.com/a/b/releases/download/t/f']);
+  // A redirect inside the boundary is followed, and its bytes are counted against where they came from.
+  const ledger = networkLedger();
+  const inside = buildFetch({ fetch: async (url) => (String(url).includes('github.com/') ? new Response(null, { status: 302, headers: { location: 'https://release-assets.githubusercontent.com/x' } }) : new Response(new Uint8Array(7))), ledger });
+  await (await inside('https://github.com/a/b/releases/download/t/f')).arrayBuffer();
+  assert.deepEqual(ledger.report(), [{ host: 'release-assets.githubusercontent.com', requests: 1, bytes: 7 }]);
+});
+
 test('the ledger reports each host asked and the bytes received', async () => {
   const ledger = networkLedger();
   const guarded = buildFetch({ fetch: async () => new Response(new Uint8Array(1000)), ledger });

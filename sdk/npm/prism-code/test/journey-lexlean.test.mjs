@@ -17,6 +17,8 @@ import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
 import { standIn, startedApp } from './support/hosted-stand-in.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
+// LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
+process.env.PRISM_LEXLEAN_FETCH = '0';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 const STARTERS = fileURLToPath(new URL('../templates/starters/', import.meta.url));
@@ -67,7 +69,7 @@ test('with no SDK image and no opt-in, every step fails with build.frontend-unav
     const { dir, session } = startedApp(starter);
     const hosted = standIn({ snapshot: ruleAppSnapshot() });
     for (const step of [check, prove, build]) {
-      const r = await step(dir, session, { env: {}, client: hosted.client, local: NO_IMAGE });
+      const r = await step(dir, session, { env: {}, client: hosted.client, local: NO_IMAGE, wasm: () => false });
       assert.equal(r.ok, false, `${starter} ${step.name}`);
       assert.equal(r.code, 'build.frontend-unavailable', `${starter} ${step.name}`);
       assert.match(r.message, /Phase 3/);

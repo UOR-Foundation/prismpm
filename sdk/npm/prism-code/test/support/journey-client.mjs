@@ -33,7 +33,7 @@ export function fakeDocker(cwd, plan = {}) {
  */
 export function startServer(cwd, { env = {} } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'prism-stress-home-'));
-  const child = spawn(process.execPath, [BIN, 'mcp'], { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PRISM_HOME: home, PRISM_TELEMETRY: '0', PRISM_CODE_TIER: '', PRISM_KERNEL_DIR: KERNEL_FIXTURES, ...env } });
+  const child = spawn(process.execPath, [BIN, 'mcp'], { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PRISM_HOME: home, PRISM_TELEMETRY: '0', PRISM_LEXLEAN_FETCH: '0', PRISM_CODE_TIER: '', PRISM_KERNEL_DIR: KERNEL_FIXTURES, ...env } });
   let buffer = '';
   let stderr = '';
   let next = 1;
