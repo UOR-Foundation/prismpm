@@ -127,7 +127,7 @@ fn native(compilation: &Compilation, workspace: &Path, standard: bool) {
     .unwrap();
     write(
         &workspace.join("lean-toolchain"),
-        b"leanprover/lean4:v4.32.1\n",
+        b"leanprover/lean4:v4.32.2\n",
     )
     .unwrap();
     let tools = toolchain::resolve(workspace).unwrap();

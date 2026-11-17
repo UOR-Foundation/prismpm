@@ -778,7 +778,7 @@ statement = "Type boundary conversions between Lean Nat and Rust u64 are explici
 id = "VR-01"
 suite = "verification"
 level = "build"
-statement = "LexLean verifies formal models against the Lean 4.32.1 kernel."
+statement = "LexLean verifies formal models against the Lean 4.32.2 kernel."
 
 [[id]]
 id = "VR-02"

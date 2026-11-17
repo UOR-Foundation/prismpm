@@ -21,7 +21,7 @@ The normative PrismPM 0.4.0 interface is the digest-pinned Linux SDK OCI index
 for `linux/amd64` and `linux/arm64`. Native archives support
 `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`; other hosts use the
 SDK through Docker and the Development Container Specification. Rust 1.97.1
-and Lean 4.32.1 are mandatory inside that SDK. Tool and platform identities are
+and Lean 4.32.2 are mandatory inside that SDK. Tool and platform identities are
 closed by `prismpm.lock` and `standards.lock`.
 
 ### 1.1 Project configuration
@@ -4505,7 +4505,7 @@ Every row below is normative, has the honesty level registered in `model/ids.tom
 | `EX-08` | `execution` | Generated Rust validators never panic on caller-controlled inputs. | §7 |
 | `EX-09` | `execution` | Erased proof fields are not claimed as runtime checks. | §7 |
 | `EX-10` | `execution` | Type boundary conversions between Lean Nat and Rust u64 are explicitly bounded. | §7 |
-| `VR-01` | `verification` | LexLean verifies formal models against the Lean 4.32.1 kernel. | §8 |
+| `VR-01` | `verification` | LexLean verifies formal models against the Lean 4.32.2 kernel. | §8 |
 | `VR-02` | `verification` | Verification records executable digests and normalized toolchain commands. | §8 |
 | `VR-03` | `verification` | Lake stages generated Lean modules in isolated temporary workspaces. | §8 |
 | `VR-04` | `verification` | leanchecker replays compiled module environments independently. | §8 |

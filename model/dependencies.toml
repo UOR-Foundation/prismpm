@@ -2,7 +2,7 @@ spec = "prismpm/dependencies/1"
 
 [[dependency]]
 id = "lean4-prod"
-lean_version = "4.32.1"
+lean_version = "4.32.2"
 revision = "991956fe427bb646498fd0912c89b71be71e7beb"
 source = "vendored"
 

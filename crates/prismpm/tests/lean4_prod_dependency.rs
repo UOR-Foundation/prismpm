@@ -113,7 +113,7 @@ fn lean4_prod_dependency_record_and_checksums_are_valid() {
     let record = parse_lean4_prod_dependency(&content).expect("parse lean4-prod dependency");
 
     assert_eq!(record.id, "lean4-prod");
-    assert_eq!(record.lean_version.as_deref(), Some("4.32.1"));
+    assert_eq!(record.lean_version.as_deref(), Some("4.32.2"));
     assert_eq!(record.revision, "991956fe427bb646498fd0912c89b71be71e7beb");
     assert_eq!(record.source, "vendored");
 
@@ -308,7 +308,7 @@ spec = "prismpm/dependencies/1"
 
 [[dependency]]
 id = "lean4-prod"
-lean_version = "4.32.1"
+lean_version = "4.32.2"
 revision = "991956fe427bb646498fd0912c89b71be71e7beb"
 source = "vendored"
 

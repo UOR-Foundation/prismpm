@@ -1416,7 +1416,7 @@ pub fn audit_tools_ci(root: &Path) -> Result<(), Fail> {
     }
     for value in [
         "1.97.1",
-        "leanprover/lean4:v4.32.1",
+        "leanprover/lean4:v4.32.2",
         "4.2.3",
         "1.57.0",
         "0.20.2",

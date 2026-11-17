@@ -433,8 +433,8 @@ test('development and SDK recipes share the exact isolated pinned Rust tool cons
 });
 
 test('both recipes normalize the complete pinned Lean toolchain before unprivileged use', () => {
-  const pin = 'leanprover/lean4:v4.32.1';
-  const root = '/usr/local/elan/toolchains/leanprover--lean4---v4.32.1';
+  const pin = 'leanprover/lean4:v4.32.2';
+  const root = '/usr/local/elan/toolchains/leanprover--lean4---v4.32.2';
   const check = recipe => {
     const commands = [...imageStages(recipe).values()].flatMap(stage => stage.instructions);
     const installs = commands.filter(command => command.includes(`elan toolchain install ${pin}`));
