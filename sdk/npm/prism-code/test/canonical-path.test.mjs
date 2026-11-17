@@ -1,7 +1,7 @@
 // The canonical path is what `npx prism-code@latest setup` leads every user to: an app's one source of
 // truth is its LexLean model, started from a content-addressed starter and written by the agent. There is
 // no spec file. These tests hold the whole surface a new user meets to that one path, and to no other, and
-// hold every part of it to saying that a Docker-free build waits for Phase 3.
+// hold every part of it to saying what runs without Docker: LexLean as WebAssembly, and Lean for an app's own theorems.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -36,23 +36,24 @@ test('setup gives every agent the local Prism server, and the hosted one only wh
   assert.match(run(['setup', '--dry-run', '--agents-only'], { env }).out, /not added; it stores models unlisted, not privately/);
 });
 
-test('setup ends by telling the user that a Docker-free build waits for Phase 3, then to ask an agent for an app', () => {
+test('setup ends by telling the user what runs without Docker, then to ask an agent for an app', () => {
   const plan = JSON.parse(run(['setup', '--dry-run', '--agents-only', '--json'], { env: agentHome() }).out);
-  assert.match(plan.next.join(' '), /A Docker-free build is temporarily unavailable.*Phase 3/);
+  assert.match(plan.next.join(' '), /Without Docker, LexLean runs as WebAssembly.*Phase 3.*Phase 4/);
   assert.match(plan.next.at(-1), /build me a Prism app/);
 });
 
-test('the MCP instructions every agent receives name the LexLean model, the Phase 3 state, and leave the hosted opt-in to the user', () => {
+test('the MCP instructions every agent receives name the LexLean model, what runs without Docker, and leave the hosted opt-in to the user', () => {
   assert.match(INSTRUCTIONS, /one source of truth is its LexLean model in prism\/src\//);
-  assert.match(INSTRUCTIONS, /A Docker-free build is temporarily unavailable/);
+  assert.match(INSTRUCTIONS, /Without Docker, LexLean runs as WebAssembly/);
   assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER=hosted yourself/);
   assert.ok(INSTRUCTIONS.split(/\s+/).length < 200, 'the instructions stay short enough to be read');
 });
 
-test('the skill setup installs teaches the canonical path and no other, and says the Docker-free build waits for Phase 3', () => {
+test('the skill setup installs teaches the canonical path and no other, and says what runs without Docker', () => {
   assert.match(skill, /\*\*The canonical path\.\*\* Every Prism app is built this way, and no other/);
   assert.match(skill, /There is no second way to build a Prism app/);
-  assert.match(skill, /\*\*A Docker-free build is temporarily unavailable\.\*\*/);
+  assert.match(skill, /\*\*What runs without Docker\.\*\*/);
+  assert.match(skill, /PRISM_LEXLEAN_WASM/);
   assert.match(skill, /build\.frontend-unavailable/);
   // The routes that competed with it: a spec file, an agent drafting on the hosted server, and a repository made by hand.
   assert.doesNotMatch(skill, /spec\.json|prism\/spec\/|prism_spec|prism_answer/);
