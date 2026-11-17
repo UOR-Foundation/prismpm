@@ -95,13 +95,16 @@ guarantees are first tried for a counterexample among the values its
 conditions tell apart, then judged by Lean's kernel. Guarantees are proved;
 the reading of requests and the examples are tested.
 
-**A Docker-free build is temporarily unavailable.** LexLean's front end does
-not run as WebAssembly yet ([Phase 3](../../../docs/proposals/canonical-serverless-build.md)).
-Until it does, every step needs the SDK image on this machine (Docker) or the
-hosted verifier, which only you choose, by setting `PRISM_CODE_TIER=hosted`; it
-stores the model unlisted, not privately. A rule app's semantic snapshot comes
-only from the hosted verifier until then. With neither, every step fails with
-`build.frontend-unavailable`. Publishing to GitHub from `prism_build` waits for
+**What runs without Docker.** LexLean's front end runs as WebAssembly on this
+machine once its pinned copy is here ([Phase 3](../../../docs/proposals/canonical-serverless-build.md)),
+on a read-only WASI host held in memory: it checks every app and takes its
+semantic snapshot in under a second, and a rule app is then proved by Lean's
+kernel in this process and built, with no Docker and no server. Its pinned copy is
+fetched once, about 4 MB, and used only when it has its κ-label (BLAKE3);
+`PRISM_LEXLEAN_FETCH=0` fetches nothing. Proving any other app's theorems needs Lean: the SDK image on this
+machine (Docker), or the hosted verifier, which only you choose, by setting
+`PRISM_CODE_TIER=hosted`, until in-process proof producers land (Phase 4). With
+nothing to run a step on, it fails with `build.frontend-unavailable`. Publishing to GitHub from `prism_build` waits for
 the template's ID rows, scenarios and tests to be written from the snapshot
 (`build.publish-unavailable`).
 

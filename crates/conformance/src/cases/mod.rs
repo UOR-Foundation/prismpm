@@ -792,6 +792,13 @@ pub fn run_at(root: &Path, id: &str) {
             &[("sdk/npm/prism-code/test/journey-lexlean.test.mjs", 10)],
             "600000",
         ),
+        // LexLean's front end as WebAssembly in prism-code (Phase 3).
+        "DK-47" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/lexlean-wasm.test.mjs", 4)],
+            "600000",
+        ),
         // The `prism-code system` and `auth` command groups of #446 and #447.
         "DK-44" => node_suite::verify_exact(
             root,

@@ -362,7 +362,7 @@ test('setup ends with what to do next: sign in when needed, restart the agent it
     preferred: { agent: 'claude-code', steps: [] },
   });
   const ask = `Ask Claude Code: "${FIRST_SENTENCE}"`;
-  // Said before the first sentence, every time: there is no Docker-free build until LexLean runs as WebAssembly (Phase 3).
+  // Said before the first sentence, every time: what runs without Docker, and what still needs Lean.
   assert.deepEqual(nextSteps(plan('already')), [NO_DOCKER_FREE_BUILD, ask], 'nothing changed: no restart');
   assert.deepEqual(nextSteps(plan('already', 'configure')), [NO_DOCKER_FREE_BUILD, 'Restart Claude Code, so it loads the new servers.', ask]);
   const signedOut = { id: 'github', status: 'manual', detail: 'not signed in: run gh auth login, so apps build on GitHub Actions without Docker' };

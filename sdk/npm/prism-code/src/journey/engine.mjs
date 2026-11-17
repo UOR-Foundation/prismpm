@@ -21,7 +21,8 @@ import { fromFile } from '../node.mjs';
 import { VERSION } from '../version.mjs';
 import { SDK_IMAGE_DOWNLOAD } from '../setup-machine.mjs';
 import { gapLedger } from '../gaps.mjs';
-import { NO_DOCKER_FREE_BUILD, frontendUnavailable, frontendWhere } from './frontend.mjs';
+import { NO_DOCKER_FREE_BUILD, frontendUnavailable, frontendWhere, proverWhere } from './frontend.mjs';
+import { lexleanReady, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
 import { bind, isBound, newestHolo, sourceDigest } from './project.mjs';
 import { BUILD_SCRIPT, CHECK_SCRIPT, DEFAULT_SDK_IMAGE, axiomViolations, buildProgress, docker, forbiddenAxioms, forbiddenMessage, hasImage, imageOf, parseDiagnostics, resolveDocker, runInImage, steps } from './sdk.mjs';
 
@@ -38,6 +39,9 @@ const imageFor = (dir, session) => (isBound(dir) ? imageOf(dir) : session.image 
 
 /** Whether the SDK image can run here now: Docker answers and the image is on this machine. */
 export const hasLocal = (dir, session) => !resolveDocker().error && hasImage(imageFor(dir, session));
+
+/** A front-end probe that answers what was found. */
+const wasmProbe = (here) => () => here;
 
 /** Whether this app is a rule app: started from the `rule-app` starter. */
 export const isRuleApp = (session) => session.starter === 'rule-app';
@@ -187,10 +191,11 @@ async function hostedOf(client, gaps) {
  * Check the model: LexLean reads, links and elaborates it, and every
  * diagnostic is returned anchored to its line. Proves nothing.
  */
-export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), local = () => hasLocal(dir, session) } = {}) {
+export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), local = () => hasLocal(dir, session), wasm = null } = {}) {
+  wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
-    where = frontendWhere({ env, hasLocal: local });
+    where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
   } catch (error) {
     return failure(error);
   }
@@ -207,6 +212,17 @@ export async function check(dir, session, { log = () => {}, env = process.env, c
     session.status.checked = result.outcome.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where } : null;
     return result.outcome.success ? { ok: true, where, message: 'The model checks.' } : { ok: false, where, diagnostics: shown(diagnostics), message: repair(diagnostics) };
   }
+  if (where === 'wasm') {
+    let result;
+    try {
+      result = await wasmCheck(dir, { env });
+    } catch (error) {
+      return { ...failure(error), where };
+    }
+    const diagnostics = (result.diagnostics ?? []).map(fromHosted);
+    session.status.checked = result.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where, ms: result.ms, semanticId: result.semantic_id ? `sha256:${result.semantic_id}` : null } : null;
+    return result.success ? { ok: true, where, ms: result.ms, semanticId: session.status.checked.semanticId, message: `The model checks, in ${result.ms} ms, with LexLean as WebAssembly on this machine.` } : { ok: false, where, ms: result.ms, diagnostics: shown(diagnostics), message: repair(diagnostics) };
+  }
   log('Locking, formatting and checking the model in the SDK image...');
   const r = await inImage(dir, session, CHECK_SCRIPT, { log, kind: 'check', onLine: (l) => /^(error|warning|checked|check passed)/.test(l) && log(l) });
   if (r.done) return r.done;
@@ -220,10 +236,13 @@ export async function check(dir, session, { log = () => {}, env = process.env, c
  * this process from its semantic snapshot; any other app's theorems are proved
  * by `lexlean verify`. Returns `{ ok, where, guarantees | message, diagnostics }`.
  */
-export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, local = () => hasLocal(dir, session) } = {}) {
+export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, local = () => hasLocal(dir, session), wasm = null } = {}) {
+  wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
-    where = frontendWhere({ env, hasLocal: local });
+    where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
+    // A rule app is proved by Lean's kernel in this process; any other app's theorems by `lexlean verify`, which needs Lean.
+    if (!isRuleApp(session)) where = proverWhere({ env, hasLocal: local });
   } catch (error) {
     return failure(error);
   }
@@ -267,8 +286,14 @@ function proved(dir, session, { where, seconds, attestation = null }) {
  * user's opt-in; on this machine it needs LexLean's front end as WebAssembly
  * (Phase 3). Throws `build.frontend-unavailable` otherwise.
  */
-async function snapshotOf(dir, { where, client, gaps, log }) {
-  if (where !== 'hosted') throw frontendUnavailable("A rule app is read from its model's semantic snapshot, and the SDK image does not give this prism-code one");
+async function snapshotOf(dir, { where, client, gaps, log, env }) {
+  if (where === 'wasm') {
+    const taken = await wasmSnapshot(dir, { env });
+    if (!taken.ok) throw Object.assign(new PrismCodeError('rule-table.refused', 'LexLean refused the model, so it has no semantic snapshot'), { diagnostics: (taken.check.diagnostics ?? []).map(fromHosted) });
+    log(`Took the model's semantic snapshot with LexLean as WebAssembly, in ${taken.ms} ms.`);
+    return taken.snapshot;
+  }
+  if (where !== 'hosted') throw frontendUnavailable("A rule app is read from its model's semantic snapshot, and the SDK image's LexLean has no snapshot command");
   const h = await hostedOf(client, gaps);
   log(`Taking the model's semantic snapshot on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted.`);
   return (await h.hosted.hostedSnapshot(h.client, h.hosted.hostedProject(dir))).snapshot;
@@ -284,9 +309,9 @@ async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, en
   const { ruleTable, tableWords, counterexample } = await import('./rule-table.mjs');
   let table;
   try {
-    table = ruleTable(await snapshotOf(dir, { where, client, gaps, log }));
+    table = ruleTable(await snapshotOf(dir, { where, client, gaps, log, env }));
   } catch (error) {
-    return { ...failure(error), where };
+    return { ...failure(error), where, ...(error.diagnostics ? { diagnostics: shown(error.diagnostics), message: repair(error.diagnostics) } : {}) };
   }
   const describe = (g, i) => `guarantee ${i + 1} (${g.always ? 'always' : 'never'} ${table.answers[g.outcome]})`;
   const broken = table.guarantees.map((g) => counterexample(table, g)).map((c, i) => ({ ...c, i })).filter((c) => c.request !== null);
@@ -325,9 +350,10 @@ async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, en
  * model's numbers, named together, with its page; any other app is proved,
  * then built into a holo in the SDK image, and its vectors are replayed here.
  */
-export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, local = () => hasLocal(dir, session) } = {}) {
+export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, local = () => hasLocal(dir, session), wasm = null } = {}) {
+  wasm ??= wasmProbe(await lexleanReady({ env, log }));
   if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. Until it does, an app builds on this machine. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
-  if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, local });
+  if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, local, wasm });
   const current = session.status.proved?.source === sourceDigest(dir);
   if (!current) {
     const p = await prove(dir, session, { log, env, client, gaps, local });
@@ -375,11 +401,11 @@ export async function built(dir, session, holo, seconds) {
 }
 
 /** A rule app: kernel-checked from its snapshot, then written as the rule judge and its numbers, with its page. */
-async function buildRuleApp(dir, session, { log, env, client, gaps, kernel, local }) {
+async function buildRuleApp(dir, session, { log, env, client, gaps, kernel, local, wasm }) {
   const started = Date.now();
   let where;
   try {
-    where = frontendWhere({ env, hasLocal: local });
+    where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
   } catch (error) {
     return { ...failure(error), stage: 'prove' };
   }

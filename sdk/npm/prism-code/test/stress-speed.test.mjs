@@ -11,6 +11,8 @@ import { BIN, project, startServer } from './support/journey-client.mjs';
 
 test('a server answers its first tool call within 2 s of being started', async () => {
   const times = [];
+// LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
+process.env.PRISM_LEXLEAN_FETCH = '0';
   for (let i = 0; i < 3; i++) {
     const cwd = project();
     const started = performance.now();

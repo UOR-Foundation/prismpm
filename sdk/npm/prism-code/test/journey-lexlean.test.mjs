@@ -1,6 +1,6 @@
 // The journey with one source of truth: an app's LexLean model, started from a content-addressed starter and
-// written by the agent. There is no spec file. A Docker-free build waits for LexLean's front end as WebAssembly
-// (docs/proposals/canonical-serverless-build.md, Phase 3); until then every step names that, and Prism never
+// written by the agent. There is no spec file. With no LexLean as WebAssembly, no SDK image and no hosted opt-in
+// (docs/proposals/canonical-serverless-build.md, Phase 3), every step names what is missing, and Prism never
 // picks the hosted verifier for the user. The hosted verifier here is a stand-in: nothing leaves the machine.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,6 +17,8 @@ import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
 import { standIn, startedApp } from './support/hosted-stand-in.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
+// LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
+process.env.PRISM_LEXLEAN_FETCH = '0';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 const STARTERS = fileURLToPath(new URL('../templates/starters/', import.meta.url));
@@ -67,7 +69,7 @@ test('with no SDK image and no opt-in, every step fails with build.frontend-unav
     const { dir, session } = startedApp(starter);
     const hosted = standIn({ snapshot: ruleAppSnapshot() });
     for (const step of [check, prove, build]) {
-      const r = await step(dir, session, { env: {}, client: hosted.client, local: NO_IMAGE });
+      const r = await step(dir, session, { env: {}, client: hosted.client, local: NO_IMAGE, wasm: () => false });
       assert.equal(r.ok, false, `${starter} ${step.name}`);
       assert.equal(r.code, 'build.frontend-unavailable', `${starter} ${step.name}`);
       assert.match(r.message, /Phase 3/);
@@ -134,10 +136,10 @@ test('a snapshot that is not a rule app\'s is refused by name, never guessed at'
   assert.throws(() => ruleTable(lambda), { code: 'rule-table.term' });
 });
 
-test('the server offers the LexLean path and no other: six tools, no spec, and the Phase 3 state said plainly', async () => {
+test('the server offers the LexLean path and no other: six tools, no spec, and what runs without Docker said plainly', async () => {
   assert.deepEqual(TOOLS.map((t) => t.name), ['prism_start', 'prism_check', 'prism_prove', 'prism_build', 'prism_try', 'prism_status']);
   assert.ok(!/spec\.json|prism\/spec|prism_spec|prism_answer/.test(JSON.stringify(TOOLS) + INSTRUCTIONS));
-  assert.match(INSTRUCTIONS, /A Docker-free build is temporarily unavailable/);
+  assert.match(INSTRUCTIONS, /Without Docker, LexLean runs as WebAssembly/);
   assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER=hosted yourself/);
   const sent = [];
   const server = createServer({ cwd: mkdtempSync(join(tmpdir(), 'prism-mcp-')), send: (m) => sent.push(m) });

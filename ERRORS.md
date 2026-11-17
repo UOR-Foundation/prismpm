@@ -1001,6 +1001,9 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `init.template` |  | `DK-41` | init was asked for a template it does not have, or the template already holds a generated file. |
 | `inspect.kind` |  | `OC-11` | inspect was given a directory or a closure, which has no section table; it reads a .holo archive. |
 | `inspect.selector` |  | `OC-11` | The inspect selector is malformed; it is a dotted path such as sections[0].digest.sha256. |
+| `lexlean.wasm-failed` |  | `DK-47` | LexLean as WebAssembly gave no command result. |
+| `lexlean.wasm-mismatch` |  | `DK-47` | The bytes of LexLean as WebAssembly, kept, fetched or named by PRISM_LEXLEAN_WASM, are not the pinned ones. |
+| `lexlean.wasm-unavailable` |  | `DK-47` | LexLean as WebAssembly is not on this machine and no public copy is pinned to fetch it from. |
 | `load.fetch` |  | `DK-41` | The URL a holo was loaded from answered with an HTTP error. |
 | `load.path` |  | `OC-11` | The holo path cannot be read, or is not a local file. |
 | `load.source` |  | `OC-11` | load or images.push was given a source that is not bytes, a Blob, a path or a URL; until the local image store (#349) a pushed image comes as options.source. |
@@ -1073,6 +1076,7 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `rule-table.index` |  | `DK-46` | A field, operator or answer index of the rule app names nothing. |
 | `rule-table.module` |  | `DK-46` | No module, or more than one, of the snapshot defines every definition of a rule app. |
 | `rule-table.range` |  | `DK-46` | A number of the rule app lies outside its field or outside what the rule judge reads in one request. |
+| `rule-table.refused` |  | `DK-47` | LexLean refused the model, so it has no semantic snapshot to read a rule app from; its diagnostics are returned. |
 | `rule-table.shape` |  | `DK-46` | A definition of the rule app does not have the shape of its structure. |
 | `rule-table.snapshot` |  | `DK-46` | The input is not a lexlean/semantic-snapshot/2 with its semantic, source and compiler-semantics IDs and its modules. |
 | `rule-table.term` |  | `DK-46` | A definition of the rule app is not literal data: a number, a string, a list or a record. |

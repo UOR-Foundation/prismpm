@@ -294,6 +294,12 @@ Feature: sdk
     Then every starter file is the bytes its index names, a model is never written over, and every step names Phase 3 without asking the hosted verifier
     And a rule app's table is read from its snapshot, a broken guarantee is refused with its counterexample, and the built app answers
 
+  @DK-47 @build
+  Scenario: LexLean's front end runs as WebAssembly in prism-code: the lexlean executable built for wasm32-wasip1 without production data, held to its pinned κ-label (BLAKE3) whether fetched through the serverless boundary or named by PRISM_LEXLEAN_WASM, runs check and snapshot in this process on a read-only WASI host over the project's files held in memory that imports nothing, so the same host runs on every operating system and in a browser; it is chosen before the SDK image and never over the user's PRISM_CODE_TIER=hosted; a rule app is then checked, read from its own semantic snapshot and proved by Lean's kernel with no Docker and no server; and any other app's theorems still need Lean, the SDK image or the hosted opt-in, refused otherwise with build.frontend-unavailable naming Phase 4.
+    Given a module whose bytes differ from its pin, a project with build outputs, and, when PRISM_LEXLEAN_WASM names it, LexLean built for wasm32-wasip1 and a rule app's project
+    When the front end is chosen, the module is read, kept or fetched, and the rule app is checked, read from its snapshot and proved
+    Then mismatched bytes are refused, nothing is fetched with no pin, the instance sees only the sources, and the rule app is proved by Lean's kernel with no Docker and no server
+
   @DK-44 @build
   Scenario: The prism-code system and auth command groups are the CLI of prism.system and prism.auth: system info and version name the package, the holo format, the runtime and the toolchain and builder image the project's prismpm.lock pins, events replays and follows create, start, die and destroy from the container store with since, until and filters, df counts every record and prune removes exited containers only and asks first unless forced; auth login checks the credential with the registry before storing it where Docker would, refuses a password on the command line, and no password reaches stdout, stderr or an error in any spelling, and logout names an ambient token it cannot clear.
     Given a PRISM_HOME with containers, a project with a prismpm.lock, a Docker config folder and an in-process registry

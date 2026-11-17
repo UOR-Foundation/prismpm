@@ -964,3 +964,23 @@ statement = "A field, operator or answer index of the rule app names nothing."
 code = "rule-table.range"
 capability = "DK-46"
 statement = "A number of the rule app lies outside its field or outside what the rule judge reads in one request."
+
+[[error]]
+code = "lexlean.wasm-mismatch"
+capability = "DK-47"
+statement = "The bytes of LexLean as WebAssembly, kept, fetched or named by PRISM_LEXLEAN_WASM, are not the pinned ones."
+
+[[error]]
+code = "lexlean.wasm-unavailable"
+capability = "DK-47"
+statement = "LexLean as WebAssembly is not on this machine and no public copy is pinned to fetch it from."
+
+[[error]]
+code = "lexlean.wasm-failed"
+capability = "DK-47"
+statement = "LexLean as WebAssembly gave no command result."
+
+[[error]]
+code = "rule-table.refused"
+capability = "DK-47"
+statement = "LexLean refused the model, so it has no semantic snapshot to read a rule app from; its diagnostics are returned."
