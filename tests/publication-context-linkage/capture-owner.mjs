@@ -1,5 +1,6 @@
 // Fresh private source compilation and actual OCI replay; never SDK acceptance.
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
 import {chmodSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync,
   readlinkSync, realpathSync, renameSync, symlinkSync, unlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -49,8 +50,19 @@ export function sourceInventory(root, role = null) {
   return records;
 }
 
+// The staged source is the repository's tracked tree, the same set the SDK
+// capture owner joins through `git ls-files` and the immutable SDK image holds.
+// Ignored build outputs (generated SDK spec types, for example) are not source.
+function trackedSourceInventory() {
+  const tracked = execFileSync('git', ['-C', repository, 'ls-files', '-z'], {maxBuffer:64*1024*1024})
+    .toString('utf8').split('\0').filter(name => name.length > 0);
+  const keep = new Set();
+  for (const name of tracked) for (let path = name; path !== '.'; path = dirname(path)) keep.add(path);
+  return new Map([...sourceInventory(repository)].filter(([path]) => keep.has(path)));
+}
+
 function stageSource(work) {
-  const records = sourceInventory(repository), root = join(work, 'source'); mkdirSync(root, {mode:0o700});
+  const records = trackedSourceInventory(), root = join(work, 'source'); mkdirSync(root, {mode:0o700});
   for (const [path, record] of records) {
     const target = join(root, path);
     if (record.kind === 'directory') mkdirSync(target, {mode:0o700});
@@ -61,7 +73,7 @@ function stageSource(work) {
     }
   }
   const verify = () => {
-    assert.deepEqual(sourceInventory(repository), records, 'complete live capture source remained frozen');
+    assert.deepEqual(trackedSourceInventory(), records, 'complete live capture source remained frozen');
     assert.deepEqual(sourceInventory(root), records, 'complete private capture source remained frozen');
   };
   verify(); return {root, records, verify};

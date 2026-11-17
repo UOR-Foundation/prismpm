@@ -12,10 +12,7 @@ fn rust(root: &Path, target: Option<&str>, expected: usize) {
     }
     command
         .args(["workbench_", "--", "--nocapture"])
-        .env(
-            "CARGO_TARGET_DIR",
-            root.join("target/conformance-text-workbench"),
-        )
+        .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
         .current_dir(root);
     let output = command.output().expect("HO-19 executes real Rust owners");
     assert!(

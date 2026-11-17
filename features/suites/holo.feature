@@ -173,7 +173,7 @@ Feature: holo
     Then valid profiles retain their schemas and malformed text declarations fail closed
 
   @HO-01 @build
-  Scenario: A Holo/1 artifact is a strict binary Hologram archive with physical version 4 and the HOLO header.
+  Scenario: A Holo/1 artifact is a strict binary Hologram archive: a UORC version 2.1 container (ADR-017).
     Given a modeled application archive
     When its physical bytes are emitted
     Then they begin with HOLO and little-endian physical version 4

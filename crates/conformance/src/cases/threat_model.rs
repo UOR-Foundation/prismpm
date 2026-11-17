@@ -54,10 +54,7 @@ fn owning_tests(root: &Path, id: &str, names: &[&str]) {
         .args(["--", "--nocapture", "--test-threads=1"])
         // The outer conformance Cargo owner may retain its target lock; use a
         // disjoint target for the owning suites.
-        .env(
-            "CARGO_TARGET_DIR",
-            root.join("target/conformance-threat-model"),
-        )
+        .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
         .output()
         .unwrap_or_else(|error| panic!("{id} executes its owning suite: {error}"));
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 owning stdout");
@@ -112,7 +109,7 @@ fn oracle(root: &Path, subject: &Path) -> std::process::Output {
             "--",
         ])
         .arg(subject)
-        .env("CARGO_TARGET_DIR", root.join("target/conformance-oscal"))
+        .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
         .output()
         .expect("AU-08 executes the locked OSCAL validator")
 }

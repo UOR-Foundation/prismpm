@@ -743,6 +743,9 @@ fn payload(bytes: &[u8], index: u64) -> Value {
 /// Inspect one archive. Structural damage is refused; integrity findings are
 /// reported in `verification` so a damaged archive can still be looked at.
 pub fn inspect(bytes: &[u8]) -> Result<Value, PrismError> {
+    if crate::holo::v5::is_uorc(bytes) {
+        return verdict::inspection_v5(bytes);
+    }
     if bytes.len() < 42 || !bytes.starts_with(b"HOLO") {
         return Err(PrismError::new(
             "PP3001",
