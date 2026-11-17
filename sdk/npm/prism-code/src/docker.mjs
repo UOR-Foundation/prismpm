@@ -21,6 +21,13 @@ export const SDK_IMAGE_PATTERN = /^[a-z0-9.-]+(:[0-9]{1,5})?\/[a-z0-9./_-]+@sha2
 
 export const CONTAINER_HOME = '/tmp/prismpm-home';
 export const WINDOWS_WORKDIR = '/work';
+/**
+ * Where LexLean keeps the verification processes it has run (SPEC 22.13, `LEXLEAN_VERIFY_STORE`), on the cache
+ * volume, so an elaboration, replay or audit whose module, imports and toolchain are unchanged is not run again.
+ * The store is operational: every stored process is judged as the stage judges its own, and what a verification
+ * publishes is byte-identical with or without it. A LexLean without the store ignores the variable.
+ */
+export const VERIFY_STORE = '/tmp/lexlean-verify-store';
 /** The tmpfs every run gets when no cache volume is mounted. */
 export const TMPFS = '/tmp:rw,exec,nosuid,size=2g';
 
@@ -101,6 +108,8 @@ export function dockerArguments({
   out.push('--workdir', workdir);
   out.push('--env', `HOME=${CONTAINER_HOME}`);
   out.push('--env', 'PRISMPM_EPHEMERAL_HOME=1');
+  // Only on the volume: a tmpfs dies with the container, so a store there would be written and never read.
+  if (cache) out.push('--env', `LEXLEAN_VERIFY_STORE=${VERIFY_STORE}`);
   if (build) out.push('--env', `SDK_IMAGE=${image}`);
   out.push(image, program, command, ...args);
   return out;

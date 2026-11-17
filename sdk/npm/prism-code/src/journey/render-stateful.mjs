@@ -23,7 +23,7 @@
  * bytes.
  */
 import { INVALID, MAX_DIGITS } from './spec.mjs';
-import { LEAN_RESERVED, QP, camel, conjunction, describedBy, hex, moduleName, moduleText, pascal, quote, stem, withAxioms } from './render.mjs';
+import { APP_PREFIX, LEAN_RESERVED, QP, camel, conjunction, describedBy, hex, moduleName, moduleText, pascal, quote, stem, withAxioms } from './render.mjs';
 import {
   SESSION_BYTES,
   act,
@@ -88,7 +88,7 @@ export function statefulNames(spec) {
       ? { theorems: [claim(`${s}Holds`)] }
       : { theorems: [claim(`${s}AtStart`), ...spec.actions.map((a) => claim(`${s}KeptBy${pascal(a.name)}`))] };
   }
-  return { module, proofs: `${module}Proofs`, prefix: `Prism${module}`, args, state, answers, actions, properties, stateful: true };
+  return { module, proofs: `${module}Proofs`, prefix: APP_PREFIX, args, state, answers, actions, properties, stateful: true };
 }
 
 /**

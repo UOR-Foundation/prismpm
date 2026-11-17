@@ -125,7 +125,7 @@ test('the model names every rule and property, states each property over decodab
   const spec = paymentSpec();
   const n = names(spec);
   assert.equal(n.module, 'PaymentApproval');
-  assert.equal(n.prefix, 'PrismPaymentApproval');
+  assert.equal(n.prefix, 'Prism', 'one module prefix for every app (shared-foundation.test.mjs)');
   const model = renderModel(spec);
   assert.match(model, /^\\begin\{lexlean\}\{PaymentApproval\}\n/);
   assert.match(model, /\\title\{Text application model\}/, 'a glossary phrase, so LLL1004 cannot occur');
@@ -141,7 +141,7 @@ test('the model names every rule and property, states each property over decodab
   assert.match(breaks.body, /\(1 <=\? \(project request amount\)\)/, 'the bound of amount is a hypothesis');
   assert.match(renderProofs(spec), /^\\begin\{lexlean\}\{PaymentApprovalProofs\}\n[\s\S]*\\importmodule\{PaymentApproval\}/);
   assert.equal(renderProofs({ ...spec, properties: [] }), null);
-  assert.match(model, /entryRoot := "PrismPaymentApproval\.PaymentApproval\.dispatch"/);
+  assert.match(model, /entryRoot := "Prism\.PaymentApproval\.dispatch"/);
   assert.match(renderModel(spec, { axioms: { judge: '[propext]' } }), /name: judge,[\s\S]*?axioms: \[propext\]/);
 });
 
@@ -283,8 +283,8 @@ test('the app lives in prism/, a hand edit of the model is noticed, and renaming
   assert.deepEqual(scaffold(dir), [], 'scaffolding again writes nothing');
   const session = { ...readSession(dir), spec: paymentSpec(), status: {} };
   assert.equal(writeApp(dir, session).edited, false);
-  assert.match(readFileSync(join(dir, 'lexlean.toml'), 'utf8'), /module_prefix = "PrismPaymentApproval"[\s\S]*entrypoints = \["src\/PaymentApproval\.lex\.tex"\]/);
-  assert.match(readFileSync(join(dir, 'lakefile.toml'), 'utf8'), /name = "PrismPaymentApproval"/);
+  assert.match(readFileSync(join(dir, 'lexlean.toml'), 'utf8'), /module_prefix = "Prism"[\s\S]*entrypoints = \["src\/PaymentApproval\.lex\.tex"\]/);
+  assert.match(readFileSync(join(dir, 'lakefile.toml'), 'utf8'), /name = "Prism"/);
   assert.ok(!existsSync(join(dir, 'src', 'TextRequest.lex.tex')));
   assert.equal(readFileSync(join(dir, '.gitattributes'), 'utf8'), '* text eol=lf\n');
   session.status.modelSha = 'something else';

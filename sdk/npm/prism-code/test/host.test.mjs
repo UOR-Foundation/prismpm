@@ -38,6 +38,20 @@ test('the cache volume is named by the image digest, so two lockfiles never shar
   assert.throws(() => cacheVolumeName('ghcr.io/x/y:latest'), (e) => e.code === 'lock.image');
 });
 
+test('with the cache volume, LexLean keeps its verification processes on it, so a module verified once is not elaborated or replayed again', () => {
+  // LexLean's process store (SPEC 22.13, LEXLEAN_VERIFY_STORE) changes no output: every stored process is judged
+  // as the stage judges its own, and the published verification is byte-identical with or without it.
+  const cached = dockerArguments({ image: IMAGE, cwd: '/home/u/app', command: '-s', program: 'sh', platform: 'linux', cache: cacheVolumeName(IMAGE) });
+  const env = (args) => args.flatMap((a, i) => (args[i - 1] === '--env' ? [a] : []));
+  assert.ok(cached.includes(`type=volume,source=${cacheVolumeName(IMAGE)},target=/tmp`));
+  assert.ok(env(cached).includes('LEXLEAN_VERIFY_STORE=/tmp/lexlean-verify-store'), env(cached).join(' '));
+  // Planted defect C1: with no volume /tmp is a tmpfs that dies with the container, so a store there would only be
+  // written and never read. No store is named then.
+  const ephemeral = dockerArguments({ image: IMAGE, cwd: '/home/u/app', command: '-s', program: 'sh', platform: 'linux' });
+  assert.ok(ephemeral.includes('--tmpfs'));
+  assert.ok(!env(ephemeral).some((e) => e.startsWith('LEXLEAN_VERIFY_STORE=')));
+});
+
 test('docker on the PATH wins, and podman stands in for it', () => {
   const { run, calls } = runner({ '/usr/bin/docker version': '29.1.3\n' });
   const found = resolveDocker({ platform: 'linux', env: {}, find: (n) => (n === 'docker' ? '/usr/bin/docker' : null), run });

@@ -38,6 +38,14 @@ export const RESERVED_MODULE_NAMES = new Set([
 ]);
 
 /** The app's module: its name in PascalCase, with `App` after it where that name is one LexLean refuses. */
+/**
+ * The module prefix of every app, and the name of its Lake package. One for all apps, so the Lake workspace and the
+ * foundation modules are the same bytes in every app, and LexLean's process store (SPEC 22.13), which keys a process
+ * by its module's name and text and by the Lake files around it, reuses what one app verified for the next. An app's
+ * own modules keep their own names (`moduleName`), so two apps never claim one module name for different text.
+ */
+export const APP_PREFIX = 'Prism';
+
 export function moduleName(spec) {
   const base = pascal(spec.name ?? '') || 'App';
   return RESERVED_MODULE_NAMES.has(base) || /^LexLean/.test(base) ? `${base}App` : base;
@@ -82,7 +90,7 @@ export function names(spec) {
       return [p.id, { breaks: claim(`breaks${pascal(stem)}`), theorem: claim(`${stem}Holds`) }];
     }),
   );
-  return { module, proofs: `${module}Proofs`, prefix: `Prism${module}`, fields, answers, rules, properties };
+  return { module, proofs: `${module}Proofs`, prefix: APP_PREFIX, fields, answers, rules, properties };
 }
 
 /** The application's artifact stem: letters, digits, spaces, hyphens, underscores and dots. */
