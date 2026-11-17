@@ -426,7 +426,7 @@ fn audit_lexlean_adapter_provenance(root: &Path) -> Result<(), Fail> {
         != dependency.get("revision").and_then(toml::Value::as_str)
         || dependency.get("revision").and_then(toml::Value::as_str)
             != Some(LEXLEAN_AUTHORITY_REVISION)
-        || version != "0.4.0"
+        || version != "0.4.3"
         || provenance["path_in_vcs"] != "crates/lexlean"
         || provenance["git"]
             .get("dirty")
@@ -1773,7 +1773,7 @@ mod lean_source_audit_tests {
             "spec = 'prismpm/dependencies/1'\n\n\
              [[dependency]]\nid = 'lean4-prod'\nrevision = '{revision}'\nsource = 'vendored'\n\
              [[dependency.artifact]]\nkind = 'file'\npath = 'vendor/fixture.bin'\nsha256 = '{other_digest}'\n\n\
-             [[dependency]]\nid = 'lexlean'\nversion = '0.4.0'\nrevision = '{revision}'\nsource = 'vendored'\n\
+             [[dependency]]\nid = 'lexlean'\nversion = '0.4.3'\nrevision = '{revision}'\nsource = 'vendored'\n\
              [[dependency.artifact]]\nkind = 'tree-manifest'\npath = 'vendor/lexlean/MANIFEST.sha256'\nsha256 = '{manifest_digest}'\ntree_root = 'vendor/lexlean'\n\
              [[dependency.artifact]]\nkind = 'file'\npath = 'vendor/lexlean/lexlean-0.4.3.crate'\nsha256 = '{archive_digest}'\n\n\
              [[dependency]]\nid = 'hologram-live'\nrevision = '{revision}'\nsource = 'vendored'\nrole = 'validation-oracle'\n\
@@ -1966,7 +1966,7 @@ mod lean_source_audit_tests {
                 root.path(),
                 "vendor/lexlean/lexlean-0.4.3.crate",
                 &hash_file(&vendor.join("lexlean-0.4.3.crate")).unwrap(),
-                "0.4.0",
+                "0.4.3",
             )
             .unwrap_err()
             .to_string();
@@ -2049,7 +2049,7 @@ mod lean_source_audit_tests {
                 root.path(),
                 "vendor/lexlean/lexlean-0.4.3.crate",
                 &hash_file(&path).unwrap(),
-                "0.4.0",
+                "0.4.3",
             )
             .unwrap_err()
             .to_string();
