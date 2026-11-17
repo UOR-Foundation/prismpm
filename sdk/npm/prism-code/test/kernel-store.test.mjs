@@ -42,8 +42,9 @@ test('the first use fetches four public files by commit, sends nothing else, and
   for (const { url, init } of asked) {
     assert.ok(url.startsWith(`https://raw.githubusercontent.com/UOR-Foundation/foundry/${KERNEL_COMMIT}/studio/shell/kernel/`), url);
     assert.ok(Object.values(KERNEL_FILES).some((f) => url.endsWith(`/${f.path}`)), url);
-    // A plain GET: no body, no header, no query, so nothing of the user's or the app's can ride on it.
-    assert.equal(init, undefined);
+    // A plain GET: no body, no header, no query, so nothing of the user's or the app's can ride on it. The one option
+    // is the boundary's own: it follows redirects itself, so every hop is checked (hosts.mjs, planted defect B2).
+    assert.deepEqual(init, { redirect: 'manual' });
     assert.ok(!url.includes('?'));
   }
   assert.equal(lines.length, 1);
