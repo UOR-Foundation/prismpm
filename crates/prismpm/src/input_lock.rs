@@ -615,12 +615,158 @@ mod tests {
         );
     }
 
+    /// The calculator authoring fixture that sdk/npm/prism-code pinned until #648 removed
+    /// its author step, kept here so the prism-toml spec digest stays pinned. Each
+    /// example is one JSON line, as `examples/<name>.json`.
+    const AUTHORED_EXAMPLES: &[(&str, &str)] = &[
+        (
+            "00-1-add-0-0",
+            r#"{"input":"1\tadd\t0\t0","output":"1\tok\t0"}"#,
+        ),
+        (
+            "01-1-add-20-22",
+            r#"{"input":"1\tadd\t20\t22","output":"1\tok\t42"}"#,
+        ),
+        (
+            "02-1-add-9223372036854775807-0",
+            r#"{"input":"1\tadd\t9223372036854775807\t0","output":"1\tok\t9223372036854775807"}"#,
+        ),
+        (
+            "03-1-add-9223372036854775807-1",
+            r#"{"input":"1\tadd\t9223372036854775807\t1","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "04-1-add--9223372036854775808--1",
+            r#"{"input":"1\tadd\t-9223372036854775808\t-1","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "05-1-subtract--7-5",
+            r#"{"input":"1\tsubtract\t-7\t5","output":"1\tok\t-12"}"#,
+        ),
+        (
+            "06-1-subtract--9223372036854775808-1",
+            r#"{"input":"1\tsubtract\t-9223372036854775808\t1","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "07-1-subtract-9223372036854775807--1",
+            r#"{"input":"1\tsubtract\t9223372036854775807\t-1","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "08-1-multiply--6-7",
+            r#"{"input":"1\tmultiply\t-6\t7","output":"1\tok\t-42"}"#,
+        ),
+        (
+            "09-1-multiply-9223372036854775807-2",
+            r#"{"input":"1\tmultiply\t9223372036854775807\t2","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "10-1-multiply--9223372036854775808--1",
+            r#"{"input":"1\tmultiply\t-9223372036854775808\t-1","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "11-1-divide--7-3",
+            r#"{"input":"1\tdivide\t-7\t3","output":"1\tok\t-2"}"#,
+        ),
+        (
+            "12-1-divide-7--3",
+            r#"{"input":"1\tdivide\t7\t-3","output":"1\tok\t-2"}"#,
+        ),
+        (
+            "13-1-divide-1-0",
+            r#"{"input":"1\tdivide\t1\t0","output":"1\terror\tdivision-by-zero"}"#,
+        ),
+        (
+            "14-1-divide--9223372036854775808--1",
+            r#"{"input":"1\tdivide\t-9223372036854775808\t-1","output":"1\terror\toverflow"}"#,
+        ),
+        (
+            "15-empty",
+            r#"{"input":"","output":"1\terror\tmalformed-request"}"#,
+        ),
+        (
+            "16-2-add-1-2",
+            r#"{"input":"2\tadd\t1\t2","output":"1\terror\tunsupported-version"}"#,
+        ),
+        (
+            "17-1-mod-1-2",
+            r#"{"input":"1\tmod\t1\t2","output":"1\terror\tunknown-operation"}"#,
+        ),
+        (
+            "18-1-add-01-2",
+            r#"{"input":"1\tadd\t01\t2","output":"1\terror\tmalformed-request"}"#,
+        ),
+        (
+            "19-1-add-1-2",
+            r#"{"input":"1\tadd\t+1\t2","output":"1\terror\tmalformed-request"}"#,
+        ),
+        (
+            "20-1-add-1",
+            r#"{"input":"1\tadd\t1","output":"1\terror\tmalformed-request"}"#,
+        ),
+        (
+            "21-not-utf8",
+            r#"{"input":{"hex":"ff"},"output":"1\terror\tmalformed-request"}"#,
+        ),
+    ];
+
+    const AUTHORED_FILES: &[(&str, &str)] = &[
+        (
+            "intent.md",
+            r#"# What the calculator must always and never do
+
+add always returns the exact sum of left and right when the sum fits in 64 signed bits.
+subtract always returns the exact difference of left and right when the difference fits in 64 signed bits.
+multiply always returns the exact product of left and right when the product fits in 64 signed bits.
+divide always truncates the exact quotient toward zero when right is not zero and the quotient fits in 64 signed bits.
+calculate never returns a number when the exact result does not fit in 64 signed bits.
+calculate returns `division-by-zero` only when the input contains `divide`.
+calculate returns `unknown-operation` only when the input contains `\t`.
+A number with a leading zero never returns `ok` when the input contains `\t01\t`.
+Dividing one by zero never returns `ok` when the input contains `\tdivide\t1\t0`.
+"#,
+        ),
+        (
+            "prism.toml",
+            r#"[application]
+name = "calculator"
+version = "0.1.0"
+description = "A Lean-verified, Prism-generated checked i64 calculator."
+
+[model]
+source = "model"
+
+[capabilities]
+"#,
+        ),
+        (
+            "types/calculator.ts",
+            r#"// The request and the response are tab-separated text on the wire; examples/ shows the exact bytes.
+export type Operation = "add" | "subtract" | "multiply" | "divide";
+export type Request = { version: 1; operation: Operation; left: bigint; right: bigint };
+export type CalculatorError = "division-by-zero" | "overflow";
+export type ProtocolError = "malformed-request" | "unsupported-version" | "unknown-operation";
+export type Response = { ok: bigint } | { error: CalculatorError | ProtocolError };
+"#,
+        ),
+    ];
+
     #[test]
-    fn the_calculator_authoring_fixture_has_the_digest_javascript_pins() {
-        // sdk/npm/prism-code/test/author.test.mjs pins the same value, so the two readers cannot drift.
-        let root =
-            manifest_dir().join("../../sdk/npm/prism-code/test/fixtures/authoring/calculator");
-        let (basis, files) = spec_files(&root, "lexlean.toml").unwrap();
+    fn the_calculator_authoring_fixture_keeps_its_pinned_spec_digest() {
+        // The value sdk/npm/prism-code/test/author.test.mjs pinned for the same bytes
+        // before #648, so the prism-toml basis encoding has not moved since.
+        let root = tempfile::tempdir().unwrap();
+        for (name, json) in AUTHORED_EXAMPLES {
+            let line = format!("{json}\n");
+            write(
+                root.path(),
+                &format!("examples/{name}.json"),
+                line.as_bytes(),
+            );
+        }
+        for (path, text) in AUTHORED_FILES {
+            write(root.path(), path, text.as_bytes());
+        }
+        let (basis, files) = spec_files(root.path(), "lexlean.toml").unwrap();
         assert_eq!(basis, "prism-toml");
         assert_eq!(
             spec_digest(&files),

@@ -120,7 +120,7 @@ The three honesty levels:
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `HO-01` | `build` | A Holo/1 artifact is a strict binary Hologram archive with physical version 4 and the HOLO header. |
+| `HO-01` | `build` | A Holo/1 artifact is a strict binary Hologram archive: a UORC version 2.1 container (ADR-017). |
 | `HO-02` | `build` | Legacy application and architecture model documents retain the closed prismpm/model-document/1 schema and model.prism.json name. |
 | `HO-03` | `build` | Prism model documents use deterministic canonical JSON and an exact SHA-256 model identity. |
 | `HO-04` | `build` | The model-document projector is a total deterministic function from valid LexLean semantic snapshots. |

@@ -487,7 +487,10 @@ fn source_free_release_binds_complete_observation_and_rejects_graph_mutation() {
     assert_eq!(result["build_digest"], sha(&capture.build_manifest));
     assert_eq!(result["url"], BASE);
     assert_eq!(result["scope"], "browser-byte-integrity-only");
-    assert_eq!(server.requests().len(), 7);
+    // Closure v2: the six-file page and the ten brand files, each fetched once,
+    // and the directory URL itself.
+    assert_eq!(files.len(), 16);
+    assert_eq!(server.requests().len(), files.len() + 1);
     let exported = browser_export::export(receiver.path(), &reference, Path::new("site")).unwrap();
     assert_eq!(result["files"], exported["files"]);
     assert_eq!(result["tree_digest"], exported["tree_digest"]);

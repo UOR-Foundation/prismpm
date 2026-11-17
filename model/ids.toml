@@ -166,7 +166,7 @@ statement = "The SDK checks a threat model over every entrypoint in prismpm chec
 id = "HO-01"
 suite = "holo"
 level = "build"
-statement = "A Holo/1 artifact is a strict binary Hologram archive with physical version 4 and the HOLO header."
+statement = "A Holo/1 artifact is a strict binary Hologram archive: a UORC version 2.1 container (ADR-017)."
 
 [[id]]
 id = "HO-02"

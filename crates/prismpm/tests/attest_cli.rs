@@ -8,7 +8,8 @@ use std::process::Command;
 const PROOF: &str = "https://uor.foundation/prism/proof/v1";
 
 fn fixture() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sdk/npm/prism-code/fixtures/Calculator.holo")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../sdk/npm/prism-code/fixtures/Calculator.v5.holo")
 }
 
 fn key(name: &str) -> PathBuf {

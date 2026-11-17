@@ -597,8 +597,16 @@ fn the_request_sum_and_host_trait_contain_exactly_the_declared_effects() {
     );
     let (_, host) = protocol.split_once("pub trait Host {").unwrap();
     let (host, _) = host.split_once("\n}\n").unwrap();
-    assert_eq!(host.matches("fn ").count(), 3);
-    for method in ["fn store_get(", "fn clock_now(", "fn log_write("] {
+    // One method per declared effect, and the two per-request methods (HO-43),
+    // which are not effects.
+    assert_eq!(host.matches("fn ").count(), 5);
+    for method in [
+        "fn store_get(",
+        "fn clock_now(",
+        "fn log_write(",
+        "fn request_begin(",
+        "fn request_end(",
+    ] {
         assert!(host.contains(method), "{method}");
     }
     assert!(protocol.contains("pub const EFFECTS: &[&str] = &[\n    \"store.get\",\n    \"clock.now\",\n    \"log.write\",\n];"));
