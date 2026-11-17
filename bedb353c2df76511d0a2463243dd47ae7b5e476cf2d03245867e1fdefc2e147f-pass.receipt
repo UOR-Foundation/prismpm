@@ -1,0 +1,8 @@
+receipt bedb353c2df76511d0a2463243dd47ae7b5e476cf2d03245867e1fdefc2e147f pass
+obligation vv-conformance
+revision 1811d507af53d345795e70e2e7f5ad94e5c8baa3
+sandbox prism/1 @devcontainer 1000:1000 0022 tmp/prismpm-home tmp daemon
+peer runner
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/heads/main
+run 43954962312-1
+output record sha256:3f8397dd526d12344aac8826d025340e605b64562ae5015f42844db0f90c7fd0

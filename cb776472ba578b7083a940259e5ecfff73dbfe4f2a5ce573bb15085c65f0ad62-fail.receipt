@@ -1,0 +1,7 @@
+receipt cb776472ba578b7083a940259e5ecfff73dbfe4f2a5ce573bb15085c65f0ad62 fail
+obligation vv-dk-3
+revision 1811d507af53d345795e70e2e7f5ad94e5c8baa3
+sandbox prism/1 @devcontainer 1000:1000 0022 tmp/prismpm-home tmp daemon
+peer runner
+workflow UOR-Foundation/prismpm/.github/workflows/prism-delegation.yml@refs/heads/main
+run 43954962312-1
