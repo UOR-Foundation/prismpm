@@ -15,6 +15,7 @@ import { fetchPinned } from '../src/journey/github.mjs';
 import { publicStore, pullProofs } from '../src/journey/proof-store.mjs';
 
 const KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
+process.env.PRISM_KERNEL_DIR = KERNEL_DIR;
 const home = () => ({ PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-boundary-')), PRISM_KERNEL_DIR: KERNEL_DIR });
 const spec = () => compile({
   purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
