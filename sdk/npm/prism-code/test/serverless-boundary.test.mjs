@@ -16,6 +16,7 @@ import { fetchPinned } from '../src/journey/github.mjs';
 import { publicStore, pullProofs } from '../src/journey/proof-store.mjs';
 
 const KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
+process.env.PRISM_KERNEL_DIR = KERNEL_DIR;
 const home = () => ({ PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-boundary-')), PRISM_KERNEL_DIR: KERNEL_DIR });
 const spec = () => tableWords(ruleTable(ruleAppSnapshot()));
 const files = (dir) => (existsSync(dir) ? readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(e.parentPath ?? e.path, e.name)) : []);
