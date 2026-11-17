@@ -126,6 +126,23 @@ test('the watcher fires on an edit, once, and not for a file outside its pattern
   }
 });
 
+test('planted defect: an edit that keeps the size and the time, within a tick of the last read, is still a change', async () => {
+  const root = project({ 'src/a.lex.tex': 'one' });
+  const file = join(root, 'src/a.lex.tex');
+  const { statSync } = await import('node:fs');
+  // What a coarse clock does to a quick edit: the same length, and the same time, a whole second now.
+  const tick = Math.floor(Date.now() / 1000);
+  utimesSync(file, tick, tick);
+  const snapshot = createSnapshot({ root, patterns: DEFAULT_WATCH });
+  await snapshot.scan();
+  const before = statSync(file).mtimeMs;
+  writeFileSync(file, 'two');
+  utimesSync(file, tick, tick);
+  assert.equal(statSync(file).mtimeMs, before);
+  const { changed } = await snapshot.scan();
+  assert.deepEqual(changed, ['src/a.lex.tex']);
+});
+
 test('with no file system events the slow scan still notices an edit', async () => {
   const root = project({ 'src/a.lex.tex': 'one' });
   const seen = [];
