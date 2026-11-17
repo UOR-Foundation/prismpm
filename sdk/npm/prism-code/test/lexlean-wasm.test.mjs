@@ -76,7 +76,7 @@ test('with the real module: a rule app is checked, read from its snapshot and pr
   const taken = await wasmSnapshot(PROJECT, { env, pin });
   assert.equal(taken.ok, true);
   assert.equal(taken.snapshot.semantic_id, checked.semantic_id, 'the snapshot is the model check named');
-  assert.equal(taken.kappa, kappa(taken.bytes));
+  assert.equal(taken.kappa, undefined, 'Prism derives no identity for a snapshot; LexLean names it');
   const table = ruleTable(taken.snapshot);
   const proved = await kernelProve(tableWords(table), { env: { ...env, PRISM_HOME: scratch() } });
   assert.deepEqual(proved.judged.map((j) => j.status), table.guarantees.map(() => 'proved'));

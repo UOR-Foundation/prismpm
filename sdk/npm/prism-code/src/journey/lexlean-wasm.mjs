@@ -184,11 +184,12 @@ export async function wasmCheck(projectDir, options = {}) {
 
 /**
  * `lexlean snapshot --all`: the model's `lexlean/semantic-snapshot/2`, with its
- * exact bytes and their κ-label. A model LexLean refuses
+ * exact bytes. A model LexLean refuses
  * resolves `{ ok: false, check }` with the command result of `check`.
  */
 export async function wasmSnapshot(projectDir, options = {}) {
   const r = await runLexleanWasm(projectDir, ['snapshot', '--all'], options);
   if (r.exit !== 0) return { ok: false, check: await wasmCheck(projectDir, options), ms: r.ms };
-  return { ok: true, bytes: r.stdout, kappa: kappa(r.stdout), snapshot: JSON.parse(r.stdout.toString('utf8')), ms: r.ms };
+  // LexLean names the snapshot (its semantic_id); Prism derives no identity of its own for it.
+  return { ok: true, bytes: r.stdout, snapshot: JSON.parse(r.stdout.toString('utf8')), ms: r.ms };
 }
