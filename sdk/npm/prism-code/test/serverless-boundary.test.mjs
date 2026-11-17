@@ -6,7 +6,8 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compile } from '../src/journey/session.mjs';
+import { ruleTable, tableWords } from '../src/journey/rule-table.mjs';
+import { ruleAppSnapshot } from './support/snapshot.mjs';
 import { HOSTED_HOST, buildFetch, networkLedger, optedIn, refusal } from '../src/journey/hosts.mjs';
 import { kappaStore } from '../src/journey/kappa-store.mjs';
 import { kernelProve, openKernel } from '../src/journey/kernel-prove.mjs';
@@ -16,15 +17,7 @@ import { publicStore, pullProofs } from '../src/journey/proof-store.mjs';
 
 const KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 const home = () => ({ PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-boundary-')), PRISM_KERNEL_DIR: KERNEL_DIR });
-const spec = () => compile({
-  purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
-  fields: 'hours: number 0..24, vehicle: car|motorcycle|truck',
-  outcomes: 'free, standard, premium',
-  rules: 'when hours = 0 then free\nwhen vehicle is motorcycle then free\nwhen vehicle is truck then premium\nwhen hours > 8 then premium\notherwise standard',
-  properties: 'never when vehicle is motorcycle then premium\nalways when vehicle is truck and hours > 0 then premium\nnever when hours = 0 then standard',
-  examples: '0 car -> free',
-  review: 'yes',
-}).spec;
+const spec = () => tableWords(ruleTable(ruleAppSnapshot()));
 const files = (dir) => (existsSync(dir) ? readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(e.parentPath ?? e.path, e.name)) : []);
 
 test('the boundary admits GitHub\'s static hosts and the user\'s Pages site, and nothing else', () => {

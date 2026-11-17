@@ -109,7 +109,7 @@
       "title": "Guides",
       "pages": [
         {
-          "path": "guides/write-from-examples",
+          "path": "guides/write-the-model",
           "narrative": true
         },
         {
@@ -154,10 +154,6 @@
         },
         {
           "path": "guides/audit",
-          "narrative": true
-        },
-        {
-          "path": "guides/write-the-model",
           "narrative": true
         }
       ]

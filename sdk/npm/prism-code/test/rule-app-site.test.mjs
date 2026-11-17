@@ -6,23 +6,16 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compile } from '../src/journey/session.mjs';
-import { appDir, readSession } from '../src/journey/project.mjs';
 import { build } from '../src/journey/engine.mjs';
 import { RULE_JUDGE_HOLO, admits, answerKind, greatestAt, kernelChecked, leastAt, rulesAt } from '../src/journey/rule-app.mjs';
 import { browserClosure, writeRuleAppSite } from '../src/journey/rule-app-site.mjs';
+import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
+import { standIn, startedApp } from './support/hosted-stand-in.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
-const PARKING = {
-  purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
-  fields: 'hours: number 0..24, vehicle: car|motorcycle|truck',
-  outcomes: 'free, standard, premium',
-  rules: 'when hours = 0 then free\nwhen vehicle is motorcycle then free\nwhen vehicle is truck then premium\nwhen hours > 8 then premium\notherwise standard',
-  properties: 'never when vehicle is motorcycle then premium',
-  examples: '0 car -> free\n3 car -> standard\n10 car -> premium',
-};
+const HOSTED = { PRISM_CODE_TIER: 'hosted' };
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
 test('the files a page needs are the ones a browser can run: nothing that needs Node itself', () => {
@@ -37,9 +30,8 @@ test('the files a page needs are the ones a browser can run: nothing that needs 
 });
 
 test('a build writes the page beside the app, and the page carries the record, the judge and the package\'s own rules', { timeout: 120000 }, async () => {
-  const dir = appDir(mkdtempSync(join(tmpdir(), 'prism-rule-app-site-')));
-  const session = { ...readSession(dir), spec: compile({ ...PARKING, review: 'yes' }).spec, axioms: {}, status: {} };
-  const r = await build(dir, session, { env: {} });
+  const { dir, session } = startedApp('rule-app');
+  const r = await build(dir, session, { env: HOSTED, client: standIn({ snapshot: ruleAppSnapshot() }).client });
   assert.equal(r.ok, true, r.message);
   assert.equal(r.site, join(dir, '.prism', 'site'));
   assert.equal(session.status.ruleApp.site, r.site);
@@ -84,10 +76,10 @@ test('a title cannot write markup into the page, and an app whose guarantee fail
   assert.ok(!html.includes('<script>alert'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;more&quot;'));
 
-  const app = appDir(mkdtempSync(join(tmpdir(), 'prism-rule-app-site-false-')));
-  const spec = compile({ ...PARKING, review: 'yes' }).spec;
-  const session = { ...readSession(app), spec: { ...spec, rules: spec.rules.map((rule, i) => (i === 1 ? { ...rule, then: 'premium' } : rule)) }, axioms: {}, status: {} };
-  const r = await build(app, session, { env: {}, overwrite: true });
+  // The second rule now makes a motorcycle premium, so the first guarantee is false.
+  const { dir: app, session } = startedApp('rule-app');
+  const broken = ruleAppSnapshot({ ...PARKING, rules: PARKING.rules.map((rule, i) => (i === 1 ? { ...rule, answer: 2 } : rule)) }, { id: 'broken' });
+  const r = await build(app, session, { env: HOSTED, client: standIn({ snapshot: broken }).client });
   assert.equal(r.ok, false);
   assert.equal(existsSync(join(app, '.prism', 'site')), false);
 });

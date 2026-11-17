@@ -189,9 +189,9 @@ Usage:
                                                     install the Prism
                                                     skill; register the holo:// handler; remember the agent; print the
                                                     next steps. Run it as npx prism-code@latest setup
-  prism-code mcp [--project <dir>]                  the Prism MCP server on stdio (experimental): the agent drafts the spec
-                                                    from one sentence, checked and approved once; then the LexLean model,
-                                                    every property proved by Lean, and the holo built in the SDK image
+  prism-code mcp [--project <dir>]                  the Prism MCP server on stdio (experimental): the app starts from a
+                                                    starter LexLean module the agent writes; Lean proves it, and it is
+                                                    built in the SDK image (no Docker-free build until LexLean runs as WASM)
   prism-code open <holo://build?agent=<id>&q=<sentence>> [--dry-run]
                                                     hand the sentence to the agent: a terminal running claude or codex
                                                     (after Enter), Cursor's or VS Code's install link with the sentence
@@ -233,10 +233,6 @@ Options for check:    --policy <file>              a Rego file (.rego), the name
                       --certificate-oidc-issuer <url>, and pin --trusted-root <file>. Without a signer a signed
                                                    holo is P0: the provenance statement supports P1, the proof statement P2
                       --json                       the verdict as one canonical JSON object
-                      --spec <file>                hold the holo to this prism/spec.json: its seal is the
-                                                   spec's UOR address, and a holo built from another spec,
-                                                   or carrying no seal, fails. Without the flag, a spec.json
-                                                   beside the holo is reported and never fails the check
                       check takes a holo; the model check is build --check
 Options for push:     --key <private.pem>          sign a statement naming the manifest, per predicate in the holo, for cosign verify-attestation
                       --keyless                    the same with an OIDC token, as attest does; --signing-config for a private instance
@@ -334,7 +330,6 @@ const VALUE_OPTIONS = [
   'replay',
   'input',
   'store',
-  'spec',
 ];
 
 function parse(argv) {
@@ -568,48 +563,7 @@ async function commandTransfer(verb, positional, options) {
   return verb === 'push' ? cli.runPush(positional, options, usage) : cli.runPull(positional, options, usage);
 }
 
-const CHECK_OPTIONS = ['policy', 'replay', 'json', 'key', 'certificate-identity', 'certificate-identity-regexp', 'certificate-oidc-issuer', 'trusted-root', 'spec'];
-
-/**
- * The spec a holo should match: the file `--spec` names, or, with no flag, the
- * `prism/spec.json` of the project the holo was built in. A holo lives under
- * `prism/.prism/build/` or `prism/.prism/live/<sha>/`, so the spec sits a few
- * directories up. Returns the path, or null when there is none to compare.
- */
-function specBeside(holo, named) {
-  if (named !== undefined) return resolve(named);
-  let dir = dirname(resolve(holo));
-  for (let up = 0; up < 5; up++) {
-    const candidate = join(dir, 'spec.json');
-    if (existsSync(candidate)) return candidate;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
-}
-
-/**
- * Hold a holo to its spec: the seal it carries against the address of the
- * spec in hand. Returns `{ line, failed }`. Asked for by name with `--spec`, a
- * holo that carries no seal or another spec's fails the check; found beside
- * the holo, it is reported and nothing else.
- */
-async function specSeal(holo, options) {
-  const path = specBeside(holo, options.spec);
-  if (path === null) return { line: null, failed: false };
-  const asked = options.spec !== undefined;
-  let outcome;
-  try {
-    const { checkSpecBinding } = await import('../src/journey/binding.mjs');
-    outcome = checkSpecBinding(new Uint8Array(await readFile(path === null ? holo : resolve(holo))), await readFile(path, 'utf8'));
-  } catch (error) {
-    if (asked) return { line: `spec      failed  ${error.message}`, failed: true };
-    return { line: null, failed: false };
-  }
-  const word = { bound: 'ok', unbound: 'none', mismatch: 'failed' }[outcome.reason];
-  return { line: `spec      ${word.padEnd(6)}  ${outcome.message}`, failed: asked && !outcome.ok, outcome, path };
-}
+const CHECK_OPTIONS = ['policy', 'replay', 'json', 'key', 'certificate-identity', 'certificate-identity-regexp', 'certificate-oidc-issuer', 'trusted-root'];
 
 /** True when `check` was given a holo, a path ending in `.holo` or a file; otherwise it is the deprecated `build --check`. */
 function namesHolo(positional) {
@@ -662,15 +616,7 @@ async function commandCheck(positional, options) {
     process.stderr.write(`no verdict: ${error.check ?? error.code}: ${error.message}\n`);
     return CHECK_EXIT.NO_VERDICT;
   }
-  const seal = await specSeal(positional[0], options);
-  if (options.json) {
-    const text = verdictJson(verdict);
-    process.stdout.write(seal.outcome ? `${JSON.stringify({ ...JSON.parse(text), spec: { reason: seal.outcome.reason, specAddress: seal.outcome.specAddress, sealed: seal.outcome.sealed } })}\n` : text);
-  } else {
-    process.stdout.write(formatVerdict(verdict, positional[0]));
-    if (seal.line) process.stdout.write(`${seal.line}\n`);
-  }
-  if (seal.failed) return CHECK_EXIT.FAILED;
+  process.stdout.write(options.json ? verdictJson(verdict) : formatVerdict(verdict, positional[0]));
   return exitCodeOf(verdict);
 }
 
@@ -1248,8 +1194,8 @@ async function main(argv) {
       return usage('check takes a holo; the model check is prism-code build --check, which runs prismpm check (the spelling without a holo was removed, #584)');
     case 'build':
       if (options.remote !== undefined) return commandRemoteBuild(positional, options);
-      // An app comes from one prism/spec/1 spec through the guided path; no agent writes the model (the author route was removed).
-      if (rest.includes('--unstable-author')) return usage('unknown option --unstable-author: an agent may not write the model. Write a prism/spec/1 spec and build it through the guided path, prism-code mcp');
+      // A removed flag is refused by name, never passed on.
+      if (rest.includes('--unstable-author')) return usage('unknown option --unstable-author: write the app\'s LexLean model under prism/src/ and build it through prism-code mcp');
       if (rest.includes('--check')) return commandTierCheck(rest.filter((a) => a !== '--check'));
       return commandDelegate('build', rest);
     case 'verify':

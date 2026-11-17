@@ -5,24 +5,19 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compile } from '../src/journey/session.mjs';
 import { kappa } from '../src/uorc.mjs';
 import { derivationKey, findProof, kappaStore, proofKey, proofRealization, proofReferences } from '../src/journey/kappa-store.mjs';
 import { termReusable } from '../src/journey/canonical-rules.mjs';
-import { KERNEL_AXIOMS, guaranteeStatement, kernelProve, openKernel, pinnedAddresses, ruleWords } from '../src/journey/kernel-prove.mjs';
+import { KERNEL_AXIOMS, guaranteeStatement, kernelProve, openKernel, pinnedAddresses } from '../src/journey/kernel-prove.mjs';
+import { ruleTable, tableWords } from '../src/journey/rule-table.mjs';
+import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
 import { ruleAppRecord } from '../src/journey/rule-app.mjs';
 
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
-const PARKING = {
-  purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
-  fields: 'hours: number 0..24, vehicle: car|motorcycle|truck',
-  outcomes: 'free, standard, premium',
-  rules: 'when hours = 0 then free\nwhen vehicle is motorcycle then free\nwhen vehicle is truck then premium\nwhen hours > 8 then premium\notherwise standard',
-  properties: 'never when vehicle is motorcycle then premium\nalways when vehicle is truck and hours > 0 then premium\nnever when hours = 0 then standard',
-  examples: '0 car -> free',
-};
-const specOf = (answers = PARKING) => compile({ ...answers, review: 'yes' }).spec;
+/** A rule app's table, read from a snapshot of `app` (the `rule-app` starter's parking fees by default). */
+const tableOf = (app = PARKING) => ruleTable(ruleAppSnapshot(app));
+const stated = (app = PARKING) => tableWords(tableOf(app));
 const home = () => ({ PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-kappa-')), PRISM_KERNEL_DIR: process.env.PRISM_KERNEL_DIR });
 const enc = new TextEncoder();
 const files = (dir) => (existsSync(dir) ? readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(e.parentPath ?? e.path, e.name)) : []);
@@ -67,9 +62,9 @@ test('a proof names every input by κ-label, and they are read back out of it', 
   assert.deepEqual(Object.keys(JSON.parse(new TextDecoder().decode(bytes))), ['schema', 'key', 'kernel', 'library', 'statement', 'policy', 'bundle', 'axioms']);
 });
 
-test('a proof term is produced once: the same spec again produces nothing, the kernel judges every term again, and the app is byte for byte the same', { timeout: 120000 }, async () => {
+test('a proof term is produced once: the same model again produces nothing, the kernel judges every term again, and the app is byte for byte the same', { timeout: 120000 }, async () => {
   const env = home();
-  const spec = specOf();
+  const spec = stated();
   const first = await kernelProve(spec, { env });
   assert.deepEqual([first.reused, first.judged.map((j) => j.accepted)], [0, [true, true, true]]);
   // A kernel that must not produce a term but still judges every one (model/canonical-build, provedNeedsTheKernelToAcceptTheTermNow).
@@ -81,33 +76,33 @@ test('a proof term is produced once: the same spec again produces nothing, the k
   assert.equal(checked, 3, 'every reused term was judged by the kernel');
   assert.deepEqual(again.judged.map((j) => [j.accepted, j.status, j.reused, j.axioms]), first.judged.map((j) => [true, 'proved', true, j.axioms]));
   assert.deepEqual(again.evidence, first.evidence);
-  assert.deepEqual(Buffer.from(ruleAppRecord(spec, { proof: again.evidence }).bytes), Buffer.from(ruleAppRecord(spec, { proof: first.evidence }).bytes));
+  assert.deepEqual(Buffer.from(ruleAppRecord(tableOf(), { proof: again.evidence }).bytes), Buffer.from(ruleAppRecord(tableOf(), { proof: first.evidence }).bytes));
   // Reordering the guarantees proves nothing new: a proof does not depend on where its guarantee sits.
-  const reordered = { ...spec, properties: [...spec.properties].reverse() };
+  const reordered = { ...spec, guarantees: [...spec.guarantees].reverse() };
   assert.equal((await kernelProve(reordered, { env, kernel: closed })).reused, 3);
 });
 
 test('only what changed is proved: an edited guarantee reuses the others, and an edited rule reuses none', { timeout: 120000 }, async () => {
   const env = home();
-  await kernelProve(specOf(), { env });
-  const guarantee = await kernelProve(specOf({ ...PARKING, properties: PARKING.properties.replace('never when hours = 0 then standard', 'never when hours = 0 then premium') }), { env });
+  await kernelProve(stated(), { env });
+  const guarantee = await kernelProve(stated({ ...PARKING, guarantees: PARKING.guarantees.map((g, i) => (i === 2 ? { ...g, answer: 2 } : g)) }), { env });
   assert.deepEqual(guarantee.judged.map((j) => j.reused), [true, true, false]);
   assert.equal(guarantee.judged[2].accepted, true);
-  const rule = await kernelProve(specOf({ ...PARKING, rules: PARKING.rules.replace('hours > 8', 'hours > 9') }), { env });
+  const rule = await kernelProve(stated({ ...PARKING, rules: PARKING.rules.map((r, i) => (i === 3 ? { ...r, conditions: [{ field: 0, op: 2, value: 9 }] } : r)) }), { env });
   assert.deepEqual(rule.judged.map((j) => j.reused), [false, false, false]);
   // A guarantee the kernel refuses is not kept, so it is asked again and refused again.
-  const broken = { ...specOf(), rules: specOf().rules.map((r, i) => (i === 1 ? { ...r, then: 'premium' } : r)) };
+  const broken = stated({ ...PARKING, rules: PARKING.rules.map((r, i) => (i === 1 ? { ...r, answer: 2 } : r)) });
   for (let round = 0; round < 2; round++) assert.deepEqual((await kernelProve(broken, { env })).judged.map((j) => [j.accepted, j.reused])[0], [false, false]);
 });
 
 test('planted defects M2 to M5 and C1 to C3: a stored term is reused only under the same key, kernel, library, statement, policy and bytes', { timeout: 120000 }, async () => {
   const env = home();
-  const spec = specOf();
+  const spec = stated();
   await kernelProve(spec, { env });
   const store = kappaStore({ env });
   const pinned = pinnedAddresses();
   const policy = KERNEL_AXIOMS;
-  const { words, guarantees } = ruleWords(spec);
+  const { words, guarantees } = spec;
   const statement = guaranteeStatement(words, guarantees[0]);
   const key = proofKey({ kernel: pinned.kernel, library: pinned.library, statement, policy });
   const ask = (over = {}) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library, statement, policy, ...over });

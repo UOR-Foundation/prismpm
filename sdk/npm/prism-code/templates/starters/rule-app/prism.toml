@@ -1,0 +1,11 @@
+[application]
+name = "parking-fee-tier"
+version = "0.1.0"
+description = "decide the parking fee tier for a vehicle from the hours parked and the vehicle type."
+
+[model]
+source = "src"
+watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]
+
+# Deny by default: an empty set grants the holo nothing.
+[capabilities]

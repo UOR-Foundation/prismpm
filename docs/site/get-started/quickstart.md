@@ -1,9 +1,9 @@
 ---
 title: Quickstart
-description: Write one JSON spec, then build, check, run and deploy your first holo.
+description: Start a LexLean model from a starter, then build, check, run and deploy your first holo.
 available_in: "1.0-beta"
 ---
-In five minutes you create a payment check from one JSON file, build it into a holo, check its proof, run it, and publish it to GitHub Pages. Every command below is one you will use every day.
+In five minutes you create a parking fee check from one LexLean model, build it into a holo, check its proof, run it, and publish it to GitHub Pages. Every command below is one you will use every day.
 
 The `prism` CLI ships with 1.0-beta.1. To try a holo with what is on npm today, start with [Call a holo](/docs/examples/call-a-holo).
 
@@ -22,38 +22,21 @@ npm create prism-code calculator
 ```text
 Creating calculator
   prism.toml         application calculator 0.1.0
-  prism/spec.json    the spec, as JSON
+  prism/src/App.lex.tex  the model, from the rule-app starter
   prismpm.lock       SDK image sha256:91ab…
 Done. Next: cd calculator && prism build
 ```
 
-`prism/spec.json` is the whole input. You edit this file, or have an agent write it; everything else is generated from it. It says what one request holds, what the app may answer, the rules in order, and what must never or always happen:
+`prism/src/App.lex.tex` is the whole source. It starts as the `rule-app` starter, a LexLean module named by its SHA-256, and you edit it, or have an agent write it. It says what one request holds, what the app may answer, the rules in order, and what must never or always happen, as LexLean definitions:
 
-```json
-{
-  "purpose": "Decide whether a payment request is approved.",
-  "fields": [
-    {"name": "role", "kind": "choice", "values": ["clerk", "manager"]},
-    {"name": "amount", "kind": "number", "min": 1, "max": 1000000},
-    {"name": "limit", "kind": "number", "max": 1000000}
-  ],
-  "outcomes": ["approved", "refused"],
-  "rules": [
-    {"when": [{"field": "role", "op": "is", "value": "manager"}], "then": "approved"},
-    {"when": [{"field": "amount", "op": "<=", "value": {"field": "limit"}}], "then": "approved"}
-  ],
-  "otherwise": "refused",
-  "properties": [
-    {"kind": "never",
-     "when": [{"field": "role", "op": "is", "value": "clerk"},
-              {"field": "amount", "op": ">", "value": {"field": "limit"}}],
-     "then": "approved"}
-  ],
-  "examples": [{"request": "clerk 250 1000", "response": "approved"}]
-}
+```tex
+definition{name: answers, parameters: [], result: (List String),
+  body: (cons "standard" (cons "free" (cons "premium" (nil String))))}
+
+definition{name: otherwise, parameters: [], result: Nat, body: 0}
 ```
 
-Each entry in `properties` becomes a theorem Lean proves for every request. Each entry in `examples` becomes an acceptance vector the built application replays.
+Each guarantee becomes a statement Lean's kernel checks for every request. Each example becomes an acceptance vector the built application replays. The app's machine-readable form is the JSON LexLean exports for the model, `lexlean/semantic-snapshot/2`, named by its `semantic_id`.
 
 `prism.toml` names the application:
 
@@ -68,7 +51,7 @@ There is no `[capabilities]` table, and without one the holo is granted nothing.
 
 ## Build the holo
 
-Build renders the LexLean model from `prism/spec.json` alone, proves every property inside the pinned SDK image, replays the examples and sentence, replays the example, and records provenance:
+Build checks the LexLean model, proves every guarantee, replays the examples, and records provenance. Until LexLean's front end runs as WebAssembly, it needs the pinned SDK image, so Docker:
 
 ```bash
 cd calculator
@@ -77,8 +60,7 @@ prism build
 
 ```text
 Pulling SDK image sha256:91ab… (cached)
-Rendering model from prism/spec.json  sha256:2414…
-  model/  2 files written, digest sha256:7d2e…
+Checking model prism/src/App.lex.tex  semantic_id sha256:2414…
 Compiling model
 Proving
   INV-001 never approved when role is clerk and amount is above limit   checked
@@ -88,7 +70,7 @@ Built calculator@sha256:3f9c… (holo, 24.8 KB)
 Provenance: recorded   Proof: 2 theorems checked   Level: P2
 ```
 
-The holo is `calculator@sha256:3f9c…`. The digest covers everything inside it, including the proof. Commit `prism/spec.json` with the rest of the project; `model/` is generated from it, and the same JSON always gives the same model. A model that is not what `prism/spec.json` renders to is refused at build.
+The holo is `calculator@sha256:3f9c…`. The digest covers everything inside it, including the proof. Commit `prism/src/` with the rest of the project: the model is the one source of truth, and nothing is generated into it.
 
 ## Check it
 
@@ -153,5 +135,5 @@ You wrote one JSON file. Prism rendered the model from it, proved every property
 ## Next steps
 
 - [Core concepts](/docs/get-started/core-concepts)
-- [Write the spec](/docs/guides/write-from-examples)
+- [Write the model](/docs/guides/write-the-model)
 - [Ship a holo](/docs/guides/ship)

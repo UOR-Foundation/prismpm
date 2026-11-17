@@ -4,28 +4,30 @@
  * `prism.toml`), so an existing repository gains one directory and nothing
  * else.
  *
- *   prism/spec.json     the app's one input: the prism/spec/1 spec an agent writes or edits,
- *                       kept as canonical JSON (RFC 8785); its SHA-256 is the specHash, and
- *                       the model is rendered from it alone (spec-file.mjs)
- *   prism/session.json  where the conversation is, and what was proved
- *   prism/SPEC.md       the spec in prose
- *   prism/src/<App>.lex.tex   the generated LexLean model, the app's single source
- *   prism/...           the LexLean and PrismPM project files of the template
+ *   prism/src/<App>.lex.tex   the LexLean model: the app's one source of truth
+ *   prism/prism.toml          the app's manifest, granting nothing
+ *   prism/session.json        what was checked, proved and built, and where
+ *   prism/...                 the LexLean and PrismPM project files of the template
+ *
+ * A new app starts from a starter module (templates/starters), each file named
+ * by its SHA-256 in templates/starters/index.json and copied only when its
+ * bytes have that address. After that the model is the author's: Prism never
+ * writes it again.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { PrismCodeError } from '../errors.mjs';
 import { templateFiles } from '../init.mjs';
-import { names, renderModel, renderProofs, renderSpecDocument } from './render.mjs';
-import { SPEC_FILE, readSpecFile } from './spec-file.mjs';
 import { DEFAULT_SDK_IMAGE, IMAGE_STANDARDS_LOCK, docker, runInImage } from './sdk.mjs';
 
-export const SESSION_SCHEMA = 'prism/session/1';
+export const SESSION_SCHEMA = 'prism/session/2';
 const TEMPLATE_MODULE = 'TextRequest';
 const RENAMED = ['lexlean.toml', 'lakefile.toml', 'lake-manifest.json', 'prismpm.toml'];
 const UNUSED = [`src/${TEMPLATE_MODULE}.lex.tex`, 'src/Foundation/Utf8.lex.tex'];
+const STARTERS = new URL('../../templates/starters/', import.meta.url);
 
-export const sha256 = (text) => createHash('sha256').update(text).digest('hex');
+export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 /** The app folder for a working directory. */
 export function appDir(cwd) {
@@ -40,57 +42,49 @@ const write = (dir, path, content) => {
 
 export function readSession(dir) {
   try {
-    return JSON.parse(readFileSync(join(dir, 'session.json'), 'utf8'));
+    const session = JSON.parse(readFileSync(join(dir, 'session.json'), 'utf8'));
+    if (session.schema === SESSION_SCHEMA) return session;
   } catch {
-    return { schema: SESSION_SCHEMA, step: 'purpose', answers: {}, spec: null, axioms: {}, status: {} };
+    // No session yet, or one of an earlier prism-code: either way the record starts empty.
   }
+  return { schema: SESSION_SCHEMA, starter: null, status: {} };
 }
 
 export function writeSession(dir, session) {
-  if (session.spec) writeSpecFile(dir, session);
   write(dir, 'session.json', `${JSON.stringify(session, null, 2)}\n`);
 }
 
-/**
- * Write spec.json, the canonical bytes of the session's spec, and record its
- * specHash. Returns what reading those bytes back gives.
- */
-export function writeSpecFile(dir, session) {
-  const read = readSpecFile(session.spec);
-  write(dir, SPEC_FILE, read.bytes);
-  session.status ??= {};
-  session.status.specAddress = read.specAddress;
-  session.status.specHash = read.specHash;
-  return read;
+/** The starters this package carries: `{ name: { module, shape, files } }`. */
+export function starters({ root = STARTERS } = {}) {
+  return JSON.parse(readFileSync(new URL('index.json', root), 'utf8')).starters;
 }
 
-/** The project's spec.json, read strictly, or null when there is none. Throws SpecError when it is not a valid spec. */
-export function readProjectSpec(dir) {
-  const path = join(dir, SPEC_FILE);
-  return existsSync(path) ? readSpecFile(readFileSync(path, 'utf8')) : null;
+/** The model's source files, relative to the app folder, sorted. */
+export function sourceFiles(dir) {
+  const root = join(dir, 'src');
+  if (!existsSync(root)) return [];
+  const out = [];
+  const visit = (d, rel) => {
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) visit(join(d, entry.name), r);
+      else if (entry.name.endsWith('.lex.tex')) out.push(`src/${r}`);
+    }
+  };
+  visit(root, '');
+  return out.sort();
 }
 
-/**
- * The model files that are not what spec.json renders to, compared byte for
- * byte: empty when the model is exactly the spec's. `axioms` are the recorded
- * axiom sets the render takes. Names spec.json itself when there is none.
- */
-export function modelMismatches(dir, { axioms = {} } = {}) {
-  const read = readProjectSpec(dir);
-  if (!read) return [SPEC_FILE];
-  const n = names(read.spec);
-  const proofs = renderProofs(read.spec, { axioms });
-  const expected = [[`src/${n.module}.lex.tex`, renderModel(read.spec, { axioms, specAddress: read.specAddress })], [`src/${n.proofs}.lex.tex`, proofs || null]];
-  const differs = [];
-  for (const [file, text] of expected) {
+/** The address of the model as it is on disk: every source file and the project file, by path and bytes. */
+export function sourceDigest(dir) {
+  const h = createHash('sha256');
+  for (const file of [...sourceFiles(dir), 'lexlean.toml']) {
     const path = join(dir, file);
-    const actual = existsSync(path) ? readFileSync(path, 'utf8') : null;
-    if (actual !== text) differs.push(file);
+    if (!existsSync(path)) continue;
+    const bytes = readFileSync(path);
+    h.update(`${file}\0${bytes.length}\0`).update(bytes);
   }
-  for (const entry of existsSync(join(dir, 'src')) ? readdirSync(join(dir, 'src')) : []) {
-    if (entry.endsWith('.lex.tex') && !expected.some(([file]) => file === `src/${entry}`)) differs.push(`src/${entry}`);
-  }
-  return differs;
+  return h.digest('hex');
 }
 
 /** Write the template's project files the folder lacks. Never overwrites. Returns the paths written. */
@@ -114,6 +108,39 @@ export function scaffold(dir) {
   return written;
 }
 
+/**
+ * Start an app from a starter: the template's project files, named for the
+ * starter's module, and the starter's own files, each copied only when its
+ * bytes have the address the index names. Refuses a folder that already holds
+ * a model: Prism never writes over the author's LexLean. `root` is the
+ * folder of starters, a URL ending in `/`. Returns `{ starter, module, written }`.
+ */
+export function startApp(dir, name, { root = STARTERS } = {}) {
+  const all = starters({ root });
+  const starter = all[name];
+  if (!starter) throw new PrismCodeError('start.starter', `there is no starter ${JSON.stringify(name)}; the starters are ${Object.keys(all).join(', ')}`);
+  if (sourceFiles(dir).length > 0) throw new PrismCodeError('start.exists', `${join(dir, 'src')} already holds a LexLean model; Prism does not write over it`);
+  const files = new Map();
+  for (const [path, want] of Object.entries(starter.files)) {
+    const bytes = readFileSync(new URL(`${name}/${path}`, root));
+    if (`sha256:${sha256(bytes)}` !== want) throw new PrismCodeError('start.starter', `the starter file ${name}/${path} is not the bytes its index names`);
+    files.set(path, bytes);
+  }
+  const written = scaffold(dir);
+  const originals = templateFiles();
+  for (const file of RENAMED) {
+    let text = new TextDecoder().decode(originals.get(file));
+    text = text.split('prism-text-request').join(`prism-${name}`).split(`Prism${TEMPLATE_MODULE}`).join(`Prism${starter.module}`).split(`src/${TEMPLATE_MODULE}.lex.tex`).join(`src/${starter.module}.lex.tex`);
+    if (file === 'prismpm.toml') text = text.replace(`project = "${TEMPLATE_MODULE}"`, `project = "${starter.module}"`);
+    write(dir, file, text);
+  }
+  for (const [path, bytes] of files) {
+    write(dir, path, bytes);
+    written.push(path);
+  }
+  return { starter: name, module: starter.module, written };
+}
+
 export const isBound = (dir) => existsSync(join(dir, 'prismpm.lock')) && existsSync(join(dir, 'standards.lock'));
 
 /** Pin the folder to an SDK image: copy its standards.lock, then `prismpm update --toolchain`, which writes prismpm.lock. */
@@ -123,79 +150,6 @@ export async function bind(dir, image = DEFAULT_SDK_IMAGE, { onLine } = {}) {
   write(dir, 'standards.lock', standards.output);
   const update = await runInImage(dir, `lexlean lock && lexlean fmt --all && lexlean lock && prismpm update --toolchain ${image}`, { image, onLine });
   return { ok: update.code === 0 && existsSync(join(dir, 'prismpm.lock')), output: update.output };
-}
-
-/** The manifest, written from the spec, granting nothing. */
-function manifest(spec) {
-  return [
-    '[application]',
-    `name = ${JSON.stringify(spec.name)}`,
-    'version = "0.1.0"',
-    `description = ${JSON.stringify(spec.purpose.slice(0, 200))}`,
-    '',
-    '[model]',
-    'source = "src"',
-    'watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]',
-    '',
-    '# Deny by default: an empty set grants the holo nothing.',
-    '[capabilities]',
-    '',
-  ].join('\n');
-}
-
-/** The path of the model file, and of the proofs module beside it. */
-export const modelPath = (dir, spec) => join(dir, 'src', `${names(spec).module}.lex.tex`);
-export const proofsPath = (dir, spec) => join(dir, 'src', `${names(spec).proofs}.lex.tex`);
-
-/** The digest of what Prism wrote: the model and its proofs, as they are on disk. */
-export function modelDigest(dir, spec) {
-  const read = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
-  return sha256(`${read(modelPath(dir, spec))}\n--proofs--\n${read(proofsPath(dir, spec))}`);
-}
-
-/**
- * Write the model and everything that names it. Refuses to overwrite a model
- * someone edited by hand since Prism last wrote it, unless `overwrite`.
- */
-export function writeApp(dir, session, { overwrite = false } = {}) {
-  // The model is rendered from spec.json alone: write it canonically, read it back strictly, render what it says.
-  const read = writeSpecFile(dir, session);
-  session.spec = read.spec;
-  const specAddress = read.specAddress;
-  const spec = session.spec;
-  const n = names(spec);
-  const path = modelPath(dir, spec);
-  if (!overwrite && session.status.modelSha && existsSync(path) && modelDigest(dir, spec) !== session.status.modelSha) {
-    return { edited: true, path };
-  }
-  scaffold(dir);
-  const originals = templateFiles();
-  for (const file of RENAMED) {
-    let text = new TextDecoder().decode(originals.get(file));
-    text = text.split('prism-text-request').join(`prism-${spec.name}`).split(`Prism${TEMPLATE_MODULE}`).join(n.prefix).split(`src/${TEMPLATE_MODULE}.lex.tex`).join(`src/${n.module}.lex.tex`);
-    if (file === 'prismpm.toml') text = text.replace(`project = "${TEMPLATE_MODULE}"`, `project = "${n.module}"`);
-    write(dir, file, text);
-  }
-  write(dir, 'prism.toml', manifest(spec));
-  for (const entry of readdirSync(join(dir, 'src'))) {
-    if (entry.endsWith('.lex.tex') && entry !== `${n.module}.lex.tex` && entry !== `${n.proofs}.lex.tex`) rmSync(join(dir, 'src', entry));
-  }
-  const model = renderModel(spec, { axioms: session.axioms ?? {}, specAddress });
-  write(dir, `src/${n.module}.lex.tex`, model);
-  const proofs = renderProofs(spec, { axioms: session.axioms ?? {} });
-  if (proofs) write(dir, `src/${n.proofs}.lex.tex`, proofs);
-  else if (existsSync(join(dir, 'src', `${n.proofs}.lex.tex`))) rmSync(join(dir, 'src', `${n.proofs}.lex.tex`));
-  writeSpecDocument(dir, session);
-  return { edited: false, path, model };
-}
-
-export function writeSpecDocument(dir, session) {
-  if (session.spec) write(dir, 'SPEC.md', renderSpecDocument(session.spec, session.status));
-}
-
-/** Remember the model as formatted on disk, so a later hand edit is noticed. */
-export function rememberModel(dir, session) {
-  if (existsSync(modelPath(dir, session.spec))) session.status.modelSha = modelDigest(dir, session.spec);
 }
 
 /** The newest holo the build wrote, or null. */

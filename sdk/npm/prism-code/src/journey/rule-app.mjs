@@ -1,11 +1,12 @@
 /**
  * A rule app with no build: one fixed, verified holo that carries a rule judge,
- * and the spec written as the numbers that judge reads, named together.
+ * and the app's decision table (rule-table.mjs, read from LexLean's semantic
+ * snapshot of the model) written as the numbers that judge reads, named together.
  *
  * The holo is the Forge kernel from UOR-Foundation/foundry
  * (`studio/shell/kernel/kernel.holo`), built and verified once by the SDK. Its
  * rule judge (foundry `app/src/RuleJudge.lex.tex`) answers a request made of
- * the spec's numbers followed by the request's values. Nothing is compiled for
+ * the app's numbers followed by the request's values. Nothing is compiled for
  * an app, so no Docker, Rust or Lean runs here.
  *
  * What is admitted and what a request is answered with are stated in LexLean
@@ -21,15 +22,15 @@
  */
 import { createHash } from 'node:crypto';
 import { loadArchive } from '../index.mjs';
-import { acceptanceVectors } from './render.mjs';
-import { INVALID, decodeRequest, requestLimits } from './spec.mjs';
-import { KernelUnread, WORD_MAX, boundedSpec, ruleWords } from './kernel-prove.mjs';
+import { PrismCodeError } from '../errors.mjs';
+import { INVALID, decodeRequest, requestLimits } from './request-text.mjs';
+import { tableShape, tableWords } from './rule-table.mjs';
 import { readKernelFile } from './kernel-store.mjs';
 
 export const RULE_APP_SCHEMA = 'prism/rule-app/1';
 /** The rule judge's holo this package carries. A record names the holo it was made for by this address. */
 export const RULE_JUDGE_HOLO = 'sha256:e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee';
-/** The judge reads at most this many numbers in one request: the spec's and the request's together. */
+/** The judge reads at most this many numbers in one request: the app's and the request's together. */
 const WORDS_MAX = 1024;
 const KEYS = Object.freeze(['schema', 'name', 'title', 'kernel', 'fields', 'outcomes', 'words', 'guarantees', 'vectors', 'proof']);
 
@@ -75,28 +76,35 @@ export function pinnedHolo({ read = () => readKernelFile('kernel.holo') } = {}) 
   return bytes;
 }
 
+/** The app's name: its title in lower case, words joined by hyphens. */
+export const appName = (title) => title.toLowerCase().match(/[a-z0-9]+/g)?.join('-') ?? 'app';
+
 /**
- * The record of a rule app: a pure function of the spec and the proof's
- * evidence, so the same spec gives the same bytes on every machine.
- * Throws `KernelUnread` for a spec the rule judge does not read.
+ * The record of a rule app: a pure function of its table and the proof's
+ * evidence, so the same model gives the same bytes on every machine. Its
+ * vectors are the table's examples, and one request with a value too many,
+ * answered `invalid`. Throws `rule-table.range` for a table the rule judge cannot read
+ * in one request.
  */
-export function ruleAppRecord(spec, { proof = null } = {}) {
-  const { words, guarantees } = ruleWords(spec);
-  if (words.length + spec.fields.length > WORDS_MAX) throw new KernelUnread('kernel.range', `it needs more than the ${WORDS_MAX} numbers the rule judge reads in one request`);
+export function ruleAppRecord(table, { proof = null } = {}) {
+  const { words, guarantees } = tableWords(table);
+  if (words.length + table.fields.length > WORDS_MAX) throw new PrismCodeError('rule-table.range', `the app needs more than the ${WORDS_MAX} numbers the rule judge reads in one request`);
+  const shape = tableShape(table);
+  const enc = new TextEncoder();
+  const vectors = [...table.examples.map((e) => ({ request: e.request, response: e.answer })), { request: Array(shape.fields.length + 1).fill('0').join(' '), response: INVALID }];
   const record = {
     schema: RULE_APP_SCHEMA,
-    name: spec.name,
-    title: spec.title,
+    name: appName(table.title),
+    title: table.title,
     kernel: { holo: RULE_JUDGE_HOLO },
-    fields: spec.fields.map((f) => (f.kind === 'choice' ? { name: f.name, kind: 'choice', values: [...f.values] } : { name: f.name, kind: 'number', min: f.min ?? 0, max: f.max ?? WORD_MAX })),
-    outcomes: [...new Set([spec.otherwise, ...spec.rules.map((r) => r.then)])],
+    fields: shape.fields,
+    outcomes: [...table.answers],
     words,
     guarantees,
-    // The vectors are the bounded app's: a number past the judge's words is refused, and a vector says so.
-    vectors: acceptanceVectors(boundedSpec(spec)).map((v) => ({ request: hexOf(v.bytes), response: hexOf(new TextEncoder().encode(v.response)) })),
+    vectors: vectors.map((v) => ({ request: hexOf(enc.encode(v.request)), response: hexOf(enc.encode(v.response)) })),
     proof,
   };
-  const bytes = new TextEncoder().encode(`${JSON.stringify(record, null, 1)}\n`);
+  const bytes = enc.encode(`${JSON.stringify(record, null, 1)}\n`);
   return { record, bytes, address: sha256(bytes) };
 }
 

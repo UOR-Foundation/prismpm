@@ -1,0 +1,31 @@
+{
+  "schema": "prism/starters/1",
+  "starters": {
+    "rule-app": {
+      "module": "App",
+      "shape": "decides one answer from one request, each condition a field against a value; Lean's kernel checks its guarantees from the model's semantic snapshot, and the app is the verified rule judge with the model's numbers, served as a static page",
+      "files": {
+        "prism.toml": "sha256:e22901dfed027e2353c05b233b0593bf0a4c294a53062867d0d5f5fcd3d617af",
+        "src/App.lex.tex": "sha256:9407f52f53f46cd087fe4f4331c4e1f1746b655e3827a95558b58e40cc211779"
+      }
+    },
+    "decision-app": {
+      "module": "ParkingFeeTier",
+      "shape": "decides one answer from one request; its judge and its guarantees are LexLean definitions and theorems, proved by lexlean verify and built into a holo",
+      "files": {
+        "prism.toml": "sha256:e22901dfed027e2353c05b233b0593bf0a4c294a53062867d0d5f5fcd3d617af",
+        "src/ParkingFeeTier.lex.tex": "sha256:1d779e356e094a160a56205d6692f3b37b2f5dd11e077786d7f60168df879718",
+        "src/ParkingFeeTierProofs.lex.tex": "sha256:91120be2abdc592f0619bfb1e52aa55b38a58e58535c62a4ac596d9a61047487"
+      }
+    },
+    "stateful-app": {
+      "module": "DinnerSeats",
+      "shape": "keeps state between steps; its actions, state and invariants are LexLean definitions and theorems, proved by lexlean verify and built into a holo",
+      "files": {
+        "prism.toml": "sha256:0ad46d3a8614aeaa5c9485144ad94562e8c928832fcbae94f4e1143ad49bacc3",
+        "src/DinnerSeats.lex.tex": "sha256:5c2b64c8fcb0cd69b7c5e29b211ef1e0954ea235991383ca862f4f0b931b866e",
+        "src/DinnerSeatsProofs.lex.tex": "sha256:5a8cd8ab8c7ce395715723109f8ba3ba35fda9464d85c4f5a1c8cf73efaa90ce"
+      }
+    }
+  }
+}

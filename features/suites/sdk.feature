@@ -287,6 +287,13 @@ Feature: sdk
     Then the JavaScript agrees with the model on every input, every reused term is judged again by the kernel, and nothing is reused under another library, statement or axiom policy
     And a host outside the boundary is refused before anything is sent, and store bytes that do not re-derive are not copied
 
+  @DK-46 @build
+  Scenario: The prism-code journey has one source of truth, the app's LexLean model under prism/src/: prism_start starts it from a starter module copied only when its bytes have the SHA-256 that templates/starters/index.json names and never writes over a model already there; there is no spec file, no renderer and no prism_spec or prism_answer tool; a rule app's table is read only from the model's lexlean/semantic-snapshot/2, refused by name when it is not literal data whose every index and value fits the rule judge, tried for a counterexample before Lean's kernel judges every guarantee; prism_try answers only from a built app; and until LexLean's front end runs as WebAssembly every check, proof and build needs the SDK image or the user's PRISM_CODE_TIER=hosted and otherwise fails with build.frontend-unavailable naming Phase 3, without ever choosing the hosted verifier for the user.
+    Given the starters this package carries, a snapshot of a rule app built to LexLean's published schema, and a stand-in hosted verifier
+    When an app is started, checked, proved, built and tried with no SDK image, and with the user's hosted opt-in
+    Then every starter file is the bytes its index names, a model is never written over, and every step names Phase 3 without asking the hosted verifier
+    And a rule app's table is read from its snapshot, a broken guarantee is refused with its counterexample, and the built app answers
+
   @DK-44 @build
   Scenario: The prism-code system and auth command groups are the CLI of prism.system and prism.auth: system info and version name the package, the holo format, the runtime and the toolchain and builder image the project's prismpm.lock pins, events replays and follows create, start, die and destroy from the container store with since, until and filters, df counts every record and prune removes exited containers only and asks first unless forced; auth login checks the credential with the registry before storing it where Docker would, refuses a password on the command line, and no password reaches stdout, stderr or an error in any spelling, and logout names an ambient token it cannot clear.
     Given a PRISM_HOME with containers, a project with a prismpm.lock, a Docker config folder and an in-process registry

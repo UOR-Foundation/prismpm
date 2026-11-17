@@ -101,7 +101,7 @@ The Verification API ships in v0.5 as Experimental, issue [#277](https://github.
 Pin the exact version if you use any surface in this section.
 Each moves up one tier at the v0.6 feature freeze ([#291](https://github.com/UOR-Foundation/PrismPM/issues/291)) and is Stable at 1.0 ([#306](https://github.com/UOR-Foundation/PrismPM/issues/306)).
 
-The CLI has no `--unstable-<feature>` flag: `--unstable-author`, where an agent wrote the model, was removed, because every app now comes from one `prism/spec/1` spec through the guided path.
+The CLI has no `--unstable-<feature>` flag: `--unstable-author`, where an agent wrote the model, was removed, because an app's model is now LexLean the agent writes through the `prism` MCP server, checked at every edit.
 This list is the marker: every verb and flag below is Experimental whether or not it carries the prefix.
 A flag marked planned is named here so you can plan for it; its spelling may change before it ships.
 

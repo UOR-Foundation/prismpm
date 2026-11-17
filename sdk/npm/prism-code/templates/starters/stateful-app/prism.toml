@@ -1,0 +1,11 @@
+[application]
+name = "dinner-seats"
+version = "0.1.0"
+description = "Books seats at a dinner for twelve until the host closes the list."
+
+[model]
+source = "src"
+watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]
+
+# Deny by default: an empty set grants the holo nothing.
+[capabilities]

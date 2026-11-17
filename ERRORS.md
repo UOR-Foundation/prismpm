@@ -943,7 +943,9 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `auth.unavailable` |  | `SE-09` | prism.auth reads and writes Docker's credential stores, which this build of prism-code leaves out; use it in Node. |
 | `axioms.probe` |  | `DK-41` | Lean refused the axiom probe, said nothing about a declaration, or left no audit records. |
 | `axioms.project` |  | `DK-41` | The project has no .lex.tex file under its source roots, so there is nothing to audit. |
+| `build.frontend-unavailable` |  | `DK-46` | LexLean's front end is not available: no SDK image on this machine and no PRISM_CODE_TIER=hosted. A Docker-free build waits for LexLean's front end as WebAssembly (Phase 3); the hosted verifier is never chosen for the user. |
 | `build.host-not-allowed` |  | `DK-45` | A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier without PRISM_CODE_TIER=hosted. Nothing was sent, and there is no fallback. |
+| `build.publish-unavailable` |  | `DK-46` | Publishing an app to GitHub is not available until the template's ID rows, scenarios and tests are written from the model's semantic snapshot. |
 | `canonical.algorithm` |  | `DK-41` | The digest algorithm needs node:crypto, which this host does not have; sha256 stays available. |
 | `capabilities.invalid` |  | `AL-07` | A capability file or capability set is malformed, or a set was named without a capability file. |
 | `capabilities.kind` |  | `AL-07` | A capability names a kind this version does not know. |
@@ -1068,6 +1070,12 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `remote.timeout` |  | `DK-41` | The run of the remote build did not end in time; it goes on, and --ref picks it up later. |
 | `remote.workflow` |  | `DK-41` | The commit holds no build workflow, so no remote build can start. |
 | `replay_failed` | `ReplayError` | `CT-12` | A replay could not be carried out or its statement failed. |
+| `rule-table.index` |  | `DK-46` | A field, operator or answer index of the rule app names nothing. |
+| `rule-table.module` |  | `DK-46` | No module, or more than one, of the snapshot defines every definition of a rule app. |
+| `rule-table.range` |  | `DK-46` | A number of the rule app lies outside its field or outside what the rule judge reads in one request. |
+| `rule-table.shape` |  | `DK-46` | A definition of the rule app does not have the shape of its structure. |
+| `rule-table.snapshot` |  | `DK-46` | The input is not a lexlean/semantic-snapshot/2 with its semantic, source and compiler-semantics IDs and its modules. |
+| `rule-table.term` |  | `DK-46` | A definition of the rule app is not literal data: a number, a string, a list or a record. |
 | `session.busy` |  | `HO-45` | A step was started on a session while another step of the same session was still running; steps of one session are taken in order, and the session stays open. |
 | `session.closed` |  | `HO-45` | A step was started on a session that was closed or that a failed step ended; nothing ran, and a new session must be opened. |
 | `session.required` |  | `HO-45` | dispatch was called on an application whose guest is the session world hologram:guest/core-wasm@2; its steps are taken on a session opened with open(). |
@@ -1076,6 +1084,8 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `setup.command` |  | `DK-41` | A setup step's command failed. |
 | `signature_invalid` | `SignatureInvalidError` | `CT-12` | The attestation's signature does not verify. |
 | `signing_failed` | `SigningError` | `CT-12` | Attest could not produce a signature. |
+| `start.exists` |  | `DK-46` | The app folder already holds a LexLean model; no starter is written over it. |
+| `start.starter` |  | `DK-46` | The starter named is not one this package carries, or one of its files is not the bytes its index names. |
 | `subject_mismatch` | `SubjectMismatchError` | `CT-12` | The attestation is about bytes other than the holo. |
 | `system.event` |  | `DK-41` | prism.system.events was given a container action it does not report. |
 | `system.events` |  | `DK-41` | This client has no event bus; prism.system from createPrism() has one. |
@@ -1084,6 +1094,7 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `tier.project` |  | `DK-41` | The LexLean project of a build tier cannot be found: --project is outside the root or has no project file, or more than one project is there. |
 | `transparency_failed` | `TransparencyError` | `CT-12` | The attestation's transparency log entry does not verify. |
 | `trust_root_invalid` | `TrustRootError` | `CT-12` | The trusted root is missing or malformed. |
+| `try.unbuilt` |  | `DK-46` | No app is built yet, so no request is answered; Prism answers only from a built app. |
 | `verification_failed` | `VerificationError` | `CT-12` | No verdict could be reached, or the holo failed a check about the archive itself, its documents or its provenance. |
 | `view.bounds` |  | `OC-11` | The HOLOVIEW bundle is shorter than its header, or an entry or file overruns it. |
 | `view.entry` |  | `OC-11` | The HOLOVIEW entry is not one of the bundled files. |

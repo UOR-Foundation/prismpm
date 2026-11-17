@@ -788,6 +788,13 @@ pub fn run_at(root: &Path, id: &str) {
             ],
             "600000",
         ),
+        // The journey with one source of truth: the app's LexLean model.
+        "DK-46" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/journey-lexlean.test.mjs", 10)],
+            "600000",
+        ),
         // The `prism-code system` and `auth` command groups of #446 and #447.
         "DK-44" => node_suite::verify_exact(
             root,

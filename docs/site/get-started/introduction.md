@@ -51,4 +51,4 @@ A holo is one file with a digest. You build it once and run the same bytes every
 
 - [Quickstart](/docs/get-started/quickstart)
 - [Core concepts](/docs/get-started/core-concepts)
-- [Write the spec](/docs/guides/write-from-examples)
+- [Write the model](/docs/guides/write-the-model)

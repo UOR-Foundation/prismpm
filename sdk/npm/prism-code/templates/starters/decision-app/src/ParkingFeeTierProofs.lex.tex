@@ -1,0 +1,98 @@
+\begin{lexlean}{ParkingFeeTierProofs}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{ParkingFeeTier}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: breaksInv001,
+  parameters: [request : ParkingFeeTier::Request],
+  result: Bool,
+  body: (((((project request hours) <=? 24) && ((project request vehicle) <? 3)) && ((project request vehicle) =? (ParkingFeeTier::vehicleMotorcycle))) && ((ParkingFeeTier::judge request) =? (ParkingFeeTier::answerPremium)))
+}
+
+theorem{
+  name: inv001Holds,
+  parameters: [request : ParkingFeeTier::Request],
+  statement: ((breaksInv001 request) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      ParkingFeeTier::answerFree,
+      ParkingFeeTier::answerPremium,
+      ParkingFeeTier::answerStandard,
+      ParkingFeeTier::judge,
+      ParkingFeeTier::rule1,
+      ParkingFeeTier::rule2,
+      ParkingFeeTier::rule3,
+      ParkingFeeTier::rule4,
+      ParkingFeeTier::vehicleCar,
+      ParkingFeeTier::vehicleMotorcycle,
+      ParkingFeeTier::vehicleTruck,
+      breaksInv001
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv002,
+  parameters: [request : ParkingFeeTier::Request],
+  result: Bool,
+  body: ((((((project request hours) <=? 24) && ((project request vehicle) <? 3)) && ((project request vehicle) =? (ParkingFeeTier::vehicleTruck))) && (0 <? (project request hours))) && (not ((ParkingFeeTier::judge request) =? (ParkingFeeTier::answerPremium))))
+}
+
+theorem{
+  name: inv002Holds,
+  parameters: [request : ParkingFeeTier::Request],
+  statement: ((breaksInv002 request) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      ParkingFeeTier::answerFree,
+      ParkingFeeTier::answerPremium,
+      ParkingFeeTier::answerStandard,
+      ParkingFeeTier::judge,
+      ParkingFeeTier::rule1,
+      ParkingFeeTier::rule2,
+      ParkingFeeTier::rule3,
+      ParkingFeeTier::rule4,
+      ParkingFeeTier::vehicleCar,
+      ParkingFeeTier::vehicleMotorcycle,
+      ParkingFeeTier::vehicleTruck,
+      breaksInv002
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv003,
+  parameters: [request : ParkingFeeTier::Request],
+  result: Bool,
+  body: (((((project request hours) <=? 24) && ((project request vehicle) <? 3)) && ((project request hours) =? 0)) && ((ParkingFeeTier::judge request) =? (ParkingFeeTier::answerStandard)))
+}
+
+theorem{
+  name: inv003Holds,
+  parameters: [request : ParkingFeeTier::Request],
+  statement: ((breaksInv003 request) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      ParkingFeeTier::answerFree,
+      ParkingFeeTier::answerPremium,
+      ParkingFeeTier::answerStandard,
+      ParkingFeeTier::judge,
+      ParkingFeeTier::rule1,
+      ParkingFeeTier::rule2,
+      ParkingFeeTier::rule3,
+      ParkingFeeTier::rule4,
+      ParkingFeeTier::vehicleCar,
+      ParkingFeeTier::vehicleMotorcycle,
+      ParkingFeeTier::vehicleTruck,
+      breaksInv003
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -122,9 +122,9 @@ Run `npx prism-code@latest setup`, then open the leap-year link above from a bro
 
 A link the handler refuses on macOS or Linux has no terminal to show the refusal in, so the refusal is also written to `$PRISM_HOME/handler.log`.
 
-## Write from examples (removed)
+## Write the model
 
-`prism-code build --unstable-author`, where an agent wrote `model/`, was removed. Every app comes from one `prism/spec/1` spec through the guided path, `prism-code mcp`, and Lean proves it on this machine.
+An app's one source of truth is its LexLean model under `prism/src/`. `prism-code mcp` starts it from a content-addressed starter module, the agent writes it, and Lean proves it. A Docker-free build is temporarily unavailable until LexLean's front end runs as WebAssembly (`docs/proposals/canonical-serverless-build.md`, Phase 3).
 
 ## Three calls
 
