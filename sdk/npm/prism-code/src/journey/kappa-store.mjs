@@ -24,7 +24,7 @@ import { isKappa, kappa } from '../uorc.mjs';
 import { proofFacts, proofRealization } from './kappa-rules.mjs';
 
 const enc = new TextEncoder();
-export { PROOF_SCHEMA, derivationKey, proofReferences, reuseAdmits, proofRealization } from './kappa-rules.mjs';
+export { PROOF_SCHEMA, derivationKey, policyLabel, proofKey, proofReferences, reuseAdmits, proofRealization } from './kappa-rules.mjs';
 
 /** Where the store keeps its bytes. `PRISM_KAPPA_DIR` names another place; `PRISM_KAPPA=0` keeps nothing. */
 export const kappaDirectory = (env = process.env) => env.PRISM_KAPPA_DIR || join(prismHome(env), 'kappa');
@@ -75,9 +75,9 @@ export function kappaStore({ env = process.env } = {}) {
 }
 
 /** Keep an accepted proof: its bytes, its realization, and the key that leads to it. Returns the realization's κ-label. */
-export function keepProof(store, { key, kernel, library, statement, text, axioms }) {
+export function keepProof(store, { key, kernel, library, statement, policy, text, axioms }) {
   const bundle = store.put(enc.encode(text));
-  const label = store.put(proofRealization({ key, kernel, library, statement, bundle, axioms }));
+  const label = store.put(proofRealization({ key, kernel, library, statement, policy, bundle, axioms }));
   store.bind(key, label);
   return label;
 }
@@ -87,7 +87,7 @@ export function keepProof(store, { key, kernel, library, statement, text, axioms
  * `facts` is what `reuseAdmits` decides on, and `text` the proof's own bytes
  * as read, when there are any. Nothing here decides; the caller asks the rule.
  */
-export function findProof(store, { key, kernel, library }) {
+export function findProof(store, { key, kernel, library, statement, policy }) {
   const label = store.bound(key);
-  return proofFacts({ key, kernel, library }, label ? store.get(label) : null, (bundle) => store.get(bundle));
+  return proofFacts({ key, kernel, library, statement, policy }, label ? store.get(label) : null, (bundle) => store.get(bundle));
 }

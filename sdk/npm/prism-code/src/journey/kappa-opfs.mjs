@@ -78,15 +78,15 @@ export async function opfsStore({ root = null } = {}) {
 }
 
 /** Keep an accepted proof: its bytes, its realization, and the key that leads to it. Resolves the realization's κ-label. */
-export async function keepProof(store, { key, kernel, library, statement, text, axioms }) {
+export async function keepProof(store, { key, kernel, library, statement, policy, text, axioms }) {
   const bundle = await store.put(enc.encode(text));
-  const name = await store.put(proofRealization({ key, kernel, library, statement, bundle, axioms }));
+  const name = await store.put(proofRealization({ key, kernel, library, statement, policy, bundle, axioms }));
   await store.bind(key, name);
   return name;
 }
 
 /** Look a proof up by its derivation key. Resolves `{ facts, proof, text }`, as `kappa-store.mjs` does; the caller asks the rule. */
-export async function findProof(store, { key, kernel, library }) {
+export async function findProof(store, { key, kernel, library, statement, policy }) {
   const name = await store.bound(key);
   const bytes = name ? await store.get(name) : null;
   let bundle = null;
@@ -98,7 +98,7 @@ export async function findProof(store, { key, kernel, library }) {
       bundle = null;
     }
   }
-  return proofFacts({ key, kernel, library }, bytes, () => bundle);
+  return proofFacts({ key, kernel, library, statement, policy }, bytes, () => bundle);
 }
 
 /** Keep the image of a kernel that loaded its library: the image, its realization, and the key that leads to it. */

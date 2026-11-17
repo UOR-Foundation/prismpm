@@ -20,6 +20,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { parseRepository, tokenSource } from '../github.mjs';
 import { isBound } from './project.mjs';
 import { DEFAULT_SDK_IMAGE } from './sdk.mjs';
+import { buildFetch, hostNotAllowed, refusal } from './hosts.mjs';
 
 export const TEMPLATE_REPOSITORY = 'UOR-Foundation/template';
 /** The template commit the files below are read from. Its prismpm.lock pins DEFAULT_SDK_IMAGE; a test holds the two equal. */
@@ -44,8 +45,9 @@ export async function fetchPinned(path, { fetch = globalThis.fetch } = {}) {
   const url = `${RAW_URL}/${TEMPLATE_REPOSITORY}/${TEMPLATE_COMMIT}/${path}`;
   let response;
   try {
-    response = await fetch(url);
+    response = await buildFetch({ fetch })(url);
   } catch (error) {
+    if (error.code === 'build.host-not-allowed') throw error;
     throw new Error(`${url} did not answer: ${error.cause?.code ?? error.message}`);
   }
   if (!response.ok) throw new Error(`${url} answered HTTP ${response.status}`);
@@ -233,9 +235,13 @@ export async function waitForWorkflows({ repository, sha, workflows, log = () =>
 /** Download the live page's holo once Pages serves it, retrying while the deploy settles. */
 export async function fetchLive({ live, into, fetch = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), attempts = 36 }) {
   const url = new URL('app.holo', live).href;
+  // The user's own Pages site, behind the serverless boundary: refused before any attempt when it is not one.
+  const why = refusal(url);
+  if (why) throw hostNotAllowed(url, why);
+  const get = buildFetch({ fetch });
   for (let i = 0; i < attempts; i++) {
     try {
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await get(url, { cache: 'no-store' });
       if (response.ok) {
         const bytes = new Uint8Array(await response.arrayBuffer());
         mkdirSync(dirname(into), { recursive: true });

@@ -7,8 +7,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compile } from '../src/journey/session.mjs';
 import { kappa } from '../src/uorc.mjs';
-import { PROOF_SCHEMA, derivationKey, findProof, kappaStore, proofRealization, proofReferences, reuseAdmits } from '../src/journey/kappa-store.mjs';
-import { guaranteeStatement, kernelProve, pinnedAddresses, ruleWords } from '../src/journey/kernel-prove.mjs';
+import { derivationKey, findProof, kappaStore, proofKey, proofRealization, proofReferences } from '../src/journey/kappa-store.mjs';
+import { termReusable } from '../src/journey/canonical-rules.mjs';
+import { KERNEL_AXIOMS, guaranteeStatement, kernelProve, openKernel, pinnedAddresses, ruleWords } from '../src/journey/kernel-prove.mjs';
 import { ruleAppRecord } from '../src/journey/rule-app.mjs';
 
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
@@ -60,22 +61,25 @@ test('a derivation key is over a domain and its operands in order, each framed b
 
 test('a proof names every input by κ-label, and they are read back out of it', () => {
   const k = (s) => kappa(enc.encode(s));
-  const bytes = proofRealization({ key: k('key'), kernel: k('kernel'), library: k('library'), statement: k('statement'), bundle: k('bundle'), axioms: ['propext', 'Quot.sound'] });
+  const bytes = proofRealization({ key: k('key'), kernel: k('kernel'), library: k('library'), statement: k('statement'), policy: ['propext', 'Quot.sound'], bundle: k('bundle'), axioms: ['propext', 'Quot.sound'] });
   assert.deepEqual(proofReferences(bytes), [k('kernel'), k('library'), k('statement'), k('bundle')]);
   assert.deepEqual(JSON.parse(new TextDecoder().decode(bytes)).axioms, ['Quot.sound', 'propext']);
-  assert.deepEqual(Object.keys(JSON.parse(new TextDecoder().decode(bytes))), ['schema', 'key', 'kernel', 'library', 'statement', 'bundle', 'axioms']);
+  assert.deepEqual(Object.keys(JSON.parse(new TextDecoder().decode(bytes))), ['schema', 'key', 'kernel', 'library', 'statement', 'policy', 'bundle', 'axioms']);
 });
 
-test('a proof is found once: the same spec again opens no kernel, and the answer and the app are byte for byte the same', { timeout: 120000 }, async () => {
+test('a proof term is produced once: the same spec again produces nothing, the kernel judges every term again, and the app is byte for byte the same', { timeout: 120000 }, async () => {
   const env = home();
   const spec = specOf();
   const first = await kernelProve(spec, { env });
   assert.deepEqual([first.reused, first.judged.map((j) => j.accepted)], [0, [true, true, true]]);
-  // A kernel that must not be opened: any call to it fails the test.
-  const closed = { judge: () => assert.fail('the kernel was asked again') };
+  // A kernel that must not produce a term but still judges every one (model/canonical-build, provedNeedsTheKernelToAcceptTheTermNow).
+  const real = await openKernel();
+  let checked = 0;
+  const closed = { addresses: real.addresses, judge: () => assert.fail('a term was produced again'), check: (text) => (checked++, real.check(text)) };
   const again = await kernelProve(spec, { env, kernel: closed });
   assert.equal(again.reused, 3);
-  assert.deepEqual(again.judged.map((j) => [j.accepted, j.reused, j.axioms]), first.judged.map((j) => [true, true, j.axioms]));
+  assert.equal(checked, 3, 'every reused term was judged by the kernel');
+  assert.deepEqual(again.judged.map((j) => [j.accepted, j.status, j.reused, j.axioms]), first.judged.map((j) => [true, 'proved', true, j.axioms]));
   assert.deepEqual(again.evidence, first.evidence);
   assert.deepEqual(Buffer.from(ruleAppRecord(spec, { proof: again.evidence }).bytes), Buffer.from(ruleAppRecord(spec, { proof: first.evidence }).bytes));
   // Reordering the guarantees proves nothing new: a proof does not depend on where its guarantee sits.
@@ -96,39 +100,49 @@ test('only what changed is proved: an edited guarantee reuses the others, and an
   for (let round = 0; round < 2; round++) assert.deepEqual((await kernelProve(broken, { env })).judged.map((j) => [j.accepted, j.reused])[0], [false, false]);
 });
 
-test('planted defects M2 to M5: a stored proof is reused only under the same key, kernel, library and bytes', { timeout: 120000 }, async () => {
+test('planted defects M2 to M5 and C1 to C3: a stored term is reused only under the same key, kernel, library, statement, policy and bytes', { timeout: 120000 }, async () => {
   const env = home();
   const spec = specOf();
   await kernelProve(spec, { env });
   const store = kappaStore({ env });
   const pinned = pinnedAddresses();
+  const policy = KERNEL_AXIOMS;
   const { words, guarantees } = ruleWords(spec);
   const statement = guaranteeStatement(words, guarantees[0]);
-  const key = derivationKey(PROOF_SCHEMA, [pinned.kernel, pinned.library, statement]);
-  const found = findProof(store, { key, kernel: pinned.kernel, library: pinned.library });
-  assert.equal(reuseAdmits(found.facts), true);
+  const key = proofKey({ kernel: pinned.kernel, library: pinned.library, statement, policy });
+  const ask = (over = {}) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library, statement, policy, ...over });
+  const found = ask();
+  assert.equal(termReusable(found.facts), true);
   assert.equal(found.proof.statement, statement);
   // M2: another kernel is pinned (a new release): nothing proved under the old one is reused.
   const other = kappa(enc.encode('another kernel'));
-  assert.equal(reuseAdmits(findProof(store, { key, kernel: other, library: pinned.library }).facts), false);
-  assert.equal(reuseAdmits(findProof(store, { key, kernel: pinned.kernel, library: other }).facts), false);
-  // M3: a proof kept under one key is put under another: its own bytes name the key it was made for.
-  const elsewhere = derivationKey(PROOF_SCHEMA, [pinned.kernel, pinned.library, guaranteeStatement(words, guarantees[1])]);
+  assert.equal(termReusable(ask({ kernel: other }).facts), false);
+  // C1: a stored proof under a changed library is not reused.
+  assert.equal(termReusable(ask({ library: other }).facts), false);
+  // C2: a weaker, or any other, axiom policy: a term judged under one policy is not reused under another.
+  assert.equal(termReusable(ask({ policy: [...policy, 'Classical.choice'] }).facts), false);
+  assert.equal(termReusable(ask({ policy: ['propext'] }).facts), false);
+  // C3 and M3: a forged proof for a different statement, a term kept for one statement bound under another's key.
+  // Its own bytes name the key and the statement it was made for.
+  const statement1 = guaranteeStatement(words, guarantees[1]);
+  const elsewhere = proofKey({ kernel: pinned.kernel, library: pinned.library, statement: statement1, policy });
   const label = store.bound(key);
   store.bind(elsewhere, label);
-  assert.equal(reuseAdmits(findProof(store, { key: elsewhere, kernel: pinned.kernel, library: pinned.library }).facts), false);
+  const forged = findProof(store, { key: elsewhere, kernel: pinned.kernel, library: pinned.library, statement: statement1, policy });
+  assert.equal(termReusable(forged.facts), false);
+  assert.notEqual(forged.facts.storedStatement, forged.facts.statement);
   // M4: the proof's bytes are altered on disk: what is read no longer has the address the record names.
   const bundle = files(join(store.directory, 'bytes')).find((f) => readFileSync(f, 'utf8').includes('Prism'));
   writeFileSync(bundle, `${readFileSync(bundle, 'utf8')}\n`);
-  const altered = findProof(store, { key, kernel: pinned.kernel, library: pinned.library });
+  const altered = ask();
   assert.equal(altered.facts.derivedBytes, '');
-  assert.equal(reuseAdmits(altered.facts), false);
+  assert.equal(termReusable(altered.facts), false);
   // So the kernel is asked again, and only for the proofs that are gone.
   const again = await kernelProve(spec, { env });
   assert.ok(again.reused < 3);
   assert.deepEqual(again.judged.map((j) => j.accepted), [true, true, true]);
   // M5: a record that is not a proof is not one, whatever key leads to it.
-  const junk = store.put(enc.encode('{"schema":"prism/kernel-proof/1","key":"x"}\n'));
+  const junk = store.put(enc.encode('{"schema":"prism/kernel-proof/2","key":"x"}\n'));
   store.bind(key, junk);
-  assert.equal(findProof(store, { key, kernel: pinned.kernel, library: pinned.library }).facts.present, 0);
+  assert.equal(ask().facts.present, 0);
 });

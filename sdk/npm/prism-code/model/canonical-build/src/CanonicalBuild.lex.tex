@@ -1,0 +1,107 @@
+\begin{lexlean}{CanonicalBuild}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Seal,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: sealedId, type: Nat},
+    {name: recomputedId, type: Nat},
+    {name: kernelNamed, type: Nat},
+    {name: kernelPinned, type: Nat},
+    {name: libraryNamed, type: Nat},
+    {name: libraryPinned, type: Nat},
+    {name: compilerNamed, type: Nat},
+    {name: compilerPinned, type: Nat}
+  ]
+}
+
+definition{
+  name: holoAdmitted,
+  parameters: [s : Seal],
+  result: Bool,
+  body: ((((project s sealedId) =? (project s recomputedId)) && ((project s kernelNamed) =? (project s kernelPinned))) && (((project s libraryNamed) =? (project s libraryPinned)) && ((project s compilerNamed) =? (project s compilerPinned))))
+}
+
+structure{
+  name: Stored,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: present, type: Nat},
+    {name: storedKey, type: Nat},
+    {name: computedKey, type: Nat},
+    {name: storedKernel, type: Nat},
+    {name: kernelPinned, type: Nat},
+    {name: storedLibrary, type: Nat},
+    {name: libraryPinned, type: Nat},
+    {name: storedStatement, type: Nat},
+    {name: statement, type: Nat},
+    {name: storedPolicy, type: Nat},
+    {name: policy, type: Nat},
+    {name: storedBytes, type: Nat},
+    {name: derivedBytes, type: Nat}
+  ]
+}
+
+definition{
+  name: termReusable,
+  parameters: [s : Stored],
+  result: Bool,
+  body: (((((project s present) =? 1) && ((project s storedKey) =? (project s computedKey))) && (((project s storedKernel) =? (project s kernelPinned)) && ((project s storedLibrary) =? (project s libraryPinned)))) && ((((project s storedStatement) =? (project s statement)) && ((project s storedPolicy) =? (project s policy))) && ((project s storedBytes) =? (project s derivedBytes))))
+}
+
+structure{
+  name: Judged,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: hasTerm, type: Nat},
+    {name: termNamed, type: Nat},
+    {name: termDerived, type: Nat},
+    {name: termStatement, type: Nat},
+    {name: statement, type: Nat},
+    {name: kernelRan, type: Nat},
+    {name: kernelAccepted, type: Nat},
+    {name: observedPropext, type: Nat},
+    {name: observedChoice, type: Nat},
+    {name: observedQuot, type: Nat},
+    {name: observedOther, type: Nat},
+    {name: policyPropext, type: Nat},
+    {name: policyChoice, type: Nat},
+    {name: policyQuot, type: Nat},
+    {name: source, type: Nat}
+  ]
+}
+
+definition{
+  name: withinPolicy,
+  parameters: [j : Judged],
+  result: Bool,
+  body: (((((project j observedPropext) =? 0) || ((project j policyPropext) =? 1)) && (((project j observedChoice) =? 0) || ((project j policyChoice) =? 1))) && ((((project j observedQuot) =? 0) || ((project j policyQuot) =? 1)) && ((project j observedOther) =? 0)))
+}
+
+definition{
+  name: proved,
+  parameters: [j : Judged],
+  result: Bool,
+  body: (((((project j hasTerm) =? 1) && ((project j termNamed) =? (project j termDerived))) && ((project j termStatement) =? (project j statement))) && ((((project j kernelRan) =? 1) && ((project j kernelAccepted) =? 1)) && (withinPolicy j)))
+}
+
+definition{name: statusProved, parameters: [], result: Nat, body: 0}
+
+definition{name: statusRefused, parameters: [], result: Nat, body: 1}
+
+definition{name: statusPending, parameters: [], result: Nat, body: 2}
+
+definition{
+  name: status,
+  parameters: [j : Judged],
+  result: Nat,
+  body: (if (proved j) then (statusProved) else (if (((project j hasTerm) =? 1) && ((project j kernelRan) =? 1)) then (statusRefused) else (statusPending)))
+}
+\end{semanticmodule}
+\end{lexlean}

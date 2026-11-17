@@ -1,0 +1,187 @@
+\begin{lexlean}{CanonicalBuildProofs}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{CanonicalBuild}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: breaksSealIdentity,
+  parameters: [s : CanonicalBuild::Seal],
+  result: Bool,
+  body: ((CanonicalBuild::holoAdmitted s) && (not ((project s sealedId) =? (project s recomputedId))))
+}
+
+theorem{
+  name: aHoloIsAdmittedOnlyWhenItsSemanticIdRecomputes,
+  parameters: [s : CanonicalBuild::Seal],
+  statement: ((breaksSealIdentity s) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::holoAdmitted, breaksSealIdentity]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksSealPins,
+  parameters: [s : CanonicalBuild::Seal],
+  result: Bool,
+  body: ((CanonicalBuild::holoAdmitted s) && (((not ((project s kernelNamed) =? (project s kernelPinned))) || (not ((project s libraryNamed) =? (project s libraryPinned)))) || (not ((project s compilerNamed) =? (project s compilerPinned)))))
+}
+
+theorem{
+  name: aHoloIsAdmittedOnlyUnderThePinnedKernelLibraryAndCompiler,
+  parameters: [s : CanonicalBuild::Seal],
+  statement: ((breaksSealPins s) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::holoAdmitted, breaksSealPins]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksReuse,
+  parameters: [s : CanonicalBuild::Stored],
+  result: Bool,
+  body: ((CanonicalBuild::termReusable s) && (((((not ((project s storedKey) =? (project s computedKey))) || (not ((project s storedKernel) =? (project s kernelPinned)))) || (not ((project s storedLibrary) =? (project s libraryPinned)))) || (not ((project s storedStatement) =? (project s statement)))) || (not ((project s storedBytes) =? (project s derivedBytes)))))
+}
+
+theorem{
+  name: aTermIsReusedOnlyUnderTheSameKeyKernelLibraryStatementAndBytes,
+  parameters: [s : CanonicalBuild::Stored],
+  statement: ((breaksReuse s) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::termReusable, breaksReuse]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksReusePolicy,
+  parameters: [s : CanonicalBuild::Stored],
+  result: Bool,
+  body: ((CanonicalBuild::termReusable s) && (not ((project s storedPolicy) =? (project s policy))))
+}
+
+theorem{
+  name: aTermIsNeverReusedAcrossAnotherAxiomPolicy,
+  parameters: [s : CanonicalBuild::Stored],
+  statement: ((breaksReusePolicy s) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::termReusable, breaksReusePolicy]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksNothingStored,
+  parameters: [s : CanonicalBuild::Stored],
+  result: Bool,
+  body: ((CanonicalBuild::termReusable s) && ((project s present) =? 0))
+}
+
+theorem{
+  name: nothingStoredIsNeverReused,
+  parameters: [s : CanonicalBuild::Stored],
+  statement: ((breaksNothingStored s) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::termReusable, breaksNothingStored]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksKernelNow,
+  parameters: [j : CanonicalBuild::Judged],
+  result: Bool,
+  body: ((CanonicalBuild::proved j) && (not (((project j kernelRan) =? 1) && ((project j kernelAccepted) =? 1))))
+}
+
+theorem{
+  name: provedNeedsTheKernelToAcceptTheTermNow,
+  parameters: [j : CanonicalBuild::Judged],
+  statement: ((breaksKernelNow j) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::withinPolicy, breaksKernelNow]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksMissingTerm,
+  parameters: [j : CanonicalBuild::Judged],
+  result: Bool,
+  body: ((CanonicalBuild::proved j) && (not ((project j hasTerm) =? 1)))
+}
+
+theorem{
+  name: aMissingTermIsNeverProved,
+  parameters: [j : CanonicalBuild::Judged],
+  statement: ((breaksMissingTerm j) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::withinPolicy, breaksMissingTerm]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksBinding,
+  parameters: [j : CanonicalBuild::Judged],
+  result: Bool,
+  body: ((CanonicalBuild::proved j) && ((not ((project j termNamed) =? (project j termDerived))) || (not ((project j termStatement) =? (project j statement)))))
+}
+
+theorem{
+  name: provedOnlyForTheTermItsBytesNameAndItsOwnStatement,
+  parameters: [j : CanonicalBuild::Judged],
+  statement: ((breaksBinding j) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::withinPolicy, breaksBinding]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksPolicy,
+  parameters: [j : CanonicalBuild::Judged],
+  result: Bool,
+  body: ((CanonicalBuild::proved j) && ((((((project j observedPropext) =? 1) && (not ((project j policyPropext) =? 1))) || (((project j observedChoice) =? 1) && (not ((project j policyChoice) =? 1)))) || (((project j observedQuot) =? 1) && (not ((project j policyQuot) =? 1)))) || (not ((project j observedOther) =? 0))))
+}
+
+theorem{
+  name: provedOnlyWithinTheTheoremsExactAxiomPolicy,
+  parameters: [j : CanonicalBuild::Judged],
+  statement: ((breaksPolicy j) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::withinPolicy, breaksPolicy]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksSourceBlind,
+  parameters: [j : CanonicalBuild::Judged, k : CanonicalBuild::Judged],
+  result: Bool,
+  body: (((((((((((((((((project j hasTerm) =? (project k hasTerm)) && ((project j termNamed) =? (project k termNamed))) && ((project j termDerived) =? (project k termDerived))) && ((project j termStatement) =? (project k termStatement))) && ((project j statement) =? (project k statement))) && ((project j kernelRan) =? (project k kernelRan))) && ((project j kernelAccepted) =? (project k kernelAccepted))) && ((project j observedPropext) =? (project k observedPropext))) && ((project j observedChoice) =? (project k observedChoice))) && ((project j observedQuot) =? (project k observedQuot))) && ((project j observedOther) =? (project k observedOther))) && ((project j policyPropext) =? (project k policyPropext))) && ((project j policyChoice) =? (project k policyChoice))) && ((project j policyQuot) =? (project k policyQuot))) && (CanonicalBuild::proved j)) && (not (CanonicalBuild::proved k)))
+}
+
+theorem{
+  name: whereATermCameFromNeverDecidesItsVerdict,
+  parameters: [j : CanonicalBuild::Judged, k : CanonicalBuild::Judged],
+  statement: ((breaksSourceBlind j k) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::withinPolicy, breaksSourceBlind]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksStatus,
+  parameters: [j : CanonicalBuild::Judged],
+  result: Bool,
+  body: (((CanonicalBuild::status j) =? (CanonicalBuild::statusProved)) && (not (CanonicalBuild::proved j)))
+}
+
+theorem{
+  name: provedStatusMeansProved,
+  parameters: [j : CanonicalBuild::Judged],
+  statement: ((breaksStatus j) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::status, CanonicalBuild::statusPending, CanonicalBuild::statusProved, CanonicalBuild::statusRefused, CanonicalBuild::withinPolicy, breaksStatus]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksPending,
+  parameters: [j : CanonicalBuild::Judged],
+  result: Bool,
+  body: (((project j hasTerm) =? 0) && (not ((CanonicalBuild::status j) =? (CanonicalBuild::statusPending))))
+}
+
+theorem{
+  name: noTermIsPendingNeverRefusedOrProved,
+  parameters: [j : CanonicalBuild::Judged],
+  statement: ((breaksPending j) = false),
+  proof: linear_arithmetic{definitions: [CanonicalBuild::proved, CanonicalBuild::status, CanonicalBuild::statusPending, CanonicalBuild::statusProved, CanonicalBuild::statusRefused, CanonicalBuild::withinPolicy, breaksPending]},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

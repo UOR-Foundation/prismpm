@@ -775,6 +775,16 @@ pub fn run_at(root: &Path, id: &str) {
             &[("sdk/npm/prism-code/test/system.test.mjs", 20)],
             "600000",
         ),
+        // The canonical build's proved rules and its serverless boundary.
+        "DK-45" => node_suite::verify_exact(
+            root,
+            id,
+            &[
+                ("sdk/npm/prism-code/test/canonical-build-model.test.mjs", 6),
+                ("sdk/npm/prism-code/test/serverless-boundary.test.mjs", 6),
+            ],
+            "600000",
+        ),
         // The `prism-code system` and `auth` command groups of #446 and #447.
         "DK-44" => node_suite::verify_exact(
             root,

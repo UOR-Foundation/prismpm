@@ -1,0 +1,6 @@
+name = "PrismCanonicalBuild"
+version = "0.1.0"
+defaultTargets = ["PrismCanonicalBuild"]
+
+[[lean_lib]]
+name = "PrismCanonicalBuild"

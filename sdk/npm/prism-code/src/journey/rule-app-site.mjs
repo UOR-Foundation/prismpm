@@ -39,7 +39,8 @@ function startScript() {
   return `// Written by prism-code. The record decides nothing here: the functions below do, and they are the package's own.
 import { loadArchive } from './prism-code/src/index.mjs';
 import { HOLDS, KERNEL_AXIOMS, proofLines, readLibrary } from './prism-code/src/journey/kernel-terms.mjs';
-import { PROOF_SCHEMA, derivationKey, guaranteeStatement, reuseAdmits } from './prism-code/src/journey/kappa-rules.mjs';
+import { derivationKey, guaranteeStatement, proofKey, reuseAdmits } from './prism-code/src/journey/kappa-rules.mjs';
+import { judgedFacts, proved, termReusable } from './prism-code/src/journey/canonical-rules.mjs';
 import { findImage, findProof, keepImage, keepProof, opfsStore } from './prism-code/src/journey/kappa-opfs.mjs';
 import { IMAGE_SCHEMA, encodeImage, restoreImage } from './prism-code/src/journey/kernel-image.mjs';
 
@@ -134,9 +135,9 @@ function values(record) {
 
 /**
  * Lean's kernel, here: every guarantee is written as kernel terms and judged in this page. The kernel, its loader and
- * its library are used only when their bytes have the addresses the manifest names. A guarantee this browser's kernel
- * already accepted is not judged again when reuseAdmits allows it: the same key, kernel, library and proof bytes.
- * When every guarantee is found, the kernel is not fetched or opened at all. A kernel that loaded this library in
+ * its library are used only when their bytes have the addresses the manifest names. A term this browser's kernel
+ * accepted before is not produced again when termReusable allows it (the same key, kernel, library, statement, axiom
+ * policy and bytes), but it is judged again here: a guarantee is proved only by what the kernel accepts now. A kernel that loaded this library in
  * this browser before is kept as an image of its memory, and laid over a fresh kernel instead of loading the library
  * again when reuseAdmits allows it. Resolves { accepted, reused, library, keep }: library says whether the library
  * was loaded or its image laid, and keep, when there is one, keeps the image of a load for the next visit.
@@ -146,12 +147,10 @@ async function prove(record) {
   const pinned = { kernel: 'sha256:' + manifest.wasm.sha256, library: 'sha256:' + manifest.library.sha256 };
   const keys = record.guarantees.map((guarantee) => {
     const statement = guaranteeStatement(record.words, guarantee);
-    return { statement, key: derivationKey(PROOF_SCHEMA, [pinned.kernel, pinned.library, statement]) };
+    return { statement, key: proofKey({ kernel: pinned.kernel, library: pinned.library, statement, policy: KERNEL_AXIOMS }) };
   });
-  const found = await Promise.all(keys.map(({ key }) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library })));
-  const reusable = found.map((f) => reuseAdmits(f.facts));
-  const holds = (axioms) => Array.isArray(axioms) && axioms.every((a) => KERNEL_AXIOMS.includes(a));
-  if (reusable.every(Boolean)) return { accepted: found.map((f) => holds(f.proof.axioms)), reused: found.length, library: null, keep: null };
+  const found = await Promise.all(keys.map(({ key, statement }) => findProof(store, { key, kernel: pinned.kernel, library: pinned.library, statement, policy: KERNEL_AXIOMS })));
+  const reusable = found.map((f) => termReusable(f.facts));
   const file = (entry) => named('sha256:' + entry.sha256, async () => unpack(await fetch('./kernel/' + entry.file, { cache: 'no-store' })));
   const [glue, wasm, library] = await Promise.all([manifest.glue, manifest.wasm, manifest.library].map(file));
   const [g, w, l] = (await Promise.all([glue, wasm, library].map(sha256))).map((label) => label.slice(7));
@@ -190,13 +189,16 @@ async function prove(record) {
   const lib = readLibrary(dec.decode(library));
   const accepted = [];
   for (const [i, guarantee] of record.guarantees.entries()) {
-    if (reusable[i]) { accepted.push(holds(found[i].proof.axioms)); continue; }
-    const text = proofLines(lib, record.words, guarantee);
-    const r = run('check_suffix', enc.encode(text));
+    const text = reusable[i] ? found[i].text : proofLines(lib, record.words, guarantee);
+    const bytes = enc.encode(text);
+    // Every term is judged here, reused or produced: a guarantee is proved only by what this kernel accepts now.
+    const r = run('check_suffix', bytes);
     const axioms = r.axioms[HOLDS] || null;
-    // Only an accepted proof is kept: a refusal carries no bytes that could be checked again.
-    if (r.exit === 0 && axioms !== null) await keepProof(store, { key: keys[i].key, kernel: 'sha256:' + w, library: 'sha256:' + l, statement: keys[i].statement, text, axioms });
-    accepted.push(r.exit === 0 && holds(axioms));
+    const derived = await sha256(bytes);
+    const facts = judgedFacts({ hasTerm: true, termNamed: reusable[i] ? found[i].facts.storedBytes : derived, termDerived: derived, termStatement: reusable[i] ? found[i].proof.statement : keys[i].statement, statement: keys[i].statement, kernelRan: true, kernelAccepted: r.exit === 0 && axioms !== null, axioms, policy: KERNEL_AXIOMS, source: reusable[i] ? 2 : 0 });
+    // Only a proved term is kept, once.
+    if (proved(facts) && !reusable[i]) await keepProof(store, { key: keys[i].key, kernel: 'sha256:' + w, library: 'sha256:' + l, statement: keys[i].statement, policy: KERNEL_AXIOMS, text, axioms });
+    accepted.push(proved(facts));
   }
   const keep = image && !store.off ? () => keepImage(store, { key: imageKey, ...labels, bytes: encodeImage(image) }) : null;
   return { accepted, reused: reusable.filter(Boolean).length, library: laid ? 'image' : 'loaded', keep };
@@ -248,7 +250,7 @@ if (!admits(app.facts)) {
         const { accepted, reused, library, keep } = await prove(app.record);
         const all = accepted.every(Boolean);
         window.prismRuleApp.proved = { accepted, reused, library, ms: Math.round(performance.now() - started) };
-        const earlier = (reused === 0 ? '' : (reused === count ? 'All' : reused + ' of them') + ' were proved on an earlier visit, under this same kernel and library, and are not proved again. ') + (library === 'image' ? 'The kernel\\'s library was checked on an earlier visit and is not checked again. ' : '');
+        const earlier = (reused === 0 ? '' : (reused === count ? 'All' : reused + ' of them') + ' were found on an earlier visit and judged again here by the kernel. ') + (library === 'image' ? 'The kernel\\'s library was checked on an earlier visit and is not checked again. ' : '');
         say('status', (all ? 'Proved here by Lean\\'s kernel, in this browser: ' + count + ' guarantee' + (count === 1 ? ' holds' : 's hold') + ' for every request in the bounds. ' + earlier : 'Lean\\'s kernel, in this browser, did not accept ' + accepted.filter((a) => !a).length + ' of ' + count + ' guarantees. ') + tail, all ? 'checked' : 'refused');
         // The image of this load is kept after the answer is on screen, so keeping it never delays the proof.
         if (keep) setTimeout(() => keep().catch(() => {}), 0);
@@ -328,7 +330,7 @@ export function writeRuleAppSite(directory, recordBytes, { holo = null } = {}) {
   ]);
   for (const file of browserClosure()) files.set(`prism-code/src/${file}`, readFileSync(join(SRC, file)));
   // Lean's kernel, its library and the writer of the proof terms, so the page proves the guarantees itself.
-  for (const name of ['kernel-terms.mjs', 'kappa-rules.mjs', 'kappa-opfs.mjs', 'kernel-image.mjs']) files.set(`prism-code/src/journey/${name}`, readFileSync(join(SRC, 'journey', name)));
+  for (const name of ['kernel-terms.mjs', 'kappa-rules.mjs', 'canonical-rules.mjs', 'kappa-opfs.mjs', 'kernel-image.mjs']) files.set(`prism-code/src/journey/${name}`, readFileSync(join(SRC, 'journey', name)));
   files.set('kernel/manifest.json', readFileSync(join(SRC, 'journey', 'kernel', 'manifest.json')));
   for (const name of ['lean-kernel.mjs.gz', 'lean-kernel.wasm.gz', 'library.ndjson.gz']) files.set(`kernel/${name}`, Buffer.from(readKernelFile(name)));
   files.set('index.html', Buffer.from(indexHtml(record, [...files.keys()].filter((path) => path.startsWith('prism-code/') && path.endsWith('.mjs')).sort())));

@@ -1,0 +1,89 @@
+/**
+ * The serverless boundary. A build may read static files over plain HTTPS GET
+ * from GitHub (the pinned kernel and template, the public proof store, the
+ * user's own repository and Pages site) and nothing else. No UOR-run server is
+ * on any path: `mcp.uor.foundation` is reachable only when the user opts in to
+ * it by name (PRISM_CODE_TIER=hosted), and only by the hosted client.
+ *
+ * Every network read of a build goes through `buildFetch`, which refuses any
+ * other host before a byte is sent with `build.host-not-allowed`, and keeps a
+ * ledger of the hosts asked and the bytes received, so a build can report them.
+ * There is no fallback: a refused host fails the step that asked for it.
+ */
+import { PrismCodeError } from '../errors.mjs';
+
+/** The hosts a build reads static files from, by exact name. */
+export const STATIC_HOSTS = Object.freeze(['raw.githubusercontent.com', 'github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']);
+/** The user's own Pages site, `<owner>.github.io`. */
+const PAGES = /^[a-z0-9](?:[a-z0-9-]{0,38})\.github\.io$/;
+/** The hosted verifier: a UOR-run server, so only on the user's opt-in by name. */
+export const HOSTED_HOST = 'mcp.uor.foundation';
+
+/** A build asked a host outside the boundary: a `PrismCodeError` with code `build.host-not-allowed`. Nothing was sent. */
+export function hostNotAllowed(url, why) {
+  const message = `${url} is outside a Prism build's serverless boundary (${why}); nothing was sent. A build reads static files from GitHub only${why === 'hosted' ? `, and ${HOSTED_HOST} only when PRISM_CODE_TIER=hosted names it` : ''}.`;
+  return Object.assign(new PrismCodeError('build.host-not-allowed', message), { url });
+}
+
+/** Why `url` may not be asked, or null when it may. `optIn` names the hosts the user opted in to. */
+export function refusal(url, { optIn = [] } = {}) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return 'not a URL';
+  }
+  if (u.protocol !== 'https:') return 'not HTTPS';
+  if (u.username || u.password) return 'carries credentials';
+  if (u.port) return 'names a port';
+  const host = u.hostname.toLowerCase();
+  if (STATIC_HOSTS.includes(host) || PAGES.test(host)) return null;
+  if (host === HOSTED_HOST) return optIn.includes(HOSTED_HOST) ? null : 'hosted';
+  return 'not an allowed host';
+}
+
+/** The hosts the user opted in to, from the environment. Only PRISM_CODE_TIER=hosted opts in, and only to the hosted verifier. */
+export const optedIn = (env = process.env) => (env.PRISM_CODE_TIER === 'hosted' ? [HOSTED_HOST] : []);
+
+/** A ledger of what a build asked of the network: each host, its requests and the bytes received. */
+export function networkLedger() {
+  const hosts = new Map();
+  return {
+    note(url, bytes) {
+      const host = new URL(url).hostname;
+      const h = hosts.get(host) ?? { host, requests: 0, bytes: 0 };
+      h.requests += 1;
+      h.bytes += bytes;
+      hosts.set(host, h);
+    },
+    report: () => [...hosts.values()].sort((a, b) => a.host.localeCompare(b.host)),
+    bytes: () => [...hosts.values()].reduce((n, h) => n + h.bytes, 0),
+  };
+}
+
+/** The ledger of this process, which `buildFetch` writes to unless given another. */
+export const processLedger = networkLedger();
+
+/**
+ * `fetch` behind the boundary. A request to a host outside it throws
+ * `build.host-not-allowed` before anything is sent; an allowed one is made with the
+ * given `fetch`, and the bytes of its body are counted when it is read whole.
+ */
+export function buildFetch({ fetch = globalThis.fetch, optIn = [], ledger = processLedger } = {}) {
+  return async (input, init) => {
+    const url = typeof input === 'string' ? input : input?.url ?? String(input);
+    const why = refusal(url, { optIn });
+    if (why) throw hostNotAllowed(url, why);
+    const response = await fetch(input, init);
+    const count = (bytes) => (ledger.note(url, bytes), bytes);
+    return new Proxy(response, {
+      get(target, prop) {
+        if (prop === 'arrayBuffer') return async () => { const b = await target.arrayBuffer(); count(b.byteLength); return b; };
+        if (prop === 'text') return async () => { const t = await target.text(); count(new TextEncoder().encode(t).length); return t; };
+        if (prop === 'json') return async () => { const t = await target.text(); count(new TextEncoder().encode(t).length); return JSON.parse(t); };
+        const v = Reflect.get(target, prop, target);
+        return typeof v === 'function' ? v.bind(target) : v;
+      },
+    });
+  };
+}

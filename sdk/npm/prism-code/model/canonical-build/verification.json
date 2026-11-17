@@ -1,0 +1,124 @@
+{
+  "schema": "prism/model-verification/1",
+  "project": "prism-canonical-build",
+  "command": "lexlean lock && lexlean verify --all",
+  "image": "ghcr.io/uor-foundation/prismpm-sdk-candidate@sha256:cd3b47d7a370c4a26b8285f5e9c3bb15e639973c55505c3809ddbe55352fea58",
+  "lean": "4.32.1",
+  "result": "verified 2 modules",
+  "attestation": "fc3cfac72a217767df6ef558fe0701fc63ca21d7aa4c5563ef39664b1831766e",
+  "sources": {
+    "lexlean.toml": "sha256:9450f59f19d87e5ef10806559772c663561ab8ba85fb51054ddd91e12d88727f",
+    "lexlean.lock": "sha256:4719d8156095db5f36fcfab59342cd3d682d94ac367b4ee3029300fb52e4c378",
+    "src/CanonicalBuild.lex.tex": "sha256:1f13f693006bf5a11ee7805f129037123839b02150f5a4c403b230b81cc239bb",
+    "src/CanonicalBuildProofs.lex.tex": "sha256:232a87f95f326b6cfae4af7d9bc53cf3aca4e7cbfff9f88fe6abad58a643f963"
+  },
+  "theorems": [
+    {
+      "name": "aHoloIsAdmittedOnlyWhenItsSemanticIdRecomputes",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aHoloIsAdmittedOnlyUnderThePinnedKernelLibraryAndCompiler",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aTermIsReusedOnlyUnderTheSameKeyKernelLibraryStatementAndBytes",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aTermIsNeverReusedAcrossAnotherAxiomPolicy",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "nothingStoredIsNeverReused",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "provedNeedsTheKernelToAcceptTheTermNow",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aMissingTermIsNeverProved",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "provedOnlyForTheTermItsBytesNameAndItsOwnStatement",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "provedOnlyWithinTheTheoremsExactAxiomPolicy",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "whereATermCameFromNeverDecidesItsVerdict",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "provedStatusMeansProved",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "noTermIsPendingNeverRefusedOrProved",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    }
+  ],
+  "plantedDefects": [
+    {
+      "defect": "In CanonicalBuild.proved, `(((project j kernelRan) =? 1) && ((project j kernelAccepted) =? 1))` replaced by `((project j kernelRan) =? 1)`: a run of the kernel counts as proof whatever it answered.",
+      "command": "lexlean lock && lexlean verify --all",
+      "diagnostic": "error[LLV7002]: Lean rejected `PrismCanonicalBuild.CanonicalBuildProofs` (error): omega could not prove the goal",
+      "rejected": [
+        "provedNeedsTheKernelToAcceptTheTermNow"
+      ],
+      "restored": "verified 2 modules"
+    },
+    {
+      "defect": "In CanonicalBuild.termReusable, the conjunct `((project s storedPolicy) =? (project s policy))` removed: a stored term is reused under another axiom policy.",
+      "command": "lexlean lock && lexlean verify --all",
+      "diagnostic": "error[LLV7002]: Lean rejected `PrismCanonicalBuild.CanonicalBuildProofs` (error): omega could not prove the goal",
+      "rejected": [
+        "aTermIsNeverReusedAcrossAnotherAxiomPolicy"
+      ],
+      "restored": "verified 2 modules"
+    }
+  ]
+}
