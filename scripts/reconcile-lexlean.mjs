@@ -7,8 +7,8 @@ import {dirname, join, relative, resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
-// The LexLean package version this repository selects (the v0.4.0 tag).
-export const LEXLEAN_VERSION='0.4.0';
+// The LexLean package version this repository selects (the v0.4.3 tag).
+export const LEXLEAN_VERSION='0.4.3';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const run = (command,args,cwd) => {
@@ -161,7 +161,7 @@ export function reconcile(repoRoot, lexRoot, revision) {
   assert.equal(identity.spec,'lexlean/release-identity/1');
   assert.equal(identity.package,'lexlean');
   assert.equal(identity.version,LEXLEAN_VERSION);
-  assert.equal(identity.lean_toolchain,'leanprover/lean4:v4.32.1');
+  assert.equal(identity.lean_toolchain,'leanprover/lean4:v4.32.2');
   const version=identity.version, crateName=`lexlean-${version}.crate`;
   const crateBytes=readFileSync(join(lexRoot,'release/lexlean.crate'));
   assert.equal(sha(crateBytes),identity.crate_sha256,'LexLean release identity crate digest drift');

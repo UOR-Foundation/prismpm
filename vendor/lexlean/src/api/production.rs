@@ -1000,24 +1000,31 @@ fn manifest_for(
         .functions
         .get(usize::try_from(entry).map_err(|error| error.to_string())?)
         .ok_or_else(|| format!("the program has no function {entry}"))?;
+    let exports = vec![Export {
+        function: entry,
+        name: EXPORT_NAME.to_owned(),
+        parameters: vec![Passing::Own; function.types.len()],
+        errors: if fallible.get(entry as usize).copied().unwrap_or(false) {
+            Errors::Overflow
+        } else {
+            Errors::None
+        },
+    }];
+    // A root of the type of a command's step is a command: its package gets
+    // a driver. A root of any other type is an ordinary pure root and gets
+    // none, so no error code is needed to tell them apart (§17.13).
+    let command = target == "rust-std"
+        && crate::calculus::rust::host::recognize(program, &exports, EXPORT_NAME).is_ok();
     Ok(Manifest {
         spec: package::MANIFEST_SPEC.to_owned(),
         name: package.name.clone(),
         version: package.version.clone(),
         profile: target.to_owned(),
         program: program.clone(),
-        exports: vec![Export {
-            function: entry,
-            name: EXPORT_NAME.to_owned(),
-            parameters: vec![Passing::Own; function.types.len()],
-            errors: if fallible.get(entry as usize).copied().unwrap_or(false) {
-                Errors::Overflow
-            } else {
-                Errors::None
-            },
-        }],
+        exports,
         sources: vec![semantic_id.to_hex()],
         effects,
+        entry: command.then(|| EXPORT_NAME.to_owned()),
     })
 }
 
@@ -1061,6 +1068,7 @@ fn build_inner(
     request: &ProductionRequest,
 ) -> Result<ProductionOutput, LexLeanError> {
     request.validate()?;
+    crate::production::preserve::require_library().map_err(LexLeanError::from_diagnostic)?;
     let project = &engine.project;
     let (checked, _lock) = engine.checked(&Selection::Entrypoints)?;
     let lock_bytes =
@@ -1983,14 +1991,14 @@ mod tests {
                         "lean",
                         Json::object(vec![(
                             "version_output",
-                            Json::Str("Lean (version 4.32.1, release)".to_owned()),
+                            Json::Str("Lean (version 4.32.2, release)".to_owned()),
                         )]),
                     ),
                     (
                         "lake",
                         Json::object(vec![(
                             "version_output",
-                            Json::Str("Lake version 5.0.0 (Lean version 4.32.1)".to_owned()),
+                            Json::Str("Lake version 5.0.0 (Lean version 4.32.2)".to_owned()),
                         )]),
                     ),
                 ]),
@@ -2119,21 +2127,25 @@ mod tests {
     fn attestation_facts_refuses_foreign_or_colliding_lean_versions() {
         for (tool, banner) in [
             ("lean", ""),
-            ("lean", "unrecognized banner 4.32.1"),
+            ("lean", "unrecognized banner 4.32.2"),
+            ("lean", "Lean (version 4.32.1, release)"),
+            ("lean", "Lean (version 4.32.20, release)"),
             ("lean", "Lean (version 4.32.10, release)"),
-            ("lean", "Lean (version 4.32.1-rc1, release)"),
-            ("lean", "Lean (version 4.31.0, built with 4.32.1)"),
-            ("lean", "Lean (version 4.32.1, release"),
-            ("lean", "Lean (version 4.32.1, release)\nextra output"),
+            ("lean", "Lean (version 4.32.2-rc1, release)"),
+            ("lean", "Lean (version 4.31.0, built with 4.32.2)"),
+            ("lean", "Lean (version 4.32.2, release"),
+            ("lean", "Lean (version 4.32.2, release)\nextra output"),
             ("lake", ""),
-            ("lake", "unrecognized banner 4.32.1"),
+            ("lake", "unrecognized banner 4.32.2"),
+            ("lake", "Lake version 5.0.0 (Lean version 4.32.1)"),
+            ("lake", "Lake version 5.0.0 (Lean version 4.32.20)"),
             ("lake", "Lake version 5.0.0 (Lean version 4.32.10)"),
-            ("lake", "Lake version 5.0.0 (Lean version 4.32.1-rc1)"),
-            ("lake", "Lake version 4.32.1 (Lean version 4.31.0)"),
-            ("lake", "Lake version 5.0.0 (Lean version 4.32.1"),
+            ("lake", "Lake version 5.0.0 (Lean version 4.32.2-rc1)"),
+            ("lake", "Lake version 4.32.2 (Lean version 4.31.0)"),
+            ("lake", "Lake version 5.0.0 (Lean version 4.32.2"),
             (
                 "lake",
-                "Lake version 5.0.0 (Lean version 4.32.1)\nextra output",
+                "Lake version 5.0.0 (Lean version 4.32.2)\nextra output",
             ),
         ] {
             let bytes = edited_attestation(

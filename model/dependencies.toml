@@ -34,20 +34,20 @@ sha256 = "7cffc0251ee01ce97debe304a41a4e28f6be94ba41691fac1993c811919cdc21"
 
 [[dependency]]
 id = "lexlean"
-version = "0.4.0"
-revision = "e0b74b81e6f49c83596a957d232c8383a5db1a25"
+version = "0.4.3"
+revision = "fa271080652887976ae25d0aef84edc7472b0276"
 source = "vendored"
 
 [[dependency.artifact]]
 kind = "tree-manifest"
 path = "vendor/lexlean/MANIFEST.sha256"
-sha256 = "dd35c1b0359c90c5896c5188c9e10bb4008883cb21ee92d35bc2fd4c8d4ac759"
+sha256 = "b1864a366491a39477ed0dce2603f8ee4687e44cae37202de9a8fb4b605ec66b"
 tree_root = "vendor/lexlean"
 
 [[dependency.artifact]]
 kind = "file"
-path = "vendor/lexlean/lexlean-0.4.0.crate"
-sha256 = "f2d579289052493d2c68274b10015d2cce544a78fbb876d73062184f09fb0a18"
+path = "vendor/lexlean/lexlean-0.4.3.crate"
+sha256 = "51b094a3b30cac06e15e05018a5f475125560cfdbe3373c00d7232e611c15dc1"
 
 [[dependency]]
 id = "hologram-live"

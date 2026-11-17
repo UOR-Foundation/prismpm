@@ -541,7 +541,7 @@ mod tests {
             lexlean::LEAN_TOOLCHAIN,
             format!("leanprover/lean4:{}", pinned["lean"].as_str().unwrap())
         );
-        assert_eq!(pinned["lexlean"], "0.4.0");
+        assert_eq!(pinned["lexlean"], "0.4.3");
     }
 
     #[test]

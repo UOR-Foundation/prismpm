@@ -249,8 +249,20 @@ fn file_row(kind: &str, path: &str, bytes: &[u8]) -> FileRow {
 
 /// Render the complete platform-independent build artifact set from a
 /// checked project (§21.5, §21.6). No Lean process runs here (CL-05).
-#[allow(clippy::too_many_lines)]
+/// The printers recurse once per level of what the compile thread admitted,
+/// so they run on a stack of the same size (§25.5).
 pub fn render_build(
+    project: &Project,
+    checked: &CheckedProject,
+) -> Result<RenderedBuild, LexLeanError> {
+    crate::on_stack(
+        project.config.limits.compile_stack_plan().stack_bytes,
+        || render_build_inline(project, checked),
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn render_build_inline(
     project: &Project,
     checked: &CheckedProject,
 ) -> Result<RenderedBuild, LexLeanError> {
@@ -265,6 +277,28 @@ pub fn render_build(
     let aliases = crate::backend::lean::DocumentAliases::of_documents(
         checked.modules.values().map(|module| &module.document),
     );
+    // §21.9: every declaration of a language-1.2 semantic module is named by
+    // its content and the IDs of the project declarations it references.
+    let declaration_rows = if project.config.language == "1.2" {
+        let semantic: Vec<(&str, &crate::ir::semantic::SemanticModule)> = checked
+            .modules
+            .iter()
+            .filter_map(|(name, module)| {
+                module
+                    .document
+                    .semantic
+                    .as_ref()
+                    .map(|semantic| (name.as_str(), semantic))
+            })
+            .collect();
+        crate::artifact::declaration_id::declaration_ids(
+            crate::compiler_semantics_id_for(&project.config.language),
+            &project.config.language,
+            &semantic,
+        )
+    } else {
+        BTreeMap::new()
+    };
     let mut report_total: u64 = 0;
     for (name, checked_module) in &checked.modules {
         let lean_emitter = crate::backend::lean::render_module(
@@ -416,6 +450,18 @@ pub fn render_build(
             files.push((production_path, production_bytes));
         }
 
+        if let Some(rows) = declaration_rows.get(name) {
+            let declarations_path = format!("declarations/{module_path}.json");
+            let declarations_bytes =
+                crate::artifact::declaration_id::declarations_json(name, rows).to_file_bytes();
+            outputs.push(file_row(
+                "declarations",
+                &declarations_path,
+                &declarations_bytes,
+            ));
+            files.push((declarations_path, declarations_bytes));
+        }
+
         manifest_modules.push(ModuleRow {
             module: name.clone(),
             lean_module: lean_module.clone(),
@@ -532,6 +578,7 @@ pub(crate) struct MutationGuard {
 
 /// Acquire the project mutation lock at `<build_root>/.lock` (§21.8). The
 /// build root's components are checked for symlinks first (§25.1).
+#[cfg(not(target_os = "wasi"))]
 fn acquire_lock(project: &Project) -> Result<MutationGuard, LexLeanError> {
     use fs4::fs_std::FileExt;
     let build_root = project
@@ -556,6 +603,17 @@ fn acquire_lock(project: &Project) -> Result<MutationGuard, LexLeanError> {
     file.lock_exclusive()
         .map_err(|io_error| host_failure(format!("{lock_relative}: {io_error}")))?;
     Ok(MutationGuard { _file: file })
+}
+
+/// WASI has no file lock, and a WASI host may share its directories with
+/// other processes, so a command that changes the project is refused there
+/// before it touches anything rather than run without the lock (§8.3, §21.8).
+#[cfg(target_os = "wasi")]
+fn acquire_lock(project: &Project) -> Result<MutationGuard, LexLeanError> {
+    Err(host_failure(format!(
+        "{}/.lock: this host has no file lock, so it runs no command that changes the project",
+        project.config.build_root
+    )))
 }
 
 /// Publish a rendered build atomically at its content-addressed path
@@ -1022,6 +1080,18 @@ impl Engine {
         let operational = crate::verify::operational::Operational::from_environment()
             .map_err(LexLeanError::from_diagnostic)?;
         let (mut checked, lock) = self.checked(&request.selection)?;
+        // A project with a production root is certified, which needs the
+        // native library; a build without it refuses here, before a build is
+        // rendered or published (§8.4), not partway through verification.
+        if checked
+            .modules
+            .values()
+            .filter_map(|module| module.production.as_ref())
+            .any(|report| !report.roots.is_empty())
+        {
+            crate::production::preserve::require_library()
+                .map_err(LexLeanError::from_diagnostic)?;
+        }
         let mut rendered = render_build(&self.project, &checked)?;
         // Rendering is the last consumer of parser atoms,
         // declaration-origin tables, visibility sets, and the core

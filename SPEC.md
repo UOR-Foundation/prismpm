@@ -1286,9 +1286,9 @@ and verification are offline. Canonical platform-independent artifacts contain
 no absolute checkout path, hostname, locale text, random identifier, timestamp,
 or traversal-order dependence.
 
-The only imported Lean-source exception is the registered LexLean 0.4.0 package
-at revision `e0b74b81e6f49c83596a957d232c8383a5db1a25`, the commit of the
-annotated `v0.4.0` tag, from which the LexLean v0.4.0 release was cut.
+The only imported Lean-source exception is the registered LexLean 0.4.3 package
+at revision `fa271080652887976ae25d0aef84edc7472b0276`, the commit the
+annotated `v0.4.3` tag names, from which the LexLean v0.4.3 release was cut.
 Its exact 4-file compiler-authority closure is the following paths under
 `vendor/lexlean/language/preservation-1.2/`:
 `modules/LexLeanTarget/{RustSemantics,RustSyntax,TargetSemantics,TargetSyntax}.lean`.
@@ -1303,7 +1303,7 @@ revision and crate path, and clean package VCS provenance. It then independently
 decodes the registered archive and requires the exact 4-member Lean set and
 complete archive-member/tree-manifest membership and byte equality, including
 the package VCS file and every non-Lean file. Only the extracted tree's root
-`MANIFEST.sha256` and `lexlean-0.4.0.crate`, added by the normal package importer,
+`MANIFEST.sha256` and `lexlean-0.4.3.crate`, added by the normal package importer,
 are excluded from archive membership; no nested path or `target/` is excluded.
 Duplicate, traversing, aliased, nonregular, missing, substituted or additional
 Lean members are refused, including a separately resealed tree. Archive admission
