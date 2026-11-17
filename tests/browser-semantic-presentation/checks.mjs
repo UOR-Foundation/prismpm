@@ -125,7 +125,7 @@ export function verifyWire(t) {
     {id: 'DesignsBaseline', request: new Uint8Array(), response: encodeWire(designs)},
   ];
   const rows = corpus(), typed = predicates();
-  assert.equal(rows.length, 150); assert.equal(typed.length, 93);
+  assert.equal(rows.length, 150); assert.equal(typed.length, 127);
   nativeReplay(build, [...rows, ...typed, ...samples], 'all-vectors');
   for (const standard of [true, false]) {
     const path = build.compileNative(standard), original = readFileSync(path), changed = Buffer.from(original);

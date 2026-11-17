@@ -104,24 +104,26 @@ theorem{
 }
 
 // The table as LexLean: sixteen rows of sixteen, selected by row then column.
+// It is a Nat-valued selection, not a list: the no-allocation code generator
+// refuses a list returned as an intermediate value, and the browser drivers
+// compile this module through it.
 export function tableSource() {
   const rows = Array.from({length: 16}, (_, row) => TABLE.slice(row * 16, row * 16 + 16));
-  const list = values => values.reduceRight((tail, value) => `(cons ${value} ${tail})`, '(nil Nat)');
-  const select = rows.reduceRight((otherwise, values, row) =>
-    row === 15 ? list(values) : `(if (row =? ${row}) then ${list(values)} else ${otherwise})`, '');
+  const chain = (values, variable) => values.reduceRight((otherwise, value, index) =>
+    index === values.length - 1 ? String(value) : `(if (${variable} =? ${index}) then ${value} else ${otherwise})`, '');
   return `definition{
-  name: designLinearRow,
-  parameters: [row : Nat],
-  result: (List Nat),
-  body: ${select},
+  name: designLinearCell,
+  parameters: [row : Nat, column : Nat],
+  result: Nat,
+  body: ${chain(rows.map(values => chain(values, 'column')), 'row')},
   axioms: []
 }`;
 }
 
 function committedTable() {
   const source = readFileSync(join(root, DESIGN), 'utf8');
-  const start = source.indexOf('definition{\n  name: designLinearRow,');
-  assert(start >= 0, `${DESIGN} has no designLinearRow definition`);
+  const start = source.indexOf('definition{\n  name: designLinearCell,');
+  assert(start >= 0, `${DESIGN} has no designLinearCell definition`);
   return source.slice(start, source.indexOf('\n}', start) + 2);
 }
 function committedHologram() {

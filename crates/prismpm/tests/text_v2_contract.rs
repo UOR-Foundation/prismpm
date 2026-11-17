@@ -9,11 +9,12 @@ fn text_v2_resource_bounds_oracle_uses_the_modeled_allocation_boundary() {
         .split_once("fn allocation_boundary(")
         .unwrap()
         .1
-        .split_once("#[tokio::main]")
+        // The function alone: helpers after it use the harness's own crates.
+        .split_once("\n}\n")
         .unwrap()
         .0;
     let harness = format!(
-        "fn allocation_boundary({boundary}\n{}",
+        "fn allocation_boundary({boundary}\n}}\n{}",
         r#"
 #[test]
 fn explicit_text_boundary_and_legacy_response_are_distinct() {

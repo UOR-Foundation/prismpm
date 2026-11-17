@@ -43,7 +43,8 @@ test('matching manifest probes reach captured identity instead of failing canoni
 
 test('component uses exact source modules and cannot adopt a caller receipt', () => {
   const sources = sourceClosure();
-  assert.equal(sources.size, 12);
+  assert.equal(sources.size, 13);
+  assert.ok(sources.has('Foundation.Codec.Cbor.V1.Primitive'));
   assert.ok(sources.has('Foundation.Holo.V1.PrimaryWire'));
   assert.ok(sources.has('Foundation.Browser.Application.V1.SessionWire'));
   assert.throws(() => requirePreparedComponent({verified:true,wasm:new Uint8Array()}), /actual fresh owning compiler/);

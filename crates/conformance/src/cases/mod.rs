@@ -450,11 +450,11 @@ pub fn run_at(root: &Path, id: &str) {
             root,
             id,
             &[
-                ("sdk/npm/prism-code/test/archive.test.mjs", 11),
+                ("sdk/npm/prism-code/test/archive.test.mjs", 12),
                 ("sdk/npm/prism-code/test/blake3.test.mjs", 3),
                 ("sdk/npm/prism-code/test/canonical.test.mjs", 2),
-                ("sdk/npm/prism-code/test/cli.test.mjs", 8),
-                ("sdk/npm/prism-code/test/closure.test.mjs", 4),
+                ("sdk/npm/prism-code/test/cli.test.mjs", 9),
+                ("sdk/npm/prism-code/test/closure.test.mjs", 5),
                 ("sdk/npm/prism-code/test/node.test.mjs", 2),
             ],
             "600000",
@@ -465,7 +465,7 @@ pub fn run_at(root: &Path, id: &str) {
             root,
             id,
             &[
-                ("sdk/npm/prism-code/test/replay.test.mjs", 32),
+                ("sdk/npm/prism-code/test/replay.test.mjs", 33),
                 ("sdk/npm/verify/test/replay-statement.test.mjs", 8),
             ],
             "600000",
@@ -540,10 +540,7 @@ pub fn run_at(root: &Path, id: &str) {
                     // The outer conformance Cargo owner may retain its target
                     // lock while tests execute. Use one disjoint target for the
                     // actual resource suites; never nest into that lock.
-                    .env(
-                        "CARGO_TARGET_DIR",
-                        root.join("target/conformance-text-v2-resources"),
-                    )
+                    .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
                     .current_dir(root)
                     .output()
                     .expect("HO-16 executes its actual generated resource and projection tests");
@@ -782,7 +779,7 @@ pub fn run_at(root: &Path, id: &str) {
         "DK-44" => node_suite::verify_exact(
             root,
             id,
-            &[("sdk/npm/prism-code/test/system-auth-cli.test.mjs", 16)],
+            &[("sdk/npm/prism-code/test/system-auth-cli.test.mjs", 17)],
             "600000",
         ),
         "DK-35" => verify_node_suite(
@@ -2079,10 +2076,22 @@ fn verify_browser_export(root: &Path) {
             .iter()
             .map(|(path, _)| path.as_str())
             .collect::<Vec<_>>(),
+        // Closure v2: the six application files plus the brand fonts,
+        // licences, icons and web manifest.
         [
+            "Archivo-SemiBold.woff2",
+            "Geist-Medium.woff2",
+            "Geist-Regular.woff2",
+            "Geist-SemiBold.woff2",
+            "GeistMono-Regular.woff2",
+            "OFL-Archivo.txt",
+            "OFL-Geist.txt",
             "app.css",
             "app.js",
+            "icon-512.png",
+            "icon.svg",
             "index.html",
+            "manifest.webmanifest",
             "prism_calculator.js",
             "prism_calculator_bg.wasm",
             "provenance.json",
@@ -2164,7 +2173,7 @@ fn verify_browser_export(root: &Path) {
                 "output":output,
                 "reference":reference,
                 "release_digest":release_digest,
-                "schema":"prismpm/browser-export/1",
+                "schema":"prismpm/browser-export/2",
                 "tree_digest":tree_digest
             })
         );
@@ -2754,10 +2763,7 @@ fn verify_supply_chain(id: &str) {
                     "--",
                     "--nocapture",
                 ])
-                .env(
-                    "CARGO_TARGET_DIR",
-                    root.join("target/conformance-cargo-inventory"),
-                )
+                .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
                 .current_dir(root)
                 .output()
                 .expect("SC-01 executes actual Cargo inventory regressions");
@@ -2834,10 +2840,7 @@ fn verify_supply_chain(id: &str) {
                 ])
                 // The outer conformance process can retain Cargo's target
                 // lock. Keep these executed storage regressions disjoint.
-                .env(
-                    "CARGO_TARGET_DIR",
-                    root.join("target/conformance-image-scan-workspace"),
-                )
+                .env("CARGO_TARGET_DIR", root.join("target/conformance-nested"))
                 .current_dir(root)
                 .output()
                 .expect("SC-04 executes its actual offline scan storage regressions");
@@ -3026,7 +3029,7 @@ fn verify_template(root: &Path, id: &str) {
                 &[
                     ("action/entrypoint.test.mjs", 19),
                     ("action/publish-pages.test.mjs", 14),
-                    ("scripts/ci-capacity.test.mjs", 13),
+                    ("scripts/ci-capacity.test.mjs", 12),
                 ],
                 "120000",
             );
@@ -3405,9 +3408,9 @@ fn verify_portable_view_report(root: &Path) {
     prismpm::holo::validate::validate(&document).unwrap();
     let application = document.application.as_ref().unwrap();
     let identities = serde_json::json!({
-        "application_kappa":format!("blake3:{}", "a".repeat(64)),
+        "application_kappa":format!("sha256:{}", "a".repeat(64)),
         "archive_fingerprint":"b".repeat(64),
-        "archive_kappa":format!("blake3:{}", "c".repeat(64))
+        "archive_kappa":format!("sha256:{}", "c".repeat(64))
     });
     let cases = [
         "attachment-assets",
@@ -3425,9 +3428,9 @@ fn verify_portable_view_report(root: &Path) {
     .map(|name| serde_json::json!({"name":name,"status":"passed","attempts":1}))
     .collect::<Vec<_>>();
     let report = serde_json::json!({
-        "application_kappa":format!("blake3:{}", "a".repeat(64)),
+        "application_kappa":format!("sha256:{}", "a".repeat(64)),
         "archive_fingerprint":"b".repeat(64),
-        "archive_kappa":format!("blake3:{}", "c".repeat(64)),
+        "archive_kappa":format!("sha256:{}", "c".repeat(64)),
         "direct_vectors":6,
         "footer_verified":true,
         "guest_allocation_boundary":"verified",
@@ -3461,7 +3464,7 @@ fn verify_portable_view_report(root: &Path) {
         let different = if field == "archive_fingerprint" {
             "d".repeat(64)
         } else {
-            format!("blake3:{}", "d".repeat(64))
+            format!("sha256:{}", "d".repeat(64))
         };
         let mut substituted_report = report.clone();
         substituted_report[field] = serde_json::json!(different);
@@ -3499,14 +3502,19 @@ fn verify_portable_view_report(root: &Path) {
     }
     for (pointer, value) in [
         ("/schema", serde_json::json!("prismpm/hologram-oracle/1")),
-        ("/application_kappa", serde_json::json!("blake3:abc")),
+        ("/application_kappa", serde_json::json!("sha256:abc")),
+        // A well-formed BLAKE3 identity is a v4 identity; a v5 holo is named by SHA-256.
+        (
+            "/application_kappa",
+            serde_json::json!(format!("blake3:{}", "a".repeat(64))),
+        ),
         (
             "/archive_kappa",
-            serde_json::json!(format!("blake3:{}", "A".repeat(64))),
+            serde_json::json!(format!("sha256:{}", "A".repeat(64))),
         ),
         (
             "/archive_fingerprint",
-            serde_json::json!(format!("blake3:{}", "b".repeat(64))),
+            serde_json::json!(format!("sha256:{}", "b".repeat(64))),
         ),
         ("/footer_verified", serde_json::json!(false)),
         ("/guest_allocation_boundary", serde_json::json!("missing")),
@@ -3607,7 +3615,7 @@ fn verify_assurance(root: &Path, id: &str) {
         "AL-06" => ("inspect::verdict::tests::al_06_", 1),
         _ => unreachable!("AL-03, AL-05 and AL-06 only"),
     };
-    rust_regressions(root, id, filter, expected, "target/conformance-assurance");
+    rust_regressions(root, id, filter, expected, "target/conformance-nested");
 }
 
 /// HO-23 to HO-30: run the named Rust regressions with their exact inventory and, where the
@@ -3624,7 +3632,7 @@ fn verify_attestation(root: &Path, id: &str) {
         "HO-30" => ("attest::tests::ho_30_", 2),
         _ => unreachable!("HO-23 to HO-30 only"),
     };
-    rust_regressions(root, id, filter, expected, "target/conformance-attestation");
+    rust_regressions(root, id, filter, expected, "target/conformance-nested");
 }
 
 /// HO-32 to HO-35: run the named Rust regressions with their exact inventory.
@@ -3636,7 +3644,7 @@ fn verify_build_provenance(root: &Path, id: &str) {
         "HO-35" => ("holo::provenance::tests::ho_35_", 2),
         _ => unreachable!("HO-32 to HO-35 only"),
     };
-    rust_regressions(root, id, filter, expected, "target/conformance-attestation");
+    rust_regressions(root, id, filter, expected, "target/conformance-nested");
 }
 
 /// Run the `prismpm` library tests `filter` names and require exactly `expected` of them to pass.
@@ -3762,7 +3770,8 @@ fn verify_holo(root: &Path, id: &str) {
     match id {
         "HO-01" => {
             let holo = sample_application_holo(root);
-            assert_eq!(&holo.bytes[..6], b"HOLO\x04\0");
+            // ADR-017: an application holo is a UORC archive, version 2.1.
+            assert_eq!(&holo.bytes[..6], b"UORC\x02\x01");
             prismpm::holo::archive::validate_application(&holo.bytes).unwrap();
         }
         "HO-02" => {
