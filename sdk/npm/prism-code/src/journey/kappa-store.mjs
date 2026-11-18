@@ -47,7 +47,9 @@ export function writeAtomic(file, bytes) {
  * The files this prism-code pins (Lean's kernel, LexLean as WebAssembly), kept once per machine under
  * `pinned/`. A file is named by the BLAKE3 κ-label of its decoded bytes and kept as it was served,
  * gzipped or not: the encoding never changes what a label admits. Every read decodes and re-derives the
- * label; a file that does not decode, or decodes to other bytes, is a miss. The labels the installed
+ * label; a file that does not decode, or decodes to other bytes, is a miss. The rule is stated in
+ * `v2/in-tab-kernel/elab/spec/src/KappaBlob.lex.tex` (UOR-Foundation/foundry, branch
+ * `claude/lean-wasm-prover-6dfd4e`, commit 9dfdaf47), whose Lean proof is pending. The labels the installed
  * prism-code pins are the only roots: store-gc.mjs removes every pinned file they do not name.
  */
 export const pinnedFile = (label, env = process.env) => join(kappaDirectory(env), 'pinned', label.slice(7, 9), label.slice(9));

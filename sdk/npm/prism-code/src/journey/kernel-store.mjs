@@ -18,12 +18,12 @@ export const KERNEL_REPOSITORY = 'UOR-Foundation/foundry';
 export const KERNEL_COMMIT = '7755331b8d1cba879d89a1956c0703b749868abd';
 /**
  * The files, by name: where each lives in the repository, the κ-label of its decoded bytes, how it is served
- * (`encoding`, with `bytes` as served and `decodedBytes` decoded), and the SHA-256 of the bytes as served.
+ * (`encoding`, with `bytes` decoded and `encodedBytes` as served), and the SHA-256 of the bytes as served.
  */
 export const KERNEL_FILES = Object.freeze({
-  'lean-kernel.mjs.gz': { path: 'studio/shell/kernel/lean/lean-kernel.mjs.gz', kappa: 'blake3:ac5db408040227bebf5addb792481c6cad70b3c4e5734e6de5d28f0f4bef5b4d', encoding: 'gzip', decodedBytes: 62458, sha256: '8c77e3250d8c124d8f07fca9d9cc508475a062f72e9778208cd8aed3eab39cb9', bytes: 17609 },
-  'lean-kernel.wasm.gz': { path: 'studio/shell/kernel/lean/lean-kernel.wasm.gz', kappa: 'blake3:21b2c46df9424cc7f12001f94ea8696f2b773e1cbd30e8e44c593207dc8ea177', encoding: 'gzip', decodedBytes: 2235906, sha256: '79accfb403771f7a362e17ed777bb1e84c19cb34e24ae537a919c980e6a833f2', bytes: 420987 },
-  'library.ndjson.gz': { path: 'studio/shell/kernel/lean/library.ndjson.gz', kappa: 'blake3:1d8b899ed1eb5b7703151fff2bf525c24e9b24768ae6c1c7281fd19c53512b3d', encoding: 'gzip', decodedBytes: 7834171, sha256: '0253aaa8f557ca95b072ab8dc06ac84c4f95e076eb458dead7d27c0f7afb6434', bytes: 1246498 },
+  'lean-kernel.mjs.gz': { path: 'studio/shell/kernel/lean/lean-kernel.mjs.gz', kappa: 'blake3:ac5db408040227bebf5addb792481c6cad70b3c4e5734e6de5d28f0f4bef5b4d', encoding: 'gzip', bytes: 62458, encodedBytes: 17609, sha256: '8c77e3250d8c124d8f07fca9d9cc508475a062f72e9778208cd8aed3eab39cb9' },
+  'lean-kernel.wasm.gz': { path: 'studio/shell/kernel/lean/lean-kernel.wasm.gz', kappa: 'blake3:21b2c46df9424cc7f12001f94ea8696f2b773e1cbd30e8e44c593207dc8ea177', encoding: 'gzip', bytes: 2235906, encodedBytes: 420987, sha256: '79accfb403771f7a362e17ed777bb1e84c19cb34e24ae537a919c980e6a833f2' },
+  'library.ndjson.gz': { path: 'studio/shell/kernel/lean/library.ndjson.gz', kappa: 'blake3:1d8b899ed1eb5b7703151fff2bf525c24e9b24768ae6c1c7281fd19c53512b3d', encoding: 'gzip', bytes: 7834171, encodedBytes: 1246498, sha256: '0253aaa8f557ca95b072ab8dc06ac84c4f95e076eb458dead7d27c0f7afb6434' },
   'kernel.holo': { path: 'studio/shell/kernel/kernel.holo', kappa: 'blake3:9a26402323b5918c8db5568bdec2ebdd5a1579f907d223e9fbbeb2a4bc192af9', encoding: 'identity', sha256: 'e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee', bytes: 657131 },
 });
 const RAW_URL = 'https://raw.githubusercontent.com';

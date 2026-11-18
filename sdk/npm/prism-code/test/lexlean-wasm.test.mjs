@@ -55,7 +55,7 @@ test('planted defect: a module whose bytes are not the pinned ones is refused, k
   assert.equal(await ensureLexleanWasm({ env: { PRISM_HOME: dir }, pin: served, fetch: async () => new Response(gzipSync(good)) }), kept);
   // Kept as served, gzipped (4 MB in place of 19 for the real module), under the label of the decoded module.
   const gz = gzipSync(good);
-  const zipped = { ...served, gzipKappa: kappa(gz) };
+  const zipped = { ...served, encoding: 'gzip', encodedBytes: gz.length };
   const zhome = scratch();
   const keptGz = await ensureLexleanWasm({ env: { PRISM_HOME: zhome }, pin: zipped, fetch: async () => new Response(gz) });
   assert.equal(keptGz, join(zhome, 'kappa', 'pinned', pin.kappa.slice(7, 9), pin.kappa.slice(9)));

@@ -20,7 +20,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PrismCodeError } from '../errors.mjs';
-import { kappa } from '../blake3.mjs';
 import { buildFetch } from './hosts.mjs';
 import { admittedLabel, decoded, pinnedFile, receiveDecoded, writeAtomic } from './kappa-store.mjs';
 import { runWasi } from './wasi-memory.mjs';
@@ -38,11 +37,10 @@ export const LEXLEAN_WASM = Object.freeze({
   kappa: 'blake3:4f302c18e02a46b0d015c57bd389a0754b301ec876aa7a637f786c4562274ecb',
   sha256: 'f76fa2aacdc96a0a977395b9889b0eb659942d0fbfe7af4d0aac62c18b25d6d5',
   bytes: 19133367,
-  gzipKappa: 'blake3:e79126591773b1f721af3ad911b73d46bceb4c4d6453e4dda04814efeee60f83',
-  gzipBytes: 4140342,
   // Served and kept gzipped: 4.1 MB on disk in place of 19.1 MB. The label is that of the decoded module.
   encoding: 'gzip',
-  // The pre-release asset the user approved; fetched through the serverless boundary and held to `gzipKappa` and `kappa`.
+  encodedBytes: 4140342,
+  // The pre-release asset the user approved; fetched through the serverless boundary and admitted when it decodes to `kappa`.
   url: 'https://github.com/UOR-Foundation/lexlean/releases/download/wasm-snapshot-9ba600d/lexlean-9ba600d.wasm.gz',
 });
 
@@ -54,7 +52,7 @@ const pinOf = (pin) => pin ?? LEXLEAN_WASM;
 const verified = new Map();
 
 /** How a pin is served: what it names, else gzip when its URL is a `.gz`. */
-const encodingOf = (pin) => pin.encoding ?? (pin.gzipKappa || /\.gz$/.test(pin.url ?? '') ? 'gzip' : 'identity');
+const encodingOf = (pin) => pin.encoding ?? (/\.gz$/.test(pin.url ?? '') ? 'gzip' : 'identity');
 
 /**
  * The executable's file, checked against its pin's κ-label, or null when it is
@@ -115,12 +113,11 @@ export async function ensureLexleanWasm({ env = process.env, pin = null, fetch =
   if (kept) return kept;
   if (env.PRISM_LEXLEAN_FETCH === '0') throw new PrismCodeError('lexlean.wasm-unavailable', 'LexLean as WebAssembly is not on this machine, and PRISM_LEXLEAN_FETCH=0 says not to fetch it');
   if (!want.url || !want.kappa) throw new PrismCodeError('lexlean.wasm-unavailable', 'no public copy of LexLean as WebAssembly is pinned in this prism-code yet, and PRISM_LEXLEAN_WASM names no file');
-  log(`Fetching LexLean's front end as WebAssembly once (about ${Math.round((want.gzipBytes ?? 4e6) / 1e6)} MB); it is checked against its κ-label.`);
+  log(`Fetching LexLean's front end as WebAssembly once (about ${Math.round((want.encodedBytes ?? 4e6) / 1e6)} MB); it is checked against its κ-label.`);
   const response = await buildFetch({ fetch })(want.url);
   if (!response.ok) throw new PrismCodeError('lexlean.wasm-unavailable', `${want.url} answered HTTP ${response.status}`);
   // Decoded and hashed as it arrives; kept as served.
   const { encoded, label } = await receiveDecoded(response, encodingOf(want));
-  if (want.gzipKappa && kappa(encoded) !== want.gzipKappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave bytes that are ${kappa(encoded)}, not the pinned ${want.gzipKappa}`);
   if (label !== want.kappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave bytes that decode to ${label ?? 'nothing'}, not the pinned ${want.kappa}`);
   const file = pinnedFile(want.kappa, env);
   writeAtomic(file, encoded);

@@ -25,7 +25,7 @@ function network(answer = (name) => ({ ok: true, status: 200, bytes: real(name) 
 
 test('the fixtures beside the tests are the pinned bytes, and the package carries none of them', () => {
   // Each is named by the label of its decoded bytes, and kept as served.
-  for (const [name, want] of Object.entries(KERNEL_FILES)) assert.deepEqual([real(name).length, kappa(want.encoding === 'gzip' ? gunzipSync(real(name)) : real(name))], [want.bytes, want.kappa], name);
+  for (const [name, want] of Object.entries(KERNEL_FILES)) assert.deepEqual([real(name).length, kappa(want.encoding === 'gzip' ? gunzipSync(real(name)) : real(name))], [want.encodedBytes ?? want.bytes, want.kappa], name);
   assert.equal(hasKernel({ env: { PRISM_KERNEL_DIR: fileURLToPath(new URL('./fixtures/kernel/', import.meta.url)) } }), true);
   assert.deepEqual(readdirSync(new URL('../src/journey/kernel/', import.meta.url)).sort(), ['NOTICE.md', 'manifest.json']);
   const shipped = JSON.parse(readFileSync(new URL('./fixtures/package-files.json', import.meta.url), 'utf8'));
