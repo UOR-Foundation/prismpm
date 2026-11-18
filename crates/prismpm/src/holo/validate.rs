@@ -49,6 +49,8 @@ pub fn validate(doc: &ModelDocument) -> Result<(), PrismError> {
         "prismpm/model-document/4"
     } else if matches!(&doc.application, Some(Application::Server(_))) {
         "prismpm/model-document/7"
+    } else if matches!(&doc.application, Some(Application::Binary(_))) {
+        super::binary_application::SCHEMA
     } else if let Some(Application::Text(application)) = &doc.application {
         if application.profile == "prismpm/text-application/3" {
             "prismpm/model-document/6"
@@ -129,6 +131,7 @@ pub fn validate(doc: &ModelDocument) -> Result<(), PrismError> {
             }
             Application::Browser(value) => super::browser_application::validate(value)?,
             Application::Server(value) => super::server_application::validate(value)?,
+            Application::Binary(value) => super::binary_application::validate(value)?,
         }
         return Ok(());
     }

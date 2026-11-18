@@ -56,6 +56,10 @@ const KIND_CONTENT_BLOB: u8 = 16;
 /// revision is named by date (STABILITY.md section 3) and added here, never
 /// edited in place.
 const REVISION_2026_10_23: &str = "2026-10-23";
+/// 2026-10-23 and the session worlds, holo v5 only (#629, HO-47, #630).
+const REVISION_2026_11_18: &str = "2026-11-18";
+/// The binary application document, which only 2026-11-18 packs.
+const BINARY_MODEL_DOCUMENT_SCHEMA: &str = "prismpm/model-document/9";
 const REVISION_2026_10_23_SECTIONS: [u8; 8] = [15, 8, 14, 14, 16, 16, 16, 16];
 const MODEL_DOCUMENT_SCHEMAS: [&str; 4] = [
     "prismpm/model-document/1",
@@ -95,6 +99,73 @@ const WORLD_EXPORTS: [(&str, &str, &[&str], &[&str]); 3] = [
     ("holo_run", "func", &["i32", "i32"], &["i64"]),
     ("memory", "memory", &[], &[]),
 ];
+
+/// One declared export: its name, its kind and its lowered signature.
+type WorldExport = (
+    &'static str,
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+);
+
+/// A guest world a format revision admits: `sdk/npm/spec/constants.mjs`, `WORLDS`.
+pub(crate) struct World {
+    contract: &'static str,
+    package: &'static str,
+    file: &'static str,
+    blake3: &'static str,
+    sha256: &'static str,
+    exports: &'static [WorldExport],
+}
+
+/// The session world (#629): one instance per session, entered at holo_step.
+const SESSION_EXPORTS: [WorldExport; 3] = [
+    ("holo_alloc", "func", &["i32"], &["i32"]),
+    ("holo_step", "func", &["i32", "i32"], &["i64"]),
+    ("memory", "memory", &[], &[]),
+];
+
+/// The checkpoint world (HO-47): the session world with its state addressable.
+const CHECKPOINT_EXPORTS: [WorldExport; 5] = [
+    ("holo_alloc", "func", &["i32"], &["i32"]),
+    ("holo_restore", "func", &["i32"], &["i32"]),
+    ("holo_state", "func", &[], &["i64"]),
+    ("holo_step", "func", &["i32", "i32"], &["i64"]),
+    ("memory", "memory", &[], &[]),
+];
+
+/// Every world this reader knows, by contract.
+const WORLDS: [World; 3] = [
+    World {
+        contract: CORE_WASM_CONTRACT,
+        package: CORE_WASM_PACKAGE,
+        file: CORE_WASM_WORLD_FILE,
+        blake3: CORE_WASM_WORLD_BLAKE3,
+        sha256: CORE_WASM_WORLD_SHA256,
+        exports: &WORLD_EXPORTS,
+    },
+    World {
+        contract: "hologram:guest/core-wasm@2",
+        package: "hologram:guest@2.0.0",
+        file: "worlds/core-wasm-2.wit",
+        blake3: "2e286db1e21243c244f807d7bbf21f158bac0f5c413d4e46007de7dbe9204a4d",
+        sha256: "e5ee38e4f472f7616a291c83c17f272078cdf114e0106e39d71590aa1ac960f4",
+        exports: &SESSION_EXPORTS,
+    },
+    World {
+        contract: "hologram:guest/core-wasm@3",
+        package: "hologram:guest@3.0.0",
+        file: "worlds/core-wasm-3.wit",
+        blake3: "9f7f378fbcc5e1877352f1b0dcd5ed9d325eb9dab6b909ac07e0c8fde49357fa",
+        sha256: "ff78688d4d0523ff98c8b4b9e9422abe5435242aaf97beae1dd10c06398a1c8c",
+        exports: &CHECKPOINT_EXPORTS,
+    },
+];
+
+/// The world `contract` names, or `None` for a contract this reader has no world for.
+pub(crate) fn world_of(contract: &str) -> Option<&'static World> {
+    WORLDS.iter().find(|world| world.contract == contract)
+}
 
 fn modeled<T>(value: Result<T, wire::ComputeError>) -> Result<T, PrismError> {
     value.map_err(|error| {
@@ -567,7 +638,7 @@ fn classify_import(module: &str, field: &str) -> &'static str {
 
 /// Whether the guest module has the interface its contract's world declares.
 /// `null` when no guest module is at hand, as the JavaScript reader reports it.
-fn conforms(guest: Option<&[u8]>) -> Value {
+fn conforms(guest: Option<&[u8]>, exports: &[WorldExport]) -> Value {
     let Some(guest) = guest else {
         return Value::Null;
     };
@@ -583,10 +654,10 @@ fn conforms(guest: Option<&[u8]>) -> Value {
             problems = true;
         }
     }
-    if have.len() != WORLD_EXPORTS.len() {
+    if have.len() != exports.len() {
         problems = true;
     }
-    for (name, kind, parameters, results) in WORLD_EXPORTS {
+    for &(name, kind, parameters, results) in exports {
         let Some(found) = have.get(name) else {
             problems = true;
             continue;
@@ -633,9 +704,9 @@ fn world_member(
     guest: Option<&[u8]>,
     capabilities: Option<&Section>,
 ) -> Value {
-    if contract != Some(CORE_WASM_CONTRACT) {
+    let Some(world) = contract.and_then(world_of) else {
         return Value::Null;
-    }
+    };
     let (pure, effects) = world_purity(&[]);
     let capability_set = capabilities.map_or(Value::Null, |section| {
         let content = section.content.as_deref().unwrap_or_default();
@@ -645,14 +716,14 @@ fn world_member(
         })
     });
     json!({
-        "contract": CORE_WASM_CONTRACT,
-        "package": CORE_WASM_PACKAGE,
+        "contract": world.contract,
+        "package": world.package,
         "name": CORE_WASM_WORLD,
-        "file": CORE_WASM_WORLD_FILE,
-        "digest": { "blake3": CORE_WASM_WORLD_BLAKE3, "sha256": CORE_WASM_WORLD_SHA256 },
+        "file": world.file,
+        "digest": { "blake3": world.blake3, "sha256": world.sha256 },
         "imports": [],
-        "exports": ["holo_alloc", "holo_run", "memory"],
-        "conforms": conforms(guest),
+        "exports": world.exports.iter().map(|(name, ..)| *name).collect::<Vec<_>>(),
+        "conforms": conforms(guest, world.exports),
         "pure": pure,
         "effects": effects,
         "capability_set": capability_set,

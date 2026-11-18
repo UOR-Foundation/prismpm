@@ -28,10 +28,9 @@
 
 use super::{
     blake3_hex, hex, holoview_version, prefix_identifier, read_interface, sha256_hex, world_purity,
-    Export, Import, CORE_WASM_CONTRACT, CORE_WASM_WORLD_BLAKE3, CORE_WASM_WORLD_SHA256,
-    HOLOVIEW_VERSION, IMPURE_EFFECTS, KIND_APP_MANIFEST, KIND_CONTENT_BLOB, KIND_EXTENSION,
-    KIND_METADATA, MODEL_DOCUMENT_SCHEMAS, PROVENANCE_SCHEMA, REVISION_2026_10_23,
-    SOURCE_MANIFEST_VERSION, WORLD_EXPORTS,
+    Export, Import, BINARY_MODEL_DOCUMENT_SCHEMA, HOLOVIEW_VERSION, IMPURE_EFFECTS,
+    KIND_APP_MANIFEST, KIND_CONTENT_BLOB, KIND_EXTENSION, KIND_METADATA, MODEL_DOCUMENT_SCHEMAS,
+    PROVENANCE_SCHEMA, REVISION_2026_10_23, REVISION_2026_11_18, SOURCE_MANIFEST_VERSION,
 };
 use crate::error::PrismError;
 use crate::holo::attestation::{self, Attestation, ATTESTATION_EXTENSION};
@@ -946,6 +945,8 @@ struct Analysis {
     /// `capabilities`, `guest`, `view` and `model` to the label each names.
     roles: BTreeMap<&'static str, String>,
     contract: Option<String>,
+    /// The format revision the archive's identifiers name when they name one.
+    revision: &'static str,
     provenance: Option<ModelProvenanceV1>,
     /// The statements of the attestation section, or why they cannot be read.
     attestations: Result<Vec<Attestation>, String>,
@@ -1060,7 +1061,7 @@ fn structure(bytes: &[u8]) -> Result<Structure, NoVerdict> {
 
 /// The closed schema of each model document a holo can carry, as
 /// `@prism-code/spec` ships it under `schemas/documents/`.
-const MODEL_DOCUMENT_SCHEMA_FILES: [(&str, &str, &[u8]); 4] = [
+const MODEL_DOCUMENT_SCHEMA_FILES: [(&str, &str, &[u8]); 5] = [
     (
         "prismpm/model-document/1",
         "model-document-v1.schema.json",
@@ -1080,6 +1081,11 @@ const MODEL_DOCUMENT_SCHEMA_FILES: [(&str, &str, &[u8]); 4] = [
         "prismpm/model-document/6",
         "model-document-v6.schema.json",
         include_bytes!("../../schemas/model-document-v6.schema.json"),
+    ),
+    (
+        "prismpm/model-document/9",
+        "model-document-v9.schema.json",
+        include_bytes!("../../schemas/model-document-v9.schema.json"),
     ),
 ];
 
@@ -1133,7 +1139,7 @@ fn document_object(what: &str, row: Option<&Row>) -> Result<Value, String> {
 
 /// The problems of a guest module against the `hologram:guest/core-wasm@1`
 /// world, one clause each; empty when it conforms.
-fn world_problems(guest: &[u8]) -> Vec<String> {
+fn world_problems(guest: &[u8], exports: &[super::WorldExport]) -> Vec<String> {
     if !guest.starts_with(b"\0asm") {
         return vec!["the guest is not a WebAssembly module".to_owned()];
     }
@@ -1160,7 +1166,7 @@ fn world_problems(guest: &[u8]) -> Vec<String> {
     for export in &interface.exports {
         have.insert(export.field.as_str(), export);
     }
-    for (name, kind, parameters, results) in WORLD_EXPORTS {
+    for &(name, kind, parameters, results) in exports {
         match have.get(name) {
             None => problems.push(format!("the guest lacks the export {name}")),
             Some(actual) if actual.kind != kind => problems.push(format!(
@@ -1189,7 +1195,7 @@ fn world_problems(guest: &[u8]) -> Vec<String> {
             Some(_) => {}
         }
     }
-    let declared = WORLD_EXPORTS.map(|(name, ..)| name);
+    let declared = exports.iter().map(|(name, ..)| *name).collect::<Vec<_>>();
     for export in &interface.exports {
         if !declared.contains(&export.field.as_str()) {
             problems.push(format!(
@@ -1274,10 +1280,11 @@ fn model_sha256_finding(
 /// world. `None` when there is no intact guest under the one known contract.
 fn world_finding(contract: Option<&str>, guest: Option<&Row>) -> Option<(bool, String)> {
     let (contract, guest) = (contract?, guest?);
-    if guest.problem.is_some() || !guest.label_matches || contract != CORE_WASM_CONTRACT {
+    let world = super::world_of(contract)?;
+    if guest.problem.is_some() || !guest.label_matches {
         return None;
     }
-    let problems = world_problems(&guest.content);
+    let problems = world_problems(&guest.content, world.exports);
     Some(if problems.is_empty() {
         (
             true,
@@ -1734,6 +1741,7 @@ fn analyze(bytes: &[u8]) -> Result<Analysis, NoVerdict> {
         rows,
         roles,
         contract,
+        revision: FORMAT_REVISION,
         provenance: provenance.ok(),
         attestations,
     })
@@ -2287,9 +2295,7 @@ struct WorldPolicy {
 }
 
 fn world_policy(contract: Option<&str>, _capabilities: Option<&Value>) -> Option<WorldPolicy> {
-    if contract != Some(CORE_WASM_CONTRACT) {
-        return None;
-    }
+    contract.and_then(super::world_of)?;
     let (_, effects) = world_purity(&[]);
     Some(WorldPolicy {
         within: true,
@@ -2320,10 +2326,8 @@ fn compare_world_pin(contract: &str, pin: Option<&WorldPin>) -> Vec<String> {
             ));
         }
     }
-    let known = (contract == CORE_WASM_CONTRACT).then_some([
-        ("blake3", CORE_WASM_WORLD_BLAKE3),
-        ("sha256", CORE_WASM_WORLD_SHA256),
-    ]);
+    let known =
+        super::world_of(contract).map(|world| [("blake3", world.blake3), ("sha256", world.sha256)]);
     for (algorithm, pinned) in [("blake3", &pin.blake3), ("sha256", &pin.sha256)] {
         let Some(pinned) = pinned else { continue };
         match known {
@@ -2650,7 +2654,7 @@ pub(super) fn inspection_v5(bytes: &[u8]) -> Result<Value, PrismError> {
     Ok(json!({
         "schema": super::INSPECTION_SCHEMA,
         "name": name,
-        "revision": passed("format.revision").then_some(FORMAT_REVISION),
+        "revision": passed("format.revision").then_some(analysis.revision),
         "physical_version": 5,
         "flags": 0,
         "size": bytes.len(),
@@ -2663,8 +2667,8 @@ pub(super) fn inspection_v5(bytes: &[u8]) -> Result<Value, PrismError> {
             json!({
                 "uri": member(&manifest, "schema"),
                 "labels": { "capability_set": label(3), "guest": label(4), "view": label(5) },
-                "entry": super::MANIFEST_ENTRY,
-                "contract": wire::contractName(),
+                "entry": manifest.pointer("/layers/0/entry").cloned().unwrap_or(Value::Null),
+                "contract": manifest.pointer("/layers/0/contract").cloned().unwrap_or(Value::Null),
                 "view_entry": super::VIEW_ENTRY,
                 "surface": super::MANIFEST_SURFACE,
             })

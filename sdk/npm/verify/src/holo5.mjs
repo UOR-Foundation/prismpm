@@ -130,9 +130,16 @@ function decode(bytes) {
  */
 export function analyzeV5(bytes, context) {
   const { spec, schemaErrors, checkWorld } = context;
-  /** The two layers of a holo whose guest and view are named by these κ. */
-  const layersOf = (guest, view) => [
-    { contract: spec.CORE_WASM.CONTRACT, entry: spec.CORE_WASM.ENTRY, kappa: guest, kind: 'wasm' },
+  /**
+   * The two layers of a holo whose guest and view are named by these κ. The guest
+   * contract is one some revision admits (@1, or a session world of 2026-11-18),
+   * and the wasm layer is entered where that contract's world says.
+   */
+  const admitted = new Set(Object.values(spec.FORMAT_REVISIONS).filter((r) => r.holoVersions.includes(5)).flatMap((r) => r.coreWasmContracts));
+  // The session worlds are entered at holo_step, the stateless world at holo_run.
+  const entryOf = (contract) => (contract === spec.CORE_WASM_SESSION.CONTRACT || contract === spec.CORE_WASM_CHECKPOINT.CONTRACT ? spec.CORE_WASM_SESSION.ENTRY : spec.CORE_WASM.ENTRY);
+  const layersOf = (guest, view, contract = spec.CORE_WASM.CONTRACT) => [
+    { contract: admitted.has(contract) ? contract : spec.CORE_WASM.CONTRACT, entry: entryOf(admitted.has(contract) ? contract : spec.CORE_WASM.CONTRACT), kappa: guest, kind: 'wasm' },
     { entry: spec.HOLOVIEW.ENTRY, kappa: view, kind: 'view', surface: 'portable' },
   ];
   const checks = [{ id: 'archive.magic', level: 'archive', status: 'pass', detail: 'magic UORC' }];
@@ -192,7 +199,8 @@ export function analyzeV5(bytes, context) {
       if (!KAPPA.test(manifest.requires)) problems.push('the manifest requires no κ-label');
       // The shape of the layers here; whether their κ name the objects is blob.labels.
       const named = (i) => (Array.isArray(manifest.layers) ? manifest.layers[i]?.kappa : undefined);
-      if (canonical(manifest.layers) !== canonical(layersOf(named(0), named(1))) || ![named(0), named(1)].every((k) => KAPPA.test(k))) problems.push('the manifest layers are not the wasm and view layers of a holo');
+      const declared = Array.isArray(manifest.layers) ? manifest.layers[0]?.contract : undefined;
+      if (canonical(manifest.layers) !== canonical(layersOf(named(0), named(1), declared)) || ![named(0), named(1)].every((k) => KAPPA.test(k))) problems.push('the manifest layers are not the wasm and view layers of a holo');
       if (canonical(manifest) !== utf8.decode(at(0).payload)) problems.push('the manifest is not canonical JSON');
     }
     if (problems.length === 0) facts.documents.manifest = manifest;
@@ -200,7 +208,7 @@ export function analyzeV5(bytes, context) {
     if (manifest && problems.length === 0) {
       // The provenance names the manifest, so the manifest lists every object but the provenance.
       const expected = [1, 3, 4, 5, 6].map((i) => ({ kappa: labelOf(i), length: at(i).length, role: ROLES[i] }));
-      const ok = canonical(manifest.objects) === canonical(expected) && manifest.requires === labelOf(3) && canonical(manifest.layers) === canonical(layersOf(labelOf(4), labelOf(5)));
+      const ok = canonical(manifest.objects) === canonical(expected) && manifest.requires === labelOf(3) && canonical(manifest.layers) === canonical(layersOf(labelOf(4), labelOf(5), manifest.layers[0]?.contract));
       add('archive', 'blob.labels', ok, ok ? `all ${expected.length} objects match the κ the manifest gives them` : "the manifest's κ-labels and lengths are not those of the objects in their roles");
     } else skip('archive', 'blob.labels', 'not checked: manifest.wire failed');
   }
@@ -275,25 +283,43 @@ export function analyzeV5(bytes, context) {
 
   // format.revision: the roles, the contract, the source manifest and the view.
   {
-    const revision = spec.FORMAT_REVISIONS[spec.FORMAT_REVISION];
-    const differences = [];
-    if (!known) differences.push(`the archive holds ${archive.objects.length} objects, expected ${ROLES.length} or ${ROLES.length + 1} when signed`);
-    // As for v4: this package judges the unsigned holo, and `check` reads the attestations and strips them first.
-    if (archive.objects.length === ROLES.length + 1) differences.push(`the archive carries an ${ROLE_ATTESTATIONS} object, which this package does not read; check reads it`);
-    if (contract && contract !== revision.coreWasmContract) differences.push(`the guest contract is ${contract}, expected ${revision.coreWasmContract}`);
-    const sourceManifest = facts.documents.sourceManifest;
-    if (sourceManifest && sourceManifest.version !== revision.sourceManifestVersion) differences.push(`the source manifest version is ${sourceManifest.version}, expected ${revision.sourceManifestVersion}`);
-    const view = at(CONTENT.view)?.content;
-    if (view) {
-      const magic = view.length >= 10 ? String.fromCharCode(...view.subarray(0, 8)) : '';
-      const version = view.length >= 10 ? (view[8] << 8) | view[9] : null;
-      if (magic !== spec.HOLOVIEW.MAGIC || version !== revision.holoviewVersion) differences.push(`the view is not a HOLOVIEW version ${revision.holoviewVersion} bundle`);
+    // An archive carries no date: it is of the first revision whose identifiers it carries.
+    const differencesFrom = (revision) => {
+      const differences = [];
+      if (!known) differences.push(`the archive holds ${archive.objects.length} objects, expected ${ROLES.length} or ${ROLES.length + 1} when signed`);
+      // As for v4: this package judges the unsigned holo, and `check` reads the attestations and strips them first.
+      if (archive.objects.length === ROLES.length + 1) differences.push(`the archive carries an ${ROLE_ATTESTATIONS} object, which this package does not read; check reads it`);
+      if (contract && !revision.coreWasmContracts.includes(contract)) differences.push(`the guest contract is ${contract}, expected one of ${revision.coreWasmContracts.join(', ')}`);
+      const modelDocument = facts.documents.modelDocument;
+      if (modelDocument?.schema && !revision.modelDocumentSchemas.includes(modelDocument.schema)) differences.push(`the model document schema ${modelDocument.schema} is not packed by this revision`);
+      const sourceManifest = facts.documents.sourceManifest;
+      if (sourceManifest && sourceManifest.version !== revision.sourceManifestVersion) differences.push(`the source manifest version is ${sourceManifest.version}, expected ${revision.sourceManifestVersion}`);
+      const view = at(CONTENT.view)?.content;
+      if (view) {
+        const magic = view.length >= 10 ? String.fromCharCode(...view.subarray(0, 8)) : '';
+        const version = view.length >= 10 ? (view[8] << 8) | view[9] : null;
+        if (magic !== spec.HOLOVIEW.MAGIC || version !== revision.holoviewVersion) differences.push(`the view is not a HOLOVIEW version ${revision.holoviewVersion} bundle`);
+      }
+      return differences;
+    };
+    let matched = null;
+    let differences = [];
+    for (const [date, revision] of Object.entries(spec.FORMAT_REVISIONS).filter(([, r]) => r.holoVersions.includes(5))) {
+      const found = differencesFrom(revision);
+      if (found.length === 0) {
+        matched = date;
+        break;
+      }
+      if (date === spec.FORMAT_REVISION) differences = found;
     }
     // A signed holo has no layout revision, so verdict refuses it as for v4; check strips the attestations first.
-    if (known && archive.objects.length === ROLES.length) facts.layoutRevision = spec.FORMAT_REVISION;
-    if (differences.length === 0) facts.revision = spec.FORMAT_REVISION;
+    if (known && archive.objects.length === ROLES.length) facts.layoutRevision = matched ?? spec.FORMAT_REVISION;
+    if (matched !== null) {
+      facts.revision = matched;
+      differences = [];
+    }
     facts.newestDifferences = differences;
-    add('documents', 'format.revision', differences.length === 0, differences.length === 0 ? `holo v5, format revision ${spec.FORMAT_REVISION}` : `the archive matches no format revision this package knows (holo v5): ${differences.join('; ')}`);
+    add('documents', 'format.revision', matched !== null, matched !== null ? `holo v5, format revision ${matched}` : `the archive matches no format revision this package knows (holo v5): ${differences.join('; ')}`);
   }
 
   checks.sort((a, b) => context.order.indexOf(a.id) - context.order.indexOf(b.id));

@@ -16,12 +16,15 @@ export interface RevisionSupport {
 
 /** The identifiers a reader uses to recognize a revision. Archives do not carry the date. */
 export interface FormatRevisionIdentifiers {
+  /** The holo versions that carry this revision. */
+  holoVersions: readonly (4 | 5)[];
   physicalVersion: number;
   flags: number;
   sectionOrder: readonly SectionKindCode[];
   appManifestUri: string;
   extensions: readonly ExtensionName[];
-  coreWasmContract: CoreWasmContract;
+  /** The guest contracts a holo of this revision may name. */
+  coreWasmContracts: readonly GuestContract[];
   holoviewVersion: number;
   sourceManifestVersion: number;
   provenanceSchema: string;

@@ -52,6 +52,7 @@ enum Rule {
     ThreatCategory,
     ThreatModelDeclaration,
     ServerEffects,
+    BinaryApplication,
 }
 
 impl Rule {
@@ -78,6 +79,12 @@ impl Rule {
                 json!({"root": "Probe.Probe.run", "effects": ["allocation", "overflow"]}),
                 json!({"root": "Probe.Probe.run", "effects": ["allocation", "recursion"]}),
             ),
+            Self::BinaryApplication => {
+                let valid = binary_specimen();
+                let mut invalid = valid.clone();
+                invalid["session"] = Value::Null;
+                (valid, invalid)
+            }
             Self::ServerEffects => (
                 json!({"effects": [
                     {"name": "store.get", "role": "core", "steps": 1, "served": 0},
@@ -182,6 +189,7 @@ impl Rule {
             }
             Self::ServerCore => validate_server_core(value).is_ok(),
             Self::ServerEffects => validate_server_effects(value).is_ok(),
+            Self::BinaryApplication => validate_binary_specimen(value).is_ok(),
             Self::FeatureCall
             | Self::FeatureAcceptance
             | Self::FeatureStep
@@ -329,6 +337,7 @@ probes!(
     ("PP2024", "invalid-serving-declaration", ServedApplication),
     ("PP2025", "server-core-build-refused", ServerCore),
     ("PP2026", "server-effect-not-exercised", ServerEffects),
+    ("PP2027", "invalid-binary-application", BinaryApplication),
     ("PP3002", "malformed-holo-section-table", PositiveBound),
     ("PP3003", "invalid-holo-section-closure", Complete),
     ("PP3004", "holo-footer-mismatch", Digest),
@@ -591,6 +600,36 @@ fn validate_server_core(value: &Value) -> Result<(), PrismError> {
     crate::server_build::admit_effects(root, &effects)
 }
 
+/// A session-world counter: the smallest binary application the profile admits.
+fn binary_specimen() -> Value {
+    json!({
+        "profile": "prismpm/binary-application/1",
+        "name": "Binary Probe",
+        "cargo_name": "binary-probe",
+        "cargo_version": "0.1.0",
+        "cargo_description": "Executable binary profile diagnostic specimen",
+        "cargo_repository": "https://github.com/UOR-Foundation/PrismPM",
+        "cargo_homepage": "https://github.com/UOR-Foundation/PrismPM",
+        "library_roots": ["BinaryProbe.step"],
+        "entry_root": "BinaryProbe.step",
+        "core_contract": "hologram:guest/core-wasm@2",
+        "request_maximum": 64, "response_maximum": 16,
+        "input_count_maximum": 0, "input_maximum": 0, "input_total_maximum": 0,
+        "core_memory_pages": 2, "core_stack_bytes": 16384,
+        "session": {"state_maximum": 8, "response_count_maximum": 1},
+        "acceptance_vectors": [],
+        "acceptance_sessions": [[{"request": [], "inputs": [], "responses": [[0, 0, 0, 1]]}]],
+        "acceptance_inputs": [],
+        "capabilities_empty": true, "fat_archive": true, "primary_layer": 0, "view_layer": 1
+    })
+}
+
+fn validate_binary_specimen(value: &Value) -> Result<(), PrismError> {
+    let application = serde_json::from_value(value.clone())
+        .map_err(|_| PrismError::new("PP2027", "invalid binary application specimen"))?;
+    crate::holo::binary_application::validate(&application)
+}
+
 fn validate_server_effects(value: &Value) -> Result<(), PrismError> {
     use crate::server_host::acceptance::{require_exercised, Exercise, Role};
     let specimen = || PrismError::new("PP2026", "invalid server effects specimen");
@@ -635,6 +674,9 @@ fn validate(spec: ProbeSpec, value: &Value) -> Result<(), PrismError> {
     }
     if matches!(spec.rule, Rule::ServerApplication | Rule::ServedApplication) {
         return validate_server_specimen(value);
+    }
+    if matches!(spec.rule, Rule::BinaryApplication) {
+        return validate_binary_specimen(value);
     }
     if matches!(spec.rule, Rule::ServerCore) {
         return validate_server_core(value);
