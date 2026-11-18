@@ -46,6 +46,8 @@ export function context(io = {}) {
     stdin: io.stdin ?? process.stdin,
     cwd: io.cwd ?? process.cwd(),
     env,
+    // The Prism store of the client's own environment; none for a client a caller hands in without one.
+    storeEnv: io.prism !== undefined && io.env === undefined ? null : env,
     pollMs: io.pollMs ?? EVENTS_POLL_MS,
     signal: io.signal ?? null,
     prism: io.prism ?? Prism.fromEnv({ env, warn: () => {} }),
@@ -194,10 +196,10 @@ async function df(argv, io) {
   const report = await io.prism.system.df();
   // The Prism store: what a collection would free, measured without removing anything (store-gc.mjs).
   const { collectStore } = await import('../journey/store-gc.mjs');
-  const store = collectStore({ dryRun: true });
-  if (options.json) return io.stdout.write(json({ ...report, store })), 0;
+  const store = io.storeEnv ? collectStore({ env: io.storeEnv, dryRun: true }) : null;
+  if (options.json) return io.stdout.write(json(store ? { ...report, store } : report)), 0;
   const c = report.containers;
-  const lines = ['TYPE         TOTAL   ACTIVE   SIZE       RECLAIMABLE', `Containers   ${String(c.total).padEnd(8)}${String(c.active).padEnd(9)}${bytes(c.size).padEnd(11)}${bytes(c.reclaimable)}`, imagesLine(report.images), `Prism store  ${String(store.roots).padEnd(8)}${String(store.roots).padEnd(9)}${bytes(store.before).padEnd(11)}${bytes(store.freed)}`];
+  const lines = ['TYPE         TOTAL   ACTIVE   SIZE       RECLAIMABLE', `Containers   ${String(c.total).padEnd(8)}${String(c.active).padEnd(9)}${bytes(c.size).padEnd(11)}${bytes(c.reclaimable)}`, imagesLine(report.images), ...(store ? [`Prism store  ${String(store.roots).padEnd(8)}${String(store.roots).padEnd(9)}${bytes(store.before).padEnd(11)}${bytes(store.freed)}`] : [])];
   if (options.verbose && report.images?.rows.length > 0) {
     lines.push('', 'IMAGE ID       TAGS                                      SIZE     CONTAINERS');
     for (const row of report.images.rows) lines.push(`${row.digest.slice('blake3:'.length, 'blake3:'.length + 12).padEnd(15)}${(row.tags.join(', ') || '<none>').padEnd(42)}${bytes(row.size).padEnd(9)}${row.containers}`);
@@ -235,10 +237,10 @@ async function prune(argv, io) {
   }
   const pruned = await io.prism.system.prune({ ...(until === undefined ? {} : { until }), ...(options.all ? { all: true } : {}) });
   const { collectStore } = await import('../journey/store-gc.mjs');
-  const store = collectStore();
-  const result = { ...pruned, store, spaceReclaimed: pruned.spaceReclaimed + store.freed };
+  const store = io.storeEnv ? collectStore({ env: io.storeEnv }) : null;
+  const result = store ? { ...pruned, store, spaceReclaimed: pruned.spaceReclaimed + store.freed } : pruned;
   if (options.json) return io.stdout.write(json(result)), 0;
-  if (store.busy) io.stderr.write('A check, prove or build holds the Prism store, so nothing was removed from it.\n');
+  if (store?.busy) io.stderr.write('A check, prove or build holds the Prism store, so nothing was removed from it.\n');
   const ids = result.containersDeleted.map((id) => `${id}\n`).join('');
   const images = (result.imagesDeleted ?? []).map((digest) => `${digest}\n`).join('');
   io.stdout.write(`${ids ? `Deleted containers:\n${ids}\n` : ''}${images ? `Deleted images:\n${images}\n` : ''}Total reclaimed space: ${bytes(result.spaceReclaimed)}\n`);

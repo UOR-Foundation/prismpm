@@ -57,9 +57,11 @@ export async function runSetup(argv, usage, context = hostSetupContext(), machin
   const next = agentsHalf ? nextSteps(plan, { github }) : [];
   // Setup leaves the machine store holding only what this prism-code pins, and a proof cache within its size.
   const { collectStore } = await import('./journey/store-gc.mjs');
+  const { prismHome } = await import('./agents.mjs');
   let store = null;
   try {
-    store = collectStore({ dryRun });
+    // The store of the home this setup was given, which a test's context names.
+    if (context.env?.PRISM_HOME || context.home) store = collectStore({ env: { ...context.env, PRISM_HOME: prismHome(context.env ?? {}, context.home) }, dryRun });
   } catch {
     store = null;
   }
