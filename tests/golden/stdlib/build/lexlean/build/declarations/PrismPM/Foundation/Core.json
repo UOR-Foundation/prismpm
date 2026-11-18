@@ -1,0 +1,1 @@
+{"declarations":[{"id":"c2816516f87e2a5a6391179893dc1f0a26be9418325a645e7afb2545e63d4329","kind":"inductive","name":"UnitValue","references":[]},{"id":"ed45c5af71b4facbb0c08f067d0505d6260baffcc728ff1b7a35783de9be78a4","kind":"definition","name":"portableTrue","references":[]}],"module":"Foundation.Core","spec":"lexlean/declarations/1"}
