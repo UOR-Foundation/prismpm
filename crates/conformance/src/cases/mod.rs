@@ -1,5 +1,6 @@
 //! Conformance test cases verifying every registered capability.
 
+mod binary_application;
 #[path = "../../../../tests/support/browser_application.rs"]
 mod browser_application;
 mod browser_bootstrap;
@@ -585,6 +586,13 @@ pub fn run_at(root: &Path, id: &str) {
             &[("sdk/npm/prism-code/test/checkpoint.test.mjs", 8)],
             "600000",
         ),
+        "HO-49" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/revision-2026-11-18.test.mjs", 6)],
+            "600000",
+        ),
+        "HO-50" => binary_application::verify(root),
 
         "CT-01" | "CT-02" | "CT-03" | "CT-04" | "CT-05" | "CT-06" | "CT-07" | "CT-08" | "CT-09"
         | "CT-10" | "CT-11" => {

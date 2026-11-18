@@ -851,13 +851,39 @@ pub(crate) struct ObjectV5 {
     pub(crate) length: u64,
 }
 
-pub(crate) fn layers_v5(guest: &str, view: &str) -> Vec<LayerV5> {
+/// The guest contracts a holo v5 may name, each with the export its wasm
+/// layer is entered at: format revision 2026-10-23 admits the stateless world,
+/// and 2026-11-18 adds the session world (#629) and the checkpoint world
+/// (HO-47). `sdk/npm/spec/constants.mjs`, `FORMAT_REVISIONS`.
+pub(crate) const V5_GUEST_CONTRACTS: [(&str, &str); 3] = [
+    ("hologram:guest/core-wasm@1", "holo_run"),
+    ("hologram:guest/core-wasm@2", "holo_step"),
+    ("hologram:guest/core-wasm@3", "holo_step"),
+];
+
+/// The export a guest of `contract` is entered at, or `None` for a contract no
+/// revision of holo v5 admits.
+pub(crate) fn v5_entry(contract: &str) -> Option<&'static str> {
+    V5_GUEST_CONTRACTS
+        .iter()
+        .find(|(known, _)| *known == contract)
+        .map(|(_, entry)| *entry)
+}
+
+/// The wasm and view layers of a holo v5 whose guest of `contract` and whose
+/// view are named by these κ. A contract no revision admits is laid out as the
+/// stateless world's, so a manifest naming it never matches.
+pub(crate) fn layers_v5(guest: &str, view: &str, contract: &str) -> Vec<LayerV5> {
+    let (contract, entry) = match v5_entry(contract) {
+        Some(entry) => (contract.to_owned(), entry),
+        None => (wire::contractName(), "holo_run"),
+    };
     vec![
         LayerV5 {
             kind: "wasm".to_owned(),
             kappa: guest.to_owned(),
-            entry: "holo_run".to_owned(),
-            contract: Some(wire::contractName()),
+            entry: entry.to_owned(),
+            contract: Some(contract),
             surface: None,
         },
         LayerV5 {
@@ -868,6 +894,15 @@ pub(crate) fn layers_v5(guest: &str, view: &str) -> Vec<LayerV5> {
             surface: Some("portable".to_owned()),
         },
     ]
+}
+
+/// The guest contract the first (wasm) layer of a v5 manifest declares, or the
+/// empty string when it declares none.
+pub(crate) fn declared_contract(layers: &[LayerV5]) -> String {
+    layers
+        .first()
+        .and_then(|layer| layer.contract.clone())
+        .unwrap_or_default()
 }
 
 pub(crate) fn encode_json<T: Serialize>(value: &T) -> Result<Vec<u8>, PrismError> {
@@ -919,7 +954,7 @@ pub fn compose_application(input: &ApplicationArchiveInput) -> Result<GeneratedH
         name: input.application_name.clone(),
         basis: input.basis.clone(),
         requires: capability_kappa.clone(),
-        layers: layers_v5(&guest_kappa, &view_kappa),
+        layers: layers_v5(&guest_kappa, &view_kappa, &wire::contractName()),
         objects,
     })?;
     let application_kappa = content_kappa(&manifest);
@@ -1034,7 +1069,12 @@ fn parse_application_v5(bytes: &[u8]) -> Result<ParsedApplicationArchive, PrismE
             .as_deref()
             .is_some_and(|basis| !v5::is_kappa(basis))
         || manifest.requires != capability_kappa
-        || manifest.layers != layers_v5(&guest_kappa, &view_kappa)
+        || manifest.layers
+            != layers_v5(
+                &guest_kappa,
+                &view_kappa,
+                &declared_contract(&manifest.layers),
+            )
         || manifest.objects != expected_objects
         || encode_json(&manifest)? != manifest_bytes
     {
@@ -1077,7 +1117,7 @@ fn parse_application_v5(bytes: &[u8]) -> Result<ParsedApplicationArchive, PrismE
         browser_sha256,
     ];
     if provenance.schema != PROVENANCE_SCHEMA_V5
-        || provenance.core_wasm_contract != wire::contractName()
+        || provenance.core_wasm_contract != declared_contract(&manifest.layers)
         || provenance.application_kappa != application_kappa
         || provenance.guest_content_kappa != guest_kappa
         || provenance.model_content_kappa != model_kappa

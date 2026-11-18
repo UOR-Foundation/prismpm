@@ -12,7 +12,13 @@ struct Contract {
     schema: &'static [u8],
 }
 
-const CONTRACTS: [Contract; 73] = [
+const CONTRACTS: [Contract; 74] = [
+    Contract {
+        id: "prismpm/model-document/9",
+        maximum_bytes: 16_777_216,
+        maximum_items: 65_536,
+        schema: include_bytes!("../schemas/model-document-v9.schema.json"),
+    },
     Contract {
         id: "prismpm/model-document/8",
         maximum_bytes: 16_777_216,
@@ -888,7 +894,7 @@ pub(crate) struct OwnerCheck {
 /// and closed-shape checks stay here. `parse` and `from_value` refuse these
 /// ids, and the owned forms refuse a check from any other module, so a value
 /// of one of them can only be held after its owner's check ran.
-pub(crate) const OWNER_CHECKED: [(&str, &str); 20] = [
+pub(crate) const OWNER_CHECKED: [(&str, &str); 21] = [
     ("prismpm/browser-export/1", "oci"),
     ("prismpm/browser-export/2", "oci"),
     ("prismpm/browser-publication-integrity/1", "oci"),
@@ -907,6 +913,7 @@ pub(crate) const OWNER_CHECKED: [(&str, &str); 20] = [
     ("prismpm/model-document/6", "model_contract"),
     ("prismpm/model-document/7", "model_contract"),
     ("prismpm/model-document/8", "model_contract"),
+    ("prismpm/model-document/9", "model_contract"),
     ("prismpm/production-acceptance/1", "acceptance"),
     ("prismpm/sdk-lock-migration/1", "sdk"),
     ("prismpm/sdk-lock-update/2", "sdk"),

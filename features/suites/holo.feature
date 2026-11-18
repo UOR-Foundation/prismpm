@@ -337,3 +337,20 @@ Feature: holo
     And a session opened at the checkpoint answers the next requests exactly as the original session does
     And bytes with one byte flipped, a label that is not BLAKE3 and bytes over the state maximum are refused before the guest runs
     And checkpoint and openAt on a session-world or stateless guest fail checkpoint.unsupported
+
+  @HO-49 @build
+  Scenario: Holo format revision 2026-11-18 is revision 2026-10-23 for holo v5 with two more guest contracts and one more model document: a holo v5 may name hologram:guest/core-wasm@2 or hologram:guest/core-wasm@3 in its manifest and its provenance, with the wasm layer entered at holo_step, and may pack prismpm/model-document/9; the readers of @prism-code/verify, prism-code and the Rust inspector name the first revision an archive matches, so every existing archive keeps 2026-10-23, and a holo v4, whose application manifest fixes @1 and holo_run, is of no other revision.
+    Given a holo v5 whose manifest and provenance name the checkpoint world, entered at holo_step, and whose model document is prismpm/model-document/9
+    When @prism-code/verify, prism-code and the Rust inspector read it
+    Then each names format revision 2026-11-18 and loads the guest as the checkpoint world
+    And the reference holo v4 and v5 are still of revision 2026-10-23
+    And the same holo entered at holo_run, or naming an unknown contract, matches no revision
+
+  @HO-50 @build
+  Scenario: A binary application, Foundation.Binary.Application.V1.Model.BinaryApplication with profile prismpm/binary-application/1, projects to prismpm/model-document/9: the stateless world with acceptance vectors, or the session or checkpoint world with session bounds and acceptance sessions, requests and responses up to 64 MiB, and inputs named by BLAKE3 digest whose bytes acceptanceInputs carries; a declaration whose session member disagrees with its contract, whose resolved frame cannot fit its declared memory, or whose acceptance names an input it does not carry is refused with PP2027, and the projection is valid against the closed model-document/9 schema.
+    Given a stateless dot product and a session-world counter, declared as binary applications in LexLean
+    When each is projected through the pinned lexlean compiler
+    Then the dot product is a stateless binary application whose vectors name their inputs by digest
+    And the counter is a session-world application with its bounds and its acceptance sessions
+    And each projection is valid against prismpm/model-document/9
+    And a session member that disagrees with the contract, a frame over the declared memory and an input the acceptance does not carry are each refused with PP2027

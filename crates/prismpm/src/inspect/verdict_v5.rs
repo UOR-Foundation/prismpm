@@ -12,12 +12,13 @@
 use super::{
     attestation, document_object, holoview_version, model_schema_finding, model_sha256_finding,
     wire, world_finding, Analysis, Finding, ModelProvenanceV1, NoVerdict, Row, ViewBinding,
-    CHECK_ORDER, FORMAT_REVISION, HOLOVIEW_VERSION, KIND_APP_MANIFEST, KIND_CONTENT_BLOB,
-    KIND_EXTENSION, KIND_METADATA, SOURCE_MANIFEST_VERSION,
+    BINARY_MODEL_DOCUMENT_SCHEMA, CHECK_ORDER, FORMAT_REVISION, HOLOVIEW_VERSION,
+    KIND_APP_MANIFEST, KIND_CONTENT_BLOB, KIND_EXTENSION, KIND_METADATA, MODEL_DOCUMENT_SCHEMAS,
+    REVISION_2026_11_18, SOURCE_MANIFEST_VERSION,
 };
 use crate::holo::archive::{
-    encode_json, layers_v5, ManifestV5, ObjectV5, CONTENT_OBJECTS, MANIFEST_SCHEMA_V5,
-    PROVENANCE_SCHEMA_V5, ROLES_V5, ROLE_ATTESTATIONS,
+    declared_contract, encode_json, layers_v5, v5_entry, ManifestV5, ObjectV5, CONTENT_OBJECTS,
+    MANIFEST_SCHEMA_V5, PROVENANCE_SCHEMA_V5, ROLES_V5, ROLE_ATTESTATIONS,
 };
 use crate::holo::v5;
 use serde_json::Value;
@@ -119,7 +120,8 @@ pub(super) fn analyze(bytes: &[u8]) -> Result<Analysis, NoVerdict> {
                     .map(|layer| layer.kappa.clone())
                     .unwrap_or_default()
             };
-            if manifest.layers != layers_v5(&named(0), &named(1))
+            if manifest.layers
+                != layers_v5(&named(0), &named(1), &declared_contract(&manifest.layers))
                 || !manifest
                     .layers
                     .iter()
@@ -159,7 +161,8 @@ pub(super) fn analyze(bytes: &[u8]) -> Result<Analysis, NoVerdict> {
             .collect::<Vec<_>>();
         let ok = manifest.objects == expected
             && manifest.requires == kappa(3)
-            && manifest.layers == layers_v5(&kappa(4), &kappa(5));
+            && manifest.layers
+                == layers_v5(&kappa(4), &kappa(5), &declared_contract(&manifest.layers));
         add(
             "blob.labels",
             ok,
@@ -293,13 +296,47 @@ pub(super) fn analyze(bytes: &[u8]) -> Result<Analysis, NoVerdict> {
             ROLES_V5.len() + 1
         ));
     }
-    let expected_contract = wire::contractName();
+    // An archive carries no date: it is of the first revision whose
+    // identifiers it carries. The stateless world is 2026-10-23's; the
+    // session and checkpoint worlds, and the binary application document,
+    // are 2026-11-18's (#629, HO-47, #630).
+    let model_schema = at(6)
+        .and_then(|model| serde_json::from_slice::<Value>(&model.bytes).ok())
+        .and_then(|model| {
+            model
+                .get("schema")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        });
+    let stateless = contract
+        .as_deref()
+        .is_none_or(|contract| contract == wire::contractName())
+        && model_schema
+            .as_deref()
+            .is_none_or(|schema| MODEL_DOCUMENT_SCHEMAS.contains(&schema));
+    let revision = if stateless {
+        FORMAT_REVISION
+    } else {
+        REVISION_2026_11_18
+    };
     if let Some(contract) = contract
         .as_deref()
-        .filter(|contract| *contract != expected_contract)
+        .filter(|contract| v5_entry(contract).is_none())
     {
         differences.push(format!(
-            "the guest contract is {contract}, expected {expected_contract}"
+            "the guest contract is {contract}, expected one of {}",
+            crate::holo::archive::V5_GUEST_CONTRACTS
+                .iter()
+                .map(|(known, _)| *known)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if let Some(schema) = model_schema.as_deref().filter(|schema| {
+        !MODEL_DOCUMENT_SCHEMAS.contains(schema) && *schema != BINARY_MODEL_DOCUMENT_SCHEMA
+    }) {
+        differences.push(format!(
+            "the model document schema {schema} is not packed by this revision"
         ));
     }
     if let Ok(manifest) = &source_manifest {
@@ -319,7 +356,7 @@ pub(super) fn analyze(bytes: &[u8]) -> Result<Analysis, NoVerdict> {
         "format.revision",
         differences.is_empty(),
         if differences.is_empty() {
-            format!("holo v5, format revision {FORMAT_REVISION}")
+            format!("holo v5, format revision {revision}")
         } else {
             format!(
                 "the archive matches no format revision this reader knows (holo v5): {}",
@@ -350,6 +387,7 @@ pub(super) fn analyze(bytes: &[u8]) -> Result<Analysis, NoVerdict> {
         rows,
         roles,
         contract,
+        revision,
         provenance: provenance.ok(),
         attestations,
     })

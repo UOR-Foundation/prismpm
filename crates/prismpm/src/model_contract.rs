@@ -26,6 +26,7 @@ fn check_contract(id: &str, value: &Value) -> Result<(), PrismError> {
             | "prismpm/model-document/6"
             | "prismpm/model-document/7"
             | "prismpm/model-document/8"
+            | "prismpm/model-document/9"
     ) {
         return Err(PrismError::new(
             "PP9001",

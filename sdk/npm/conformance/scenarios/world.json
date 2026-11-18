@@ -175,6 +175,38 @@
         "ok": true,
         "result": { "world": { "contract": "hologram:guest/core-wasm@3", "within": true, "pure": true, "effects": [] } }
       }
+    },
+    {
+      "id": "world.checkpoint-v5.loaded",
+      "title": "A holo v5 of format revision 2026-11-18 whose wasm layer is the checkpoint world, entered at holo_step, with a binary application document, loads as that world (HO-49).",
+      "op": "load",
+      "archive": "checkpoint-world-v5",
+      "expect": {
+        "ok": true,
+        "result": { "world": { "contract": "hologram:guest/core-wasm@3", "within": true, "pure": true, "effects": [] } }
+      }
+    },
+    {
+      "id": "world.checkpoint-v5.inspected",
+      "title": "Inspection names format revision 2026-11-18 for a holo v5 of the checkpoint world, and the world's package, file, digests and five exports, and says the guest conforms (HO-49).",
+      "op": "inspect",
+      "archive": "checkpoint-world-v5",
+      "expect": {
+        "ok": true,
+        "result": {
+          "revision": "2026-11-18",
+          "world": {
+            "contract": "hologram:guest/core-wasm@3",
+            "package": "hologram:guest@3.0.0",
+            "conforms": true,
+            "exports": ["holo_alloc", "holo_restore", "holo_state", "holo_step", "memory"],
+            "digest": {
+              "blake3": "9f7f378fbcc5e1877352f1b0dcd5ed9d325eb9dab6b909ac07e0c8fde49357fa",
+              "sha256": "ff78688d4d0523ff98c8b4b9e9422abe5435242aaf97beae1dd10c06398a1c8c"
+            }
+          }
+        }
+      }
     }
   ]
 }

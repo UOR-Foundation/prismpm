@@ -730,6 +730,12 @@ pub(crate) fn validate_hologram_oracle_report(
                     "a server application has no Hologram oracle",
                 ));
             }
+            Application::Binary(_) => {
+                return Err(PrismError::new(
+                    "PP9001",
+                    "a binary application has no Hologram oracle: hologram-live does not run its guest (#630, maintainer decision 1)",
+                ));
+            }
             Application::Text(value) => vector.request.len() <= value.request_maximum as usize,
             Application::Legacy(value) => {
                 let fields = request.split('\t').collect::<Vec<_>>();
@@ -773,6 +779,12 @@ pub(crate) fn validate_hologram_oracle_report(
             return Err(PrismError::new(
                 "PP9001",
                 "a server application has no Hologram oracle",
+            ));
+        }
+        Application::Binary(_) => {
+            return Err(PrismError::new(
+                "PP9001",
+                "a binary application has no Hologram oracle: hologram-live does not run its guest (#630, maintainer decision 1)",
             ));
         }
         Application::Text(_) => {

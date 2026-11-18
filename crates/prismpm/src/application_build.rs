@@ -477,6 +477,12 @@ fn application_view(
                     "server applications have no view",
                 ));
             }
+            Application::Binary(_) => {
+                return Err(PrismError::new(
+                    "PP9001",
+                    "this generator composes no view for a binary application (#630)",
+                ));
+            }
             Application::Legacy(application) => {
                 let evaluated = view_value(model, application, core_sha);
                 let generated = generate_view_v1(
@@ -788,6 +794,7 @@ pub(crate) fn application_export_arguments(
             Application::Text(application) => application.cargo_name.replace('-', "_"),
             Application::Browser(application) => application.cargo_name.replace('-', "_"),
             Application::Server(application) => application.cargo_name.replace('-', "_"),
+            Application::Binary(application) => application.cargo_name.replace('-', "_"),
         },
         "--out".to_owned(),
         export.to_string_lossy().into_owned(),
@@ -881,6 +888,12 @@ fn generate_in(
         return Err(PrismError::new(
             "PP9001",
             "a server application is built through the production API, not the application generator",
+        ));
+    }
+    if matches!(application, Application::Binary(_)) {
+        return Err(PrismError::new(
+            "PP9001",
+            "this generator composes legacy, text and browser applications; a binary application (#630) is not composed by it",
         ));
     }
     let stdlib: StdlibRelease = serde_json::from_str(STDLIB_RELEASE_SOURCE)
