@@ -1,9 +1,9 @@
 Feature: verification
 
   @VR-01 @build
-  Scenario: LexLean verifies formal models against the Lean 4.32.1 kernel.
+  Scenario: LexLean verifies formal models against the Lean 4.32.2 kernel.
     Given generated Lean declarations
-    When Lean 4.32.1 elaborates the modules
+    When Lean 4.32.2 elaborates the modules
     Then type-checking succeeds in the kernel
 
   @VR-02 @build

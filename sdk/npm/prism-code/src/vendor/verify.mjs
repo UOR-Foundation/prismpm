@@ -176,6 +176,21 @@ const __vendor_spec = (() => {
   });
 
   /**
+   * The Core-Wasm checkpoint contract (HO-47): the session contract with the
+   * state made addressable. `holo_state` locates the resident state's bytes and
+   * `holo_restore` installs a state in a fresh instance.
+   */
+  const CORE_WASM_CHECKPOINT = freeze({
+    CONTRACT: 'hologram:guest/core-wasm@3',
+    EXPORTS: freeze(['holo_alloc', 'holo_restore', 'holo_state', 'holo_step', 'memory']),
+    ALLOCATOR: 'holo_alloc',
+    ENTRY: 'holo_step',
+    STATE: 'holo_state',
+    RESTORE: 'holo_restore',
+    WORLD: 'worlds/core-wasm-3.wit',
+  });
+
+  /**
    * The worlds a guest can target, by guest contract (issue #278,
    * docs/proposals/278-wit-world.md). A holo declares its world by naming its
    * contract; the world's hash is a function of that name through this table.
@@ -217,6 +232,24 @@ const __vendor_spec = (() => {
       imports: freeze([]),
       exports: freeze([
         freeze({ name: 'holo_alloc', kind: 'func', params: freeze(['i32']), results: freeze(['i32']) }),
+        freeze({ name: 'holo_step', kind: 'func', params: freeze(['i32', 'i32']), results: freeze(['i64']) }),
+        freeze({ name: 'memory', kind: 'memory' }),
+      ]),
+    }),
+    [CORE_WASM_CHECKPOINT.CONTRACT]: freeze({
+      version: 1,
+      package: 'hologram:guest@3.0.0',
+      world: 'core-wasm',
+      file: CORE_WASM_CHECKPOINT.WORLD,
+      digest: freeze({
+        blake3: '9f7f378fbcc5e1877352f1b0dcd5ed9d325eb9dab6b909ac07e0c8fde49357fa',
+        sha256: 'ff78688d4d0523ff98c8b4b9e9422abe5435242aaf97beae1dd10c06398a1c8c',
+      }),
+      imports: freeze([]),
+      exports: freeze([
+        freeze({ name: 'holo_alloc', kind: 'func', params: freeze(['i32']), results: freeze(['i32']) }),
+        freeze({ name: 'holo_restore', kind: 'func', params: freeze(['i32']), results: freeze(['i32']) }),
+        freeze({ name: 'holo_state', kind: 'func', params: freeze([]), results: freeze(['i64']) }),
         freeze({ name: 'holo_step', kind: 'func', params: freeze(['i32', 'i32']), results: freeze(['i64']) }),
         freeze({ name: 'memory', kind: 'memory' }),
       ]),
@@ -408,7 +441,7 @@ const __vendor_spec = (() => {
     "SOURCE_MANIFEST": "schemas/holo/source-manifest.schema.json",
     "APPLICATION_DIRECTORY": "schemas/holo/application-directory.schema.json",
   });
-  return Object.freeze({ FORMAT_REVISION, MAGIC, PHYSICAL_VERSION, FLAGS, HEADER_LENGTH, TABLE_ENTRY_LENGTH, SECTION_COUNT, BODY_OFFSET, FOOTER_LENGTH, SECTION_KIND, SECTION_ORDER, LABEL_PREFIX, LABEL_LENGTH, APP_MANIFEST, CAPABILITY_SET, EXTENSION, CORE_WASM, CORE_WASM_SESSION, WORLDS, HOLOVIEW, ATTESTATION, ATTESTATION_BUNDLE, OCI, FORMAT_REVISIONS, HOLO_V5, PROVENANCE, POLICY, ASSURANCE, SCHEMAS, HOLO_SCHEMAS });
+  return Object.freeze({ FORMAT_REVISION, MAGIC, PHYSICAL_VERSION, FLAGS, HEADER_LENGTH, TABLE_ENTRY_LENGTH, SECTION_COUNT, BODY_OFFSET, FOOTER_LENGTH, SECTION_KIND, SECTION_ORDER, LABEL_PREFIX, LABEL_LENGTH, APP_MANIFEST, CAPABILITY_SET, EXTENSION, CORE_WASM, CORE_WASM_SESSION, CORE_WASM_CHECKPOINT, WORLDS, HOLOVIEW, ATTESTATION, ATTESTATION_BUNDLE, OCI, FORMAT_REVISIONS, HOLO_V5, PROVENANCE, POLICY, ASSURANCE, SCHEMAS, HOLO_SCHEMAS });
 })();
 
 // src/vendor/blake3.mjs

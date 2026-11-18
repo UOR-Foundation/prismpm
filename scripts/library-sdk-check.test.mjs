@@ -273,7 +273,7 @@ test('closed native evidence parser rejects coherently resealed model, acceptanc
   (root,receipt)=>put(root,'.prism/build/'+receipt.build_id+'/unexpected','extra output'),
  ]){const root=temporary(t),receipt=parserFixture(root);change(root,receipt);assert.throws(()=>checkAccepted(root,receipt));}
  put(valid,'.prism/build/'+receipt.build_id+'/library/package/src/lib.rs','tampered actual bytes');assert.throws(()=>checkAccepted(valid,receipt));
- const compiler={revision:'6'.repeat(40),toolchain:'leanprover/lean4:v4.32.1',platform:'linux/amd64'};
+ const compiler={revision:'6'.repeat(40),toolchain:'leanprover/lean4:v4.32.2',platform:'linux/amd64'};
  const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
  const encode=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])):v);
  for(const mutation of [null,'inventory','manifest','child','source','revision','toolchain','platform','seed-kind','seed-version','child-kind','unknown','index','missing-authority']) {

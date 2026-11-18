@@ -10,7 +10,7 @@ Feature: repository
   Scenario: Toolchain versions for Rust and Lean are pinned in rust-toolchain.toml and lean-toolchain.
     Given the repository root
     When rust-toolchain.toml and lean-toolchain are inspected
-    Then Rust is pinned to 1.97.1 and Lean is pinned to leanprover/lean4:v4.32.1
+    Then Rust is pinned to 1.97.1 and Lean is pinned to leanprover/lean4:v4.32.2
 
   @RP-03 @build
   Scenario: Every model claim is authored in model/*.toml and validated by cargo xtask validate-model.

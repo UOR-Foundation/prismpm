@@ -248,13 +248,13 @@ test('fresh LexLean workspace corpus executes completely through pinned producti
   t.after(() => rmSync(work, {recursive: true, force: true}));
   const rustToolchain = readRegular(join(repository, 'rust-toolchain.toml'));
   const leanToolchain = readRegular(join(repository, 'lean-toolchain')).toString('utf8').trim();
-  assert.equal(leanToolchain, 'leanprover/lean4:v4.32.1', 'fixture matches the pinned Lean edition');
+  assert.equal(leanToolchain, 'leanprover/lean4:v4.32.2', 'fixture matches the pinned Lean edition');
   writeFileSync(join(work, 'rust-toolchain.toml'), rustToolchain, {flag: 'wx'});
   const project = join(work, 'project');
   const sourceRoot = join(project, 'src/Foundation/Browser/V1');
   mkdirSync(sourceRoot, {recursive: true});
   for (const [file, bytes] of sources) writeFileSync(join(sourceRoot, file), bytes, {flag: 'wx'});
-  writeFileSync(join(project, 'lean-toolchain'), 'leanprover/lean4:v4.32.1\n', {flag: 'wx'});
+  writeFileSync(join(project, 'lean-toolchain'), 'leanprover/lean4:v4.32.2\n', {flag: 'wx'});
   writeFileSync(join(project, 'lakefile.toml'), 'name = "workspace_verification"\nversion = "0.1.0"\n', {flag: 'wx'});
   for (const path of lexiconPaths(repository)) {
     const destination = join(project, path);
@@ -269,7 +269,7 @@ entrypoints = ["src/Foundation/Browser/V1/WorkspaceCorpus.lex.tex"]
 build_root = ".lexlean"
 lockfile = "lexlean.lock"
 lean_workspace = "."
-lean_toolchain = "leanprover/lean4:v4.32.1"
+lean_toolchain = "leanprover/lean4:v4.32.2"
 [[lexicon_source]]
 package = "lexlean.std.bool"
 kind = "builtin"
@@ -309,7 +309,7 @@ child_timeout_ms = 300000
     const generatedLean = readRegular(join(verified.root, `modules/PrismPM/Foundation/Browser/V1/${name}.lean`));
     writeFileSync(join(leanSource, `${name}.lean`), generatedLean, {flag: 'wx'});
   }
-  writeFileSync(join(lean, 'lean-toolchain'), 'leanprover/lean4:v4.32.1\n', {flag: 'wx'});
+  writeFileSync(join(lean, 'lean-toolchain'), 'leanprover/lean4:v4.32.2\n', {flag: 'wx'});
   writeFileSync(join(lean, 'lakefile.toml'), `name = "workspace_generated_probe"
 version = "0.1.0"
 [[lean_lib]]

@@ -61,8 +61,8 @@ fn seeded_exporter_authority_matches_the_retained_native_execution_platform() {
         .enumerate()
     {
         let output = [
-            format!("Lean (version 4.32.1, {host}, commit f054605aea4b840552cca2e725580bffd1e1b704, Release)\n"),
-            "Lake version 5.0.0-src+f054605 (Lean version 4.32.1)\n".to_owned(),
+            format!("Lean (version 4.32.2, {host}, commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, Release)\n"),
+            "Lake version 5.0.0-src+f3b06c7 (Lean version 4.32.2)\n".to_owned(),
             "rustfmt 1.9.0-stable (8bab26f4f6 2026-07-14)\n".to_owned(),
             format!("commit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\nhost: {host}\nrelease: 1.97.1\n"),
             "timeout (GNU coreutils) 9.4\n".to_owned(),

@@ -1,0 +1,28 @@
+/// The checkpoint world (@3). Returns `offset << 32 | length` of the resident
+/// state's bytes. It reads and changes nothing else, so a step after it answers
+/// as if it had not been called.
+#[no_mangle]
+pub extern "C" fn holo_state() -> i64 {
+    let base = heap_base();
+    let state_len = STATE_LENGTH.load(Ordering::Relaxed);
+    ((u64::from(base) << 32) | u64::from(state_len)) as i64
+}
+
+/// The checkpoint world (@3). Reserve `size` bytes at the start of the heap as
+/// the resident state of a fresh instance and return their offset; the host
+/// writes the state there before the first step. Only a fresh instance takes a
+/// state: one that has reserved a request, taken a step or restored before
+/// traps, because the arena would otherwise hold bytes the state would cover.
+#[no_mangle]
+pub extern "C" fn holo_restore(size: i32) -> i32 {
+    if size < 0 { trap(); }
+    let size = size as u32;
+    if size > STATE_MAXIMUM { trap(); }
+    if NEXT.load(Ordering::Relaxed) != 0 || STATE_LENGTH.load(Ordering::Relaxed) != 0 { trap(); }
+    let base = heap_base();
+    let end = base.checked_add(size).unwrap_or_else(|| trap());
+    ensure_memory(end.max(base.checked_add(1).unwrap_or_else(|| trap())));
+    STATE_LENGTH.store(size, Ordering::Relaxed);
+    NEXT.store(end, Ordering::Relaxed);
+    i32::try_from(base).unwrap_or_else(|_| trap())
+}

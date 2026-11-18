@@ -31,8 +31,8 @@ fn selectors(environment: &BTreeMap<String, String>) -> Result<(), PrismError> {
         ("RUSTUP_TOOLCHAIN", "1.97.1", format!("1.97.1-{host}")),
         (
             "ELAN_TOOLCHAIN",
-            "leanprover/lean4:v4.32.1",
-            "leanprover--lean4---v4.32.1".to_owned(),
+            "leanprover/lean4:v4.32.2",
+            "leanprover--lean4---v4.32.2".to_owned(),
         ),
     ] {
         if environment
@@ -73,7 +73,7 @@ pub(super) fn resolve(project: &Path) -> Result<Tools, PrismError> {
     }
     let mut environment = BTreeMap::from([
         ("RUSTUP_TOOLCHAIN".into(), "1.97.1".into()),
-        ("ELAN_TOOLCHAIN".into(), "leanprover/lean4:v4.32.1".into()),
+        ("ELAN_TOOLCHAIN".into(), "leanprover/lean4:v4.32.2".into()),
     ]);
     let sysroot = run_process(
         "browser-rust-sysroot",
@@ -141,7 +141,7 @@ pub(super) fn resolve(project: &Path) -> Result<Tools, PrismError> {
         }
         records.push(record);
     }
-    let binding = json_bytes(&json!({"rust":"1.97.1", "lean":"leanprover/lean4:v4.32.1",
+    let binding = json_bytes(&json!({"rust":"1.97.1", "lean":"leanprover/lean4:v4.32.2",
         "tools":records.iter().map(|row| json!({"tool":row.tool,"executable_sha256":row.executable_sha256,"version":row.stdout})).collect::<Vec<_>>()}))?;
     Ok(Tools {
         cargo: actual_cargo,

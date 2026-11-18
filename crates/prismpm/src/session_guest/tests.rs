@@ -20,6 +20,7 @@ fn spec() -> SessionGuestSpec {
         maximum_pages: 64,
         stack_bytes: 65_536,
         input_ir_sha256: DIGEST.to_owned(),
+        checkpoint: false,
     }
 }
 
@@ -229,20 +230,10 @@ fn the_turn_and_answer_maxima_follow_the_frames() {
     assert_eq!(s.answer_maximum(), 8 + 65_536 + 16 * (4 + 1024));
 }
 
-/// The runtime tests of prism-code run the real shim: the session ABI probe under
-/// sdk/npm/prism-code/test/fixtures/session-probe is this template around a test
-/// entry. Its committed source must be exactly what the generator renders.
-#[test]
-fn the_session_probe_is_the_generated_shim_around_its_test_entry() {
-    let probe = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../sdk/npm/prism-code/test/fixtures/session-probe");
-    let read = |path: &str| {
-        std::fs::read_to_string(probe.join(path))
-            .expect("the probe file is committed")
-            .replace("\r\n", "\n")
-    };
-    let bounds = SessionGuestSpec {
-        crate_name: "prism-session-probe-core-wasm".to_owned(),
+/// The bounds both ABI probes are generated with; `checkpoint` picks the world.
+fn probe_bounds(crate_name: &str, checkpoint: bool) -> SessionGuestSpec {
+    SessionGuestSpec {
+        crate_name: crate_name.to_owned(),
         entry: "step".to_owned(),
         request_maximum: 64,
         state_maximum: 256,
@@ -251,19 +242,33 @@ fn the_session_probe_is_the_generated_shim_around_its_test_entry() {
         maximum_pages: 2,
         stack_bytes: 16_384,
         input_ir_sha256: DIGEST.to_owned(),
+        checkpoint,
+    }
+}
+
+/// A committed probe under sdk/npm/prism-code/test/fixtures is exactly the
+/// generator's shim around its test entry, with the generator's Cargo files.
+fn assert_probe_is_generated(directory: &str, bounds: &SessionGuestSpec) {
+    let probe = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../sdk/npm/prism-code/test/fixtures")
+        .join(directory);
+    let read = |path: &str| {
+        std::fs::read_to_string(probe.join(path))
+            .expect("the probe file is committed")
+            .replace("\r\n", "\n")
     };
     assert_eq!(bounds.bounds_problem(), None);
     let expected = format!(
         "{CRATE_HEADER}\n{}\n\n{}",
         read("entry.rs"),
-        render_runtime(&bounds, "__prism_session_runtime", false)
+        render_runtime(bounds, "__prism_session_runtime", false)
     );
     assert_eq!(
         read("src/lib.rs"),
         expected,
-        "regenerate the probe from the template"
+        "regenerate the probe {directory} from the template"
     );
-    let generated = generate_session_guest_package(&module(IR), &bounds).expect("generates");
+    let generated = generate_session_guest_package(&module(IR), bounds).expect("generates");
     for path in [".cargo/config.toml", "Cargo.toml"] {
         let file = generated
             .files
@@ -274,7 +279,108 @@ fn the_session_probe_is_the_generated_shim_around_its_test_entry() {
         assert_eq!(
             read(path),
             mine,
-            "{path} of the probe differs from the generator's"
+            "{path} of the probe {directory} differs from the generator's"
         );
     }
+}
+
+/// The runtime tests of prism-code run the real shim: the session ABI probe under
+/// sdk/npm/prism-code/test/fixtures/session-probe is this template around a test
+/// entry. Its committed source must be exactly what the generator renders.
+#[test]
+fn the_session_probe_is_the_generated_shim_around_its_test_entry() {
+    assert_probe_is_generated(
+        "session-probe",
+        &probe_bounds("prism-session-probe-core-wasm", false),
+    );
+}
+
+/// The checkpoint probe is the @3 shim around the same test entry, so the
+/// runtime's checkpoint tests run the real `holo_state` and `holo_restore`.
+#[test]
+fn the_checkpoint_probe_is_the_generated_shim_around_the_same_entry() {
+    assert_probe_is_generated(
+        "checkpoint-probe",
+        &probe_bounds("prism-checkpoint-probe-core-wasm", true),
+    );
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../sdk/npm/prism-code/test/fixtures");
+    let entry = |directory: &str| {
+        std::fs::read_to_string(fixtures.join(directory).join("entry.rs"))
+            .expect("the probe entry is committed")
+            .replace("\r\n", "\n")
+    };
+    assert_eq!(entry("checkpoint-probe"), entry("session-probe"));
+}
+
+fn checkpoint_spec() -> SessionGuestSpec {
+    SessionGuestSpec {
+        checkpoint: true,
+        ..spec()
+    }
+}
+
+#[test]
+fn the_checkpoint_package_is_the_session_package_with_two_more_exports() {
+    let session =
+        source_of(&generate_session_guest_package(&module(IR), &spec()).expect("generates"));
+    let checkpoint = source_of(
+        &generate_session_guest_package(&module(IR), &checkpoint_spec()).expect("generates"),
+    );
+    // The @3 source is the @2 source with exactly one block added before the panic handler.
+    let block = format!("{CHECKPOINT_TEMPLATE}\n");
+    let at = session
+        .find("#[panic_handler]")
+        .expect("the shim has a panic handler");
+    assert_eq!(
+        checkpoint,
+        format!("{}{block}{}", &session[..at], &session[at..])
+    );
+    assert!(checkpoint.contains("pub extern \"C\" fn holo_state() -> i64"));
+    assert!(checkpoint.contains("pub extern \"C\" fn holo_restore(size: i32) -> i32"));
+    for line in [
+        "if size > STATE_MAXIMUM { trap(); }",
+        "if NEXT.load(Ordering::Relaxed) != 0 || STATE_LENGTH.load(Ordering::Relaxed) != 0 { trap(); }",
+    ] {
+        assert!(checkpoint.contains(line), "the checkpoint shim lacks `{line}`");
+    }
+    assert!(!checkpoint.contains("holo_run"));
+    assert_eq!(checkpoint_spec().bounds_problem(), None);
+}
+
+#[test]
+fn the_checkpoint_manifest_names_the_checkpoint_contract() {
+    let session =
+        manifest_of(&generate_session_guest_package(&module(IR), &spec()).expect("generates"));
+    let checkpoint = manifest_of(
+        &generate_session_guest_package(&module(IR), &checkpoint_spec()).expect("generates"),
+    );
+    assert_eq!(session["contract"], SESSION_CONTRACT);
+    assert_eq!(checkpoint["contract"], CHECKPOINT_CONTRACT);
+    assert_eq!(checkpoint["schema"], TARGET_SCHEMA);
+    for bound in [
+        "request_maximum",
+        "state_maximum",
+        "response_maximum",
+        "response_count_maximum",
+        "maximum_pages",
+        "stack_bytes",
+    ] {
+        assert_eq!(session[bound], checkpoint[bound], "{bound}");
+    }
+}
+
+/// The @2 package must not move: its probe, the committed shim, still equals the
+/// generator's output, and the template a @2 shim is rendered from is the file.
+#[test]
+fn the_session_package_is_unchanged_when_checkpoints_are_off() {
+    let source = render_runtime(&spec(), "__prism_session_runtime", false);
+    assert!(!source.contains("holo_state"));
+    assert!(!source.contains("holo_restore"));
+    let template_lines = RUNTIME_TEMPLATE.lines().count();
+    assert_eq!(source.lines().count(), template_lines);
+    assert_probe_is_generated(
+        "session-probe",
+        &probe_bounds("prism-session-probe-core-wasm", false),
+    );
 }

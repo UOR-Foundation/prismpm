@@ -123,9 +123,9 @@ pub fn audit_retained_native_profiles(root: &Path) -> Result<(), Fail> {
     Ok(())
 }
 
-/// The LexLean commit the vendored package is built from: the commit of the
-/// annotated `v0.4.0` tag, from which the LexLean v0.4.0 release was cut.
-const LEXLEAN_AUTHORITY_REVISION: &str = "e0b74b81e6f49c83596a957d232c8383a5db1a25";
+/// The LexLean commit the vendored package is built from: the commit the
+/// annotated `v0.4.3` tag names, from which the LexLean v0.4.3 release was cut.
+const LEXLEAN_AUTHORITY_REVISION: &str = "fa271080652887976ae25d0aef84edc7472b0276";
 /// Handwritten Lean admitted from the vendored LexLean package. The v0.4
 /// package carries its extraction adapter (`language/lcnf-1.2/tooling/src`)
 /// and the preservation library (`language/preservation-1.2/library/src`) as
@@ -426,7 +426,7 @@ fn audit_lexlean_adapter_provenance(root: &Path) -> Result<(), Fail> {
         != dependency.get("revision").and_then(toml::Value::as_str)
         || dependency.get("revision").and_then(toml::Value::as_str)
             != Some(LEXLEAN_AUTHORITY_REVISION)
-        || version != "0.4.0"
+        || version != "0.4.3"
         || provenance["path_in_vcs"] != "crates/lexlean"
         || provenance["git"]
             .get("dirty")
@@ -1416,7 +1416,7 @@ pub fn audit_tools_ci(root: &Path) -> Result<(), Fail> {
     }
     for value in [
         "1.97.1",
-        "leanprover/lean4:v4.32.1",
+        "leanprover/lean4:v4.32.2",
         "4.2.3",
         "1.57.0",
         "0.20.2",
@@ -1724,7 +1724,7 @@ mod lean_source_audit_tests {
             if !entry.file_type().is_file()
                 || matches!(
                     entry.file_name().to_str(),
-                    Some("MANIFEST.sha256" | "lexlean-0.4.0.crate")
+                    Some("MANIFEST.sha256" | "lexlean-0.4.3.crate")
                 )
             {
                 continue;
@@ -1737,13 +1737,13 @@ mod lean_source_audit_tests {
             archive
                 .append_data(
                     &mut header,
-                    Path::new("lexlean-0.4.0").join(entry.path().strip_prefix(&vendor).unwrap()),
+                    Path::new("lexlean-0.4.3").join(entry.path().strip_prefix(&vendor).unwrap()),
                     bytes.as_slice(),
                 )
                 .unwrap();
         }
         let bytes = archive.into_inner().unwrap().finish().unwrap();
-        std::fs::write(vendor.join("lexlean-0.4.0.crate"), bytes).unwrap();
+        std::fs::write(vendor.join("lexlean-0.4.3.crate"), bytes).unwrap();
         seal_tree(root);
     }
 
@@ -1767,15 +1767,15 @@ mod lean_source_audit_tests {
         std::fs::write(vendor.join("MANIFEST.sha256"), manifest).unwrap();
         let manifest_digest = hash_file(&vendor.join("MANIFEST.sha256")).unwrap();
         let other_digest = hash_file(&root.join("vendor/fixture.bin")).unwrap();
-        let archive_digest = hash_file(&vendor.join("lexlean-0.4.0.crate")).unwrap();
+        let archive_digest = hash_file(&vendor.join("lexlean-0.4.3.crate")).unwrap();
         let revision = LEXLEAN_AUTHORITY_REVISION;
         let source = format!(
             "spec = 'prismpm/dependencies/1'\n\n\
              [[dependency]]\nid = 'lean4-prod'\nrevision = '{revision}'\nsource = 'vendored'\n\
              [[dependency.artifact]]\nkind = 'file'\npath = 'vendor/fixture.bin'\nsha256 = '{other_digest}'\n\n\
-             [[dependency]]\nid = 'lexlean'\nversion = '0.4.0'\nrevision = '{revision}'\nsource = 'vendored'\n\
+             [[dependency]]\nid = 'lexlean'\nversion = '0.4.3'\nrevision = '{revision}'\nsource = 'vendored'\n\
              [[dependency.artifact]]\nkind = 'tree-manifest'\npath = 'vendor/lexlean/MANIFEST.sha256'\nsha256 = '{manifest_digest}'\ntree_root = 'vendor/lexlean'\n\
-             [[dependency.artifact]]\nkind = 'file'\npath = 'vendor/lexlean/lexlean-0.4.0.crate'\nsha256 = '{archive_digest}'\n\n\
+             [[dependency.artifact]]\nkind = 'file'\npath = 'vendor/lexlean/lexlean-0.4.3.crate'\nsha256 = '{archive_digest}'\n\n\
              [[dependency]]\nid = 'hologram-live'\nrevision = '{revision}'\nsource = 'vendored'\nrole = 'validation-oracle'\n\
              [[dependency.artifact]]\nkind = 'file'\npath = 'vendor/fixture.bin'\nsha256 = '{other_digest}'\n\n\
              [[dependency]]\nid = 'uor-hologram'\nrevision = '{revision}'\nsource = 'git'\nrole = 'validation-oracle'\n\n\
@@ -1801,7 +1801,7 @@ mod lean_source_audit_tests {
         )
         .unwrap();
         std::fs::write(
-            root.path().join("vendor/lexlean/lexlean-0.4.0.crate"),
+            root.path().join("vendor/lexlean/lexlean-0.4.3.crate"),
             "synthetic archive for dependency-gate testing\n",
         )
         .unwrap();
@@ -1964,9 +1964,9 @@ mod lean_source_audit_tests {
             // resealed, rather than accepting a generic dependency-hash error.
             let error = audit_lexlean_authority_archive(
                 root.path(),
-                "vendor/lexlean/lexlean-0.4.0.crate",
-                &hash_file(&vendor.join("lexlean-0.4.0.crate")).unwrap(),
-                "0.4.0",
+                "vendor/lexlean/lexlean-0.4.3.crate",
+                &hash_file(&vendor.join("lexlean-0.4.3.crate")).unwrap(),
+                "0.4.3",
             )
             .unwrap_err()
             .to_string();
@@ -1997,7 +1997,7 @@ mod lean_source_audit_tests {
         ] {
             let root = preservation_fixture();
             audit_no_handwritten_lean(root.path()).unwrap();
-            let path = root.path().join("vendor/lexlean/lexlean-0.4.0.crate");
+            let path = root.path().join("vendor/lexlean/lexlean-0.4.3.crate");
             let original = std::fs::read(&path).unwrap();
             let mut tar_bytes = Vec::new();
             flate2::read::GzDecoder::new(original.as_slice())
@@ -2012,7 +2012,7 @@ mod lean_source_audit_tests {
                 }
                 "traversal" => {
                     header.as_mut_bytes()[..100].fill(0);
-                    let name = b"lexlean-0.4.0/../foreign.lean";
+                    let name = b"lexlean-0.4.3/../foreign.lean";
                     header.as_mut_bytes()[..name.len()].copy_from_slice(name);
                     header.set_cksum();
                     tar_bytes[..512].copy_from_slice(header.as_bytes());
@@ -2047,9 +2047,9 @@ mod lean_source_audit_tests {
             // into a vacuous rejection by the outer dependency checksum gate.
             let error = audit_lexlean_authority_archive(
                 root.path(),
-                "vendor/lexlean/lexlean-0.4.0.crate",
+                "vendor/lexlean/lexlean-0.4.3.crate",
                 &hash_file(&path).unwrap(),
-                "0.4.0",
+                "0.4.3",
             )
             .unwrap_err()
             .to_string();

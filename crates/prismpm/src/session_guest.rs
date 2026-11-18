@@ -5,6 +5,10 @@
 //! `prod_codegen::generate_module` renders it, unchanged, and a fixed runtime
 //! template (`session_guest/runtime.rs.in`) whose only inputs are the declared
 //! bounds and the entry's name. No application behavior is written here.
+//!
+//! The same generator renders the checkpoint world `hologram:guest/core-wasm@3`:
+//! the @2 shim and two more exports, `holo_state` and `holo_restore`, so a host
+//! can name a session's state by its content and start a fresh instance from it.
 
 use prod_codegen::{GeneratedPackage, PackageFile};
 use prod_ir::{Module, Type};
@@ -14,12 +18,15 @@ use crate::error::PrismError;
 
 /// The guest contract this module generates.
 pub const SESSION_CONTRACT: &str = "hologram:guest/core-wasm@2";
+/// The contract of a session guest whose state can be checkpointed and restored.
+pub const CHECKPOINT_CONTRACT: &str = "hologram:guest/core-wasm@3";
 /// The schema of the package's `generation-manifest.json`.
 pub const TARGET_SCHEMA: &str = "prismpm/core-wasm-session-target/1";
 /// The most responses one step may return.
 pub const RESPONSE_COUNT_LIMIT: u32 = 65_535;
 
 const RUNTIME_TEMPLATE: &str = include_str!("session_guest/runtime.rs.in");
+const CHECKPOINT_TEMPLATE: &str = include_str!("session_guest/checkpoint.rs.in");
 const PAGE: u64 = 65_536;
 
 /// The declared bounds of a session guest and the model root that takes its steps.
@@ -43,9 +50,20 @@ pub struct SessionGuestSpec {
     pub stack_bytes: u32,
     /// The SHA-256 of the IR the package is generated from.
     pub input_ir_sha256: String,
+    /// True for the checkpoint world (@3): the shim also exports its state.
+    pub checkpoint: bool,
 }
 
 impl SessionGuestSpec {
+    /// The guest contract the package implements.
+    pub fn contract(&self) -> &'static str {
+        if self.checkpoint {
+            CHECKPOINT_CONTRACT
+        } else {
+            SESSION_CONTRACT
+        }
+    }
+
     /// The largest turn the shim builds: the state length, the state and the request.
     pub fn turn_maximum(&self) -> u64 {
         4 + u64::from(self.state_maximum) + u64::from(self.request_maximum)
@@ -175,7 +193,18 @@ pub(crate) fn render_runtime(
         "let answer: alloc::vec::Vec<u8> = crate::{}(turn){adapter};",
         rust_ident(&spec.entry)
     );
-    RUNTIME_TEMPLATE
+    // The checkpoint exports go before the panic handler, so a @2 shim is the
+    // template byte for byte and a @3 shim is that text with one block added.
+    let template = if spec.checkpoint {
+        RUNTIME_TEMPLATE.replacen(
+            "#[panic_handler]",
+            &format!("{CHECKPOINT_TEMPLATE}\n#[panic_handler]"),
+            1,
+        )
+    } else {
+        RUNTIME_TEMPLATE.to_owned()
+    };
+    template
         .replace("@RUNTIME_MODULE@", runtime_module)
         .replace("@REQUEST_MAXIMUM@", &spec.request_maximum.to_string())
         .replace("@STATE_MAXIMUM@", &spec.state_maximum.to_string())
@@ -290,7 +319,8 @@ pub fn generate_session_guest_package(
         .collect::<Vec<_>>()
         .join(",");
     let manifest = format!(
-        "{{\"contract\":\"{SESSION_CONTRACT}\",\"entry\":\"{}\",\"files\":[{records}],\"input_ir_sha256\":\"{}\",\"maximum_pages\":{},\"request_maximum\":{},\"response_count_maximum\":{},\"response_maximum\":{},\"schema\":\"{TARGET_SCHEMA}\",\"stack_bytes\":{},\"state_maximum\":{}}}\n",
+        "{{\"contract\":\"{}\",\"entry\":\"{}\",\"files\":[{records}],\"input_ir_sha256\":\"{}\",\"maximum_pages\":{},\"request_maximum\":{},\"response_count_maximum\":{},\"response_maximum\":{},\"schema\":\"{TARGET_SCHEMA}\",\"stack_bytes\":{},\"state_maximum\":{}}}\n",
+        spec.contract(),
         spec.entry,
         spec.input_ir_sha256,
         spec.maximum_pages,

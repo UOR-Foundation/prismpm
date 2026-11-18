@@ -83,7 +83,7 @@ const declaredExports = (text) =>
   [...text.matchAll(/^\s*export ([a-z-]+): func\(([^)]*)\) -> (u32|u64);$/gm)].map(([, name, params, result]) => ({
     name: name.replaceAll('-', '_'),
     kind: 'func',
-    params: params.split(',').map((p) => LOWER[p.split(':')[1].trim()]),
+    params: params.trim() === '' ? [] : params.split(',').map((p) => LOWER[p.split(':')[1].trim()]),
     results: [LOWER[result]],
   }));
 
@@ -120,4 +120,31 @@ test('the @1 row is unchanged by the session world', () => {
     sha256: 'a566c87a359cadf98f652747f1b3574aa307ff5f652a190c6d99c350db9cf369',
   });
   assert.equal(spec.FORMAT_REVISIONS['2026-10-23'].coreWasmContract, spec.CORE_WASM.CONTRACT);
+});
+
+// The checkpoint world (HO-47): the session world with the state made addressable; @1 and @2 are untouched.
+const CHECKPOINT = spec.CORE_WASM_CHECKPOINT.CONTRACT;
+
+test('the checkpoint world has its own row, file, package and digests, distinct from @1 and @2', () => {
+  const row = spec.WORLDS[CHECKPOINT];
+  assert.ok(row, `${CHECKPOINT} has no row`);
+  assert.equal(row.file, spec.CORE_WASM_CHECKPOINT.WORLD);
+  assert.equal(row.package, 'hologram:guest@3.0.0');
+  const text = witOf(row);
+  const bytes = new Uint8Array(Buffer.from(text, 'utf8'));
+  assert.equal(row.digest.sha256, createHash('sha256').update(bytes).digest('hex'));
+  assert.equal(row.digest.blake3, blake3Hex(bytes));
+  for (const other of [spec.CORE_WASM.CONTRACT, SESSION]) assert.notEqual(row.digest.sha256, spec.WORLDS[other].digest.sha256);
+  assert.match(text, /^package hologram:guest@3\.0\.0;$/m);
+});
+
+test('the checkpoint world exports the session exports, holo_state and holo_restore, and imports nothing', () => {
+  const row = spec.WORLDS[CHECKPOINT];
+  const byName = (list) => [...list].sort((a, b) => (a.name < b.name ? -1 : 1));
+  assert.deepEqual(byName(row.exports.filter((e) => e.kind === 'func')), byName(declaredExports(witOf(row))));
+  assert.deepEqual(row.exports.map((e) => e.name), [...spec.CORE_WASM_CHECKPOINT.EXPORTS]);
+  assert.deepEqual(row.imports, []);
+  const session = spec.WORLDS[SESSION].exports.map((e) => e.name);
+  assert.deepEqual(row.exports.map((e) => e.name).filter((n) => session.includes(n)), session);
+  assert.ok(!row.exports.some((e) => e.name === spec.CORE_WASM.ENTRY));
 });

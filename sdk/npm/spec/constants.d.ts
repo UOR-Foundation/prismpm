@@ -9,6 +9,7 @@ import type {
   ExtensionName,
   FormatRevision,
   FormatRevisionIdentifiers,
+  CheckpointContract,
   GuestContract,
   HoloviewLimits,
   SectionKind,
@@ -68,6 +69,17 @@ export declare const CORE_WASM_SESSION: Readonly<{
   ALLOCATOR: 'holo_alloc';
   ENTRY: 'holo_step';
   WORLD: 'worlds/core-wasm-2.wit';
+}>;
+
+/** The Core-Wasm checkpoint contract (HO-47). */
+export declare const CORE_WASM_CHECKPOINT: Readonly<{
+  CONTRACT: CheckpointContract;
+  EXPORTS: readonly ['holo_alloc', 'holo_restore', 'holo_state', 'holo_step', 'memory'];
+  ALLOCATOR: 'holo_alloc';
+  ENTRY: 'holo_step';
+  STATE: 'holo_state';
+  RESTORE: 'holo_restore';
+  WORLD: 'worlds/core-wasm-3.wit';
 }>;
 
 /** The WIT world of each guest contract (issues #278, #629). */
