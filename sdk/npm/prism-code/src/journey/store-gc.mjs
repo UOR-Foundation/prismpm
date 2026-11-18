@@ -15,19 +15,23 @@
  * two always sees the other. Files are written beside their name and moved into place, so a crash
  * leaves at most a `.partial` file, which a later collection removes once its process is gone.
  */
-import { closeSync, existsSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { join, relative, resolve } from 'node:path';
 import { prismHome } from '../agents.mjs';
 import { kappa } from '../blake3.mjs';
-import { kappaDirectory, pinnedFile } from './kappa-store.mjs';
+import { admittedLabel, isGzip, kappaDirectory, pinnedFile, writeAtomic } from './kappa-store.mjs';
 import { KERNEL_FILES } from './kernel-store.mjs';
-import { keptLabel } from './lexlean-wasm.mjs';
+import { LEXLEAN_WASM } from './lexlean-wasm.mjs';
 
 /** The default size of the proof cache, in MB. */
 export const CACHE_DEFAULT_MB = 64;
 
+/** What this prism-code pins: each file's κ-label (of its decoded bytes) and how it is kept. */
+const PINNED = () => [...Object.values(KERNEL_FILES), LEXLEAN_WASM].filter((f) => f.kappa).map((f) => ({ kappa: f.kappa, encoding: f.encoding ?? 'identity' }));
+
 /** The κ-labels this prism-code pins: the only roots of the pinned store. */
-export const pinnedRoots = () => [...Object.values(KERNEL_FILES).map((f) => f.kappa), keptLabel()].filter(Boolean).sort();
+export const pinnedRoots = () => PINNED().map((f) => f.kappa).sort();
 
 /** The label of the pinned set as a whole. A different one means prism-code was upgraded (or downgraded). */
 export const rootsLabel = (roots = pinnedRoots()) => kappa(new TextEncoder().encode(roots.join('\n')));
@@ -172,14 +176,19 @@ export function collectStore({ env = process.env, dryRun = false, roots = pinned
       const m = /\.(\d+)\.partial$/.exec(f.path);
       if (m && !alive(Number(m[1]))) drop('partial', f);
     }
-    // The folders of older prism-codes: a root is moved into the store, everything else goes.
+    // The folders of older prism-codes: a root is moved into the store, kept as the root is kept (gzipped when it is
+    // served so), and everything else goes.
+    const gzipped = new Set(PINNED().filter((f) => f.encoding === 'gzip').map((f) => f.kappa));
     for (const dir of legacy) {
       for (const f of filesUnder(dir)) {
-        const label = kappa(readFileSync(f.path));
+        const bytes = readFileSync(f.path);
+        const label = admittedLabel(bytes);
         if (want.has(label) && !existsSync(pinnedFile(label, env))) {
+          const kept = gzipped.has(label) && !isGzip(bytes) ? gzipSync(bytes) : bytes;
+          if (kept.length < bytes.length) removed.legacy.push({ path: f.path, bytes: bytes.length - kept.length });
           if (!dryRun) {
-            mkdirSync(join(pinnedFile(label, env), '..'), { recursive: true });
-            renameSync(f.path, pinnedFile(label, env));
+            writeAtomic(pinnedFile(label, env), kept);
+            rmSync(f.path, { force: true });
           }
         } else drop('legacy', f);
       }

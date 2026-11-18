@@ -19,8 +19,9 @@
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { prismHome } from '../agents.mjs';
-import { kappa as blake3Kappa } from '../blake3.mjs';
+import { Blake3, kappa as blake3Kappa, toHex } from '../blake3.mjs';
 import { isKappa, kappa } from '../uorc.mjs';
 import { proofFacts, proofRealization } from './kappa-rules.mjs';
 
@@ -44,24 +45,77 @@ export function writeAtomic(file, bytes) {
 
 /**
  * The files this prism-code pins (Lean's kernel, LexLean as WebAssembly), kept once per machine under
- * `pinned/` by the BLAKE3 κ-label of their bytes. The labels the installed prism-code pins are the only
- * roots: store-gc.mjs removes every pinned file they do not name.
+ * `pinned/`. A file is named by the BLAKE3 κ-label of its decoded bytes and kept as it was served,
+ * gzipped or not: the encoding never changes what a label admits. Every read decodes and re-derives the
+ * label; a file that does not decode, or decodes to other bytes, is a miss. The labels the installed
+ * prism-code pins are the only roots: store-gc.mjs removes every pinned file they do not name.
  */
 export const pinnedFile = (label, env = process.env) => join(kappaDirectory(env), 'pinned', label.slice(7, 9), label.slice(9));
 
-/** A pinned file's bytes, only when they re-derive to `label`; null when it is not here or is not those bytes. */
+/** Whether `bytes` are gzip, by their magic number. */
+export const isGzip = (bytes) => bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+
+/** The decoded bytes of a kept or served file: gzip is inflated, anything else is itself. Throws when gzip does not decode. */
+export const decoded = (bytes) => (isGzip(bytes) ? gunzipSync(bytes) : bytes);
+
+/** The label `bytes` are admitted under: that of what they decode to, or null when they do not decode. */
+export function admittedLabel(bytes) {
+  try {
+    return blake3Kappa(decoded(bytes));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read a served file once, decoding it as its bytes arrive and hashing what they decode to, both at once.
+ * Resolves `{ encoded, label, decodedBytes }`: the bytes as served, the κ-label of what they decode to (null
+ * when they do not decode), and its size. `encoding` is `gzip` or `identity`.
+ */
+export async function receiveDecoded(response, encoding) {
+  const [kept, plain] = response.body.tee();
+  const keep = async () => {
+    const chunks = [];
+    for await (const chunk of kept) chunks.push(chunk);
+    return Buffer.concat(chunks);
+  };
+  const hash = async () => {
+    const hasher = new Blake3();
+    let size = 0;
+    try {
+      for await (const chunk of encoding === 'gzip' ? plain.pipeThrough(new DecompressionStream('gzip')) : plain) {
+        hasher.update(chunk);
+        size += chunk.length;
+      }
+    } catch {
+      return { label: null, size };
+    }
+    return { label: `blake3:${toHex(hasher.digest())}`, size };
+  };
+  const [encoded, { label, size }] = await Promise.all([keep(), hash()]);
+  return { encoded, label, decodedBytes: size };
+}
+
+/** A pinned file as kept, `{ encoded, decoded }`, only when it decodes to `label`; null when it is not here or is not those bytes. */
 export function readPinnedFile(label, env = process.env) {
   const file = pinnedFile(label, env);
   if (!existsSync(file)) return null;
-  const bytes = readFileSync(file);
-  return blake3Kappa(bytes) === label ? bytes : null;
+  const encoded = readFileSync(file);
+  let plain;
+  try {
+    plain = decoded(encoded);
+  } catch {
+    return null;
+  }
+  return blake3Kappa(plain) === label ? { encoded, decoded: plain } : null;
 }
 
-/** Keep pinned bytes under their label, which they must have. Returns the file. */
-export function keepPinnedFile(bytes, label, env = process.env) {
-  if (blake3Kappa(bytes) !== label) throw new Error(`these bytes are ${blake3Kappa(bytes)}, not ${label}`);
+/** Keep bytes as served under the label of what they decode to, which must be `label`. Returns the file. */
+export function keepPinnedFile(encoded, label, env = process.env) {
+  const got = admittedLabel(encoded);
+  if (got !== label) throw new Error(`these bytes decode to ${got ?? 'nothing'}, not ${label}`);
   const file = pinnedFile(label, env);
-  writeAtomic(file, bytes);
+  writeAtomic(file, encoded);
   return file;
 }
 

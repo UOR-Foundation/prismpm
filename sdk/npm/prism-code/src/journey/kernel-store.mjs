@@ -3,26 +3,28 @@
  * are kept: not in the package, which stays small, but fetched once per machine
  * into the pinned store (`$PRISM_HOME/kappa/pinned/`, kappa-store.mjs).
  *
- * Each file is named by the BLAKE3 κ-label of its bytes at one commit of
- * UOR-Foundation/foundry; its SHA-256 is a secondary digest. A file is used
- * only when its bytes have that label, whether it was just fetched or read
+ * Each file is named by the BLAKE3 κ-label of its decoded bytes at one commit
+ * of UOR-Foundation/foundry, and kept as served; its SHA-256 is a secondary
+ * digest. A file is used only when it decodes to that label, whether it was just fetched or read
  * from disk, so neither the network nor the disk is trusted. The request
  * names no app and carries nothing of the user's: it is a GET of four public files.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { kappa } from '../blake3.mjs';
 import { buildFetch } from './hosts.mjs';
-import { pinnedFile, writeAtomic } from './kappa-store.mjs';
+import { admittedLabel, pinnedFile, writeAtomic } from './kappa-store.mjs';
 
 export const KERNEL_REPOSITORY = 'UOR-Foundation/foundry';
 export const KERNEL_COMMIT = '7755331b8d1cba879d89a1956c0703b749868abd';
-/** The files, by name: where each lives in the repository, the κ-label of its bytes there, and their SHA-256. */
+/**
+ * The files, by name: where each lives in the repository, the κ-label of its decoded bytes, how it is served
+ * (`encoding`, with `bytes` as served and `decodedBytes` decoded), and the SHA-256 of the bytes as served.
+ */
 export const KERNEL_FILES = Object.freeze({
-  'lean-kernel.mjs.gz': { path: 'studio/shell/kernel/lean/lean-kernel.mjs.gz', kappa: 'blake3:7e5f79dbd0d048f5c0a4b7539791db3c5a7a15dbf20b5cca02e66b20da775d6a', sha256: '8c77e3250d8c124d8f07fca9d9cc508475a062f72e9778208cd8aed3eab39cb9', bytes: 17609 },
-  'lean-kernel.wasm.gz': { path: 'studio/shell/kernel/lean/lean-kernel.wasm.gz', kappa: 'blake3:2deefa76bba10ade1a0830d040c44f5f01ab5324d6b1fc8b1c22f83d5b915495', sha256: '79accfb403771f7a362e17ed777bb1e84c19cb34e24ae537a919c980e6a833f2', bytes: 420987 },
-  'library.ndjson.gz': { path: 'studio/shell/kernel/lean/library.ndjson.gz', kappa: 'blake3:2081fc87ea16e0f70b6576f7dc3a799b990a31feb1b1b3b585bb24c007e2077e', sha256: '0253aaa8f557ca95b072ab8dc06ac84c4f95e076eb458dead7d27c0f7afb6434', bytes: 1246498 },
-  'kernel.holo': { path: 'studio/shell/kernel/kernel.holo', kappa: 'blake3:9a26402323b5918c8db5568bdec2ebdd5a1579f907d223e9fbbeb2a4bc192af9', sha256: 'e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee', bytes: 657131 },
+  'lean-kernel.mjs.gz': { path: 'studio/shell/kernel/lean/lean-kernel.mjs.gz', kappa: 'blake3:ac5db408040227bebf5addb792481c6cad70b3c4e5734e6de5d28f0f4bef5b4d', encoding: 'gzip', decodedBytes: 62458, sha256: '8c77e3250d8c124d8f07fca9d9cc508475a062f72e9778208cd8aed3eab39cb9', bytes: 17609 },
+  'lean-kernel.wasm.gz': { path: 'studio/shell/kernel/lean/lean-kernel.wasm.gz', kappa: 'blake3:21b2c46df9424cc7f12001f94ea8696f2b773e1cbd30e8e44c593207dc8ea177', encoding: 'gzip', decodedBytes: 2235906, sha256: '79accfb403771f7a362e17ed777bb1e84c19cb34e24ae537a919c980e6a833f2', bytes: 420987 },
+  'library.ndjson.gz': { path: 'studio/shell/kernel/lean/library.ndjson.gz', kappa: 'blake3:1d8b899ed1eb5b7703151fff2bf525c24e9b24768ae6c1c7281fd19c53512b3d', encoding: 'gzip', decodedBytes: 7834171, sha256: '0253aaa8f557ca95b072ab8dc06ac84c4f95e076eb458dead7d27c0f7afb6434', bytes: 1246498 },
+  'kernel.holo': { path: 'studio/shell/kernel/kernel.holo', kappa: 'blake3:9a26402323b5918c8db5568bdec2ebdd5a1579f907d223e9fbbeb2a4bc192af9', encoding: 'identity', sha256: 'e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee', bytes: 657131 },
 });
 const RAW_URL = 'https://raw.githubusercontent.com';
 
@@ -42,12 +44,12 @@ export function kernelFile(name, env = process.env) {
   return env.PRISM_KERNEL_DIR ? join(env.PRISM_KERNEL_DIR, name) : pinnedFile(want.kappa, env);
 }
 
-/** One kept file, checked against its κ-label. Throws `KernelMissing` when it is absent or is not the pinned bytes. */
+/** One kept file as served, admitted when it decodes to its κ-label. Throws `KernelMissing` when it is absent or is not the pinned bytes. */
 export function readKernelFile(name, { env = process.env } = {}) {
   const file = kernelFile(name, env);
   if (!existsSync(file)) throw new KernelMissing(`${name} is not on this machine yet`);
   const bytes = readFileSync(file);
-  if (kappa(bytes) !== KERNEL_FILES[name].kappa) throw new KernelMissing(`${file} is not the pinned ${name}`);
+  if (admittedLabel(bytes) !== KERNEL_FILES[name].kappa) throw new KernelMissing(`${file} is not the pinned ${name}`);
   return bytes;
 }
 
@@ -88,8 +90,8 @@ export async function ensureKernel({ env = process.env, fetch = globalThis.fetch
     }
     if (!response.ok) throw new KernelMissing(`${url} answered HTTP ${response.status}`);
     const bytes = new Uint8Array(await response.arrayBuffer());
-    const got = kappa(bytes);
-    if (got !== want.kappa) throw new KernelMissing(`${url} has ${got}, not the pinned ${want.kappa}`);
+    const got = admittedLabel(bytes);
+    if (got !== want.kappa) throw new KernelMissing(`${url} decodes to ${got ?? 'nothing'}, not the pinned ${want.kappa}`);
     writeAtomic(kernelFile(name, env), bytes);
     fetched.push(name);
   }

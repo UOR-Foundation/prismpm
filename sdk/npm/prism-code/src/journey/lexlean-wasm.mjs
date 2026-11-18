@@ -19,11 +19,10 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { gunzipSync } from 'node:zlib';
 import { PrismCodeError } from '../errors.mjs';
 import { kappa } from '../blake3.mjs';
 import { buildFetch } from './hosts.mjs';
-import { pinnedFile, writeAtomic } from './kappa-store.mjs';
+import { admittedLabel, decoded, pinnedFile, receiveDecoded, writeAtomic } from './kappa-store.mjs';
 import { runWasi } from './wasi-memory.mjs';
 
 /**
@@ -41,6 +40,8 @@ export const LEXLEAN_WASM = Object.freeze({
   bytes: 19133367,
   gzipKappa: 'blake3:e79126591773b1f721af3ad911b73d46bceb4c4d6453e4dda04814efeee60f83',
   gzipBytes: 4140342,
+  // Served and kept gzipped: 4.1 MB on disk in place of 19.1 MB. The label is that of the decoded module.
+  encoding: 'gzip',
   // The pre-release asset the user approved; fetched through the serverless boundary and held to `gzipKappa` and `kappa`.
   url: 'https://github.com/UOR-Foundation/lexlean/releases/download/wasm-snapshot-9ba600d/lexlean-9ba600d.wasm.gz',
 });
@@ -49,14 +50,11 @@ export const LEXLEAN_WASM = Object.freeze({
 /** The pin to hold the bytes to: the package's, or the one a caller names (a test, or a build of LexLean being tried). */
 const pinOf = (pin) => pin ?? LEXLEAN_WASM;
 
-/** Files already found to have the pinned κ-label in this process, by path, size and change time: BLAKE3 in JavaScript takes about 0.15 s on the 4 MB kept. */
+/** Files already found to decode to the pinned κ-label in this process, by path, size and change time. */
 const verified = new Map();
 
-/**
- * What is kept: the gzipped bytes as served, under their own κ-label, when the pin names one (4 MB in place of 19 MB;
- * inflating is deterministic, so those bytes fix the module), else the module itself. The store-gc roots name this label.
- */
-export const keptLabel = (pin = LEXLEAN_WASM) => pin.gzipKappa ?? pin.kappa;
+/** How a pin is served: what it names, else gzip when its URL is a `.gz`. */
+const encodingOf = (pin) => pin.encoding ?? (pin.gzipKappa || /\.gz$/.test(pin.url ?? '') ? 'gzip' : 'identity');
 
 /**
  * The executable's file, checked against its pin's κ-label, or null when it is
@@ -68,15 +66,15 @@ export const keptLabel = (pin = LEXLEAN_WASM) => pin.gzipKappa ?? pin.kappa;
 export function lexleanWasmFile({ env = process.env, pin = null } = {}) {
   const want = pinOf(pin);
   if (!want.kappa) return null;
-  // A file the user names is the module itself; the kept one is what keptLabel says.
-  const label = env.PRISM_LEXLEAN_WASM ? want.kappa : keptLabel(want);
+  // Kept or named, gzipped or not, a file is admitted when it decodes to the pinned label.
+  const label = want.kappa;
   const file = env.PRISM_LEXLEAN_WASM ? resolve(env.PRISM_LEXLEAN_WASM) : pinnedFile(label, env);
   if (!existsSync(file)) return null;
   const stat = statSync(file);
   const seen = `${label} ${stat.size} ${stat.mtimeMs}`;
   if (verified.get(file) === seen) return file;
-  const got = kappa(readFileSync(file));
-  if (got !== label) throw new PrismCodeError('lexlean.wasm-mismatch', `${file} is ${got}, not the pinned ${label}`);
+  const got = admittedLabel(readFileSync(file));
+  if (got !== label) throw new PrismCodeError('lexlean.wasm-mismatch', `${file} decodes to ${got ?? 'nothing'}, not the pinned ${label}`);
   verified.set(file, seen);
   return file;
 }
@@ -120,13 +118,12 @@ export async function ensureLexleanWasm({ env = process.env, pin = null, fetch =
   log(`Fetching LexLean's front end as WebAssembly once (about ${Math.round((want.gzipBytes ?? 4e6) / 1e6)} MB); it is checked against its κ-label.`);
   const response = await buildFetch({ fetch })(want.url);
   if (!response.ok) throw new PrismCodeError('lexlean.wasm-unavailable', `${want.url} answered HTTP ${response.status}`);
-  const gz = new Uint8Array(await response.arrayBuffer());
-  if (want.gzipKappa && kappa(gz) !== want.gzipKappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave bytes that are ${kappa(gz)}, not the pinned ${want.gzipKappa}`);
-  const bytes = gunzipSync(gz);
-  const got = kappa(bytes);
-  if (got !== want.kappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave a module that is ${got}, not the pinned ${want.kappa}`);
-  const file = pinnedFile(keptLabel(want), env);
-  writeAtomic(file, want.gzipKappa ? gz : bytes);
+  // Decoded and hashed as it arrives; kept as served.
+  const { encoded, label } = await receiveDecoded(response, encodingOf(want));
+  if (want.gzipKappa && kappa(encoded) !== want.gzipKappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave bytes that are ${kappa(encoded)}, not the pinned ${want.gzipKappa}`);
+  if (label !== want.kappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave bytes that decode to ${label ?? 'nothing'}, not the pinned ${want.kappa}`);
+  const file = pinnedFile(want.kappa, env);
+  writeAtomic(file, encoded);
   return file;
 }
 
@@ -151,11 +148,7 @@ const compiled = new Map();
 
 /** The compiled module of the file, inflated when it is kept gzipped, compiled once per process. */
 function moduleOf(file) {
-  const read = () => {
-    const bytes = readFileSync(file);
-    return bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes;
-  };
-  if (!compiled.has(file)) compiled.set(file, WebAssembly.compile(read()));
+  if (!compiled.has(file)) compiled.set(file, WebAssembly.compile(decoded(readFileSync(file))));
   return compiled.get(file);
 }
 
