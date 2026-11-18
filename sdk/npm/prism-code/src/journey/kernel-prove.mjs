@@ -1,5 +1,5 @@
 /**
- * Check a spec's guarantees with Lean's own kernel, in this process: no
+ * Check a rule app's guarantees with Lean's own kernel, in this process: no
  * Docker, no Lean toolchain, no server.
  *
  * The kernel is Lean 4.32.1's C++ kernel compiled to WebAssembly, and the
@@ -9,7 +9,7 @@
  * fetched once and kept on this machine (kernel-store.mjs); `kernel/manifest.json`
  * names each by SHA-256 and records that this kernel judged this library whole.
  *
- * A guarantee's proof is that lemma applied to the spec written as numbers.
+ * A guarantee's proof is that lemma applied to the rule app's numbers.
  * This module writes the proof as kernel terms and the kernel judges it, so
  * nothing here is trusted to be right: a wrong term is refused.
  *
@@ -34,58 +34,9 @@ import { HOLDS, KERNEL_AXIOMS, proofLines, readLibrary } from './kernel-terms.mj
 export { KERNEL_AXIOMS, proofLines };
 
 const KERNEL = new URL('./kernel/', import.meta.url);
-/** The largest number the rule judge reads: its words are 32 bits. */
-export const WORD_MAX = 0xffffffff;
-const OPS = Object.freeze({ '<': 0, '<=': 1, '>': 2, '>=': 3, is: 4, '=': 4, 'is not': 5, '!=': 5 });
+export { WORD_MAX } from './rule-table.mjs';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
-
-/** A spec this route cannot read. `code` names why, for a caller that explains it. */
-export class KernelUnread extends Error {
-  constructor(code, message) {
-    super(message);
-    this.name = 'KernelUnread';
-    this.code = code;
-  }
-}
-
-/** The number fields the spec gives no upper bound: the rule judge's words hold numbers up to `WORD_MAX`, so the app reads them up to there. */
-export const unboundedFields = (spec) => (spec?.fields ?? []).filter((f) => f.kind === 'number' && f.max === undefined).map((f) => f.name);
-
-/** The spec with every number field bounded as the rule judge reads it. A spec that states its bounds is returned as it is. */
-export const boundedSpec = (spec) => (unboundedFields(spec).length === 0 ? spec : { ...spec, fields: spec.fields.map((f) => (f.kind === 'number' && f.max === undefined ? { ...f, max: WORD_MAX } : f)) });
-
-/**
- * The spec as the numbers the rule judge decides with, and each guarantee as data.
- * A number field with no upper bound is read up to `WORD_MAX` (`boundedSpec`).
- * Throws `KernelUnread` for a spec the rule judge does not read.
- */
-export function ruleWords(spec) {
-  if (!Array.isArray(spec?.fields) || !Array.isArray(spec?.rules) || spec.actions !== undefined || spec.state !== undefined) {
-    throw new KernelUnread('kernel.stateful', 'it keeps state between steps, and the rule judge reads one request');
-  }
-  const outcomes = [...new Set([spec.otherwise, ...spec.rules.map((r) => r.then)])];
-  const at = (name) => spec.fields.findIndex((f) => f.name === name);
-  const whole = (n, what) => {
-    if (!Number.isInteger(n) || n < 0 || n > WORD_MAX) throw new KernelUnread('kernel.range', `${what} is outside 0..${WORD_MAX}, the numbers the rule judge reads`);
-    return n;
-  };
-  const cond = (c) => {
-    const field = spec.fields[at(c.field)];
-    if (!field || !(c.op in OPS)) throw new KernelUnread('kernel.condition', `the condition on \`${c.field}\` is not one the rule judge reads`);
-    if (c.value !== null && typeof c.value === 'object') throw new KernelUnread('kernel.two-fields', `it compares \`${c.field}\` with another field, and the rule judge compares a field with a value`);
-    const value = field.kind === 'choice' ? field.values.indexOf(c.value) : Number(c.value);
-    return [at(c.field), OPS[c.op], whole(value, `the value compared with \`${c.field}\``)];
-  };
-  const bounds = spec.fields.flatMap((f) => {
-    if (f.kind === 'choice') return [0, f.values.length - 1];
-    return [whole(f.min ?? 0, `the least \`${f.name}\``), whole(f.max ?? WORD_MAX, `the greatest \`${f.name}\``)];
-  });
-  const words = [1, spec.fields.length, ...bounds, outcomes.indexOf(spec.otherwise), spec.rules.length, ...spec.rules.flatMap((r) => [r.when.length, outcomes.indexOf(r.then), ...r.when.flatMap(cond)])];
-  // A guarantee about an answer no rule gives names the next number: no rule answers it.
-  const guarantees = (spec.properties ?? []).map((p) => ({ always: p.kind === 'always', when: p.when.map(cond), outcome: outcomes.includes(p.then) ? outcomes.indexOf(p.then) : outcomes.length }));
-  return { words, guarantees };
-}
 
 /** The pinned files, each checked against the address the manifest names. Throws when one is not the pinned one. */
 export function readPinned({ read = (file) => (file === 'manifest.json' ? readFileSync(new URL(file, KERNEL)) : readKernelFile(file)) } = {}) {
@@ -184,19 +135,18 @@ export function pinnedAddresses() {
 export { guaranteeStatement };
 
 /**
- * Lean's kernel judges every guarantee of `spec`. Resolves
- * `{ judged: [{ accepted, axioms, output, reused }], evidence, pinned, ms, reused }`,
- * one entry per property in order. `accepted` is the kernel's own answer; the
- * verdict on the whole check is the verified guest's.
+ * Lean's kernel judges every guarantee of a rule app, given as the rule
+ * judge's numbers and each guarantee as data (rule-table.mjs, `tableWords`).
+ * Resolves `{ judged: [{ accepted, status, axioms, output, reused }], evidence,
+ * pinned, ms, reused, pulled }`, one entry per guarantee in order. `accepted` is
+ * the kernel's own answer now; the verdict on the whole check is the verified
+ * guest's.
  *
- * A guarantee already proved under the same kernel, library and statement is
- * not proved again: its proof is found by its derivation key and reused when
- * `reuseAdmits` allows (kappa-rules.mjs). When every guarantee is found, the
- * kernel is not opened at all. Throws `KernelUnread` for a spec this route
- * does not read.
+ * A term already produced under the same key, kernel, library, statement and
+ * axiom policy is not produced again (`termReusable`, model/canonical-build),
+ * and the kernel judges it again: a stored term never stands in for a verdict.
  */
-export async function kernelProve(spec, { kernel = null, log = () => {}, env = process.env, fetch = globalThis.fetch, store = kappaStore({ env }) } = {}) {
-  const { words, guarantees } = ruleWords(spec);
+export async function kernelProve({ words, guarantees }, { kernel = null, log = () => {}, env = process.env, fetch = globalThis.fetch, store = kappaStore({ env }) } = {}) {
   const started = performance.now();
   const pinned = pinnedAddresses();
   const policy = KERNEL_AXIOMS;

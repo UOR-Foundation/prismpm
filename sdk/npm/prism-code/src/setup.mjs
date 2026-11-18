@@ -18,6 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AGENTS, LOCAL_AGENTS, MCP_NAME, MCP_URL, prismHome, readPreferredAgent, which } from './agents.mjs';
 import { fail } from './errors.mjs';
+import { NO_DOCKER_FREE_BUILD } from './journey/frontend.mjs';
 import { commandLine } from './open.mjs';
 import { invocation } from './plugins.mjs';
 import { parseToml } from './toml.mjs';
@@ -507,7 +508,7 @@ export function formatSetup(plan, { dryRun = false } = {}) {
   if (plan.hosted !== false || !plan.journey?.length) for (const a of plan.agents) row(a.agent, WORDS, a.status, a.detail, a.steps);
   else if (kept.length) lines.push(`    already in ${kept.join(', ')} from an earlier setup; left as it is`);
   if (plan.journey?.length) {
-    lines.push(`  the server ${JOURNEY_NAME}, local (prism-code mcp): checks the spec the agent drafts, proves and builds the app`);
+    lines.push(`  the server ${JOURNEY_NAME}, local (prism-code mcp): starts the app's LexLean model from a starter, checks, proves and builds it`);
     for (const a of plan.journey) row(a.agent, WORDS, a.status, a.detail, a.steps);
     // An agent that is not on this machine has no row above; say so once, here.
     if (plan.hosted === false) for (const a of plan.agents) if (a.status === 'not-found' && !plan.journey.some((j) => j.agent === a.agent)) row(a.agent, WORDS, a.status, a.detail, []);
@@ -525,7 +526,8 @@ export const FIRST_SENTENCE = 'build me a Prism app that tells whether a year is
 
 /**
  * What to do after setup, numbered: sign in to GitHub when that is missing,
- * restart the agent when a server was added to it, then the first sentence.
+ * say that a Docker-free build is temporarily unavailable, restart the agent
+ * when a server was added to it, then the first sentence.
  * `github` is the machine half's github row, or null when it did not run.
  */
 export function nextSteps(plan, { github = null } = {}) {
@@ -537,7 +539,9 @@ export function nextSteps(plan, { github = null } = {}) {
   }
   const label = AGENTS[agent]?.label ?? agent;
   const steps = [];
-  if (github?.status === 'manual' && /not signed in/.test(github.detail ?? '')) steps.push('Run gh auth login, so your app builds on GitHub Actions and this machine needs no Docker.');
+  if (github?.status === 'manual' && /not signed in/.test(github.detail ?? '')) steps.push('Run gh auth login, so your app can be published on GitHub.');
+  // Said plainly, before the first sentence: there is no Docker-free build until LexLean runs as WebAssembly.
+  steps.push(NO_DOCKER_FREE_BUILD);
   const changed = [...plan.agents, ...(plan.journey ?? [])].some((r) => r.agent === agent && r.status === 'configure');
   // A running Claude Desktop would drop the entry, so it was not written: that comes before anything else.
   if (plan.journey?.some((r) => r.agent === 'claude-desktop' && r.status === 'manual')) steps.push(`Quit Claude Desktop (from the tray or menu bar too), then run npx prism-code@latest setup again, so it keeps the ${JOURNEY_NAME} server.`);

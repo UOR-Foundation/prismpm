@@ -1,0 +1,278 @@
+\begin{lexlean}{DinnerSeatsProofs}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{DinnerSeats}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: breaksStartInBounds,
+  parameters: [],
+  result: Bool,
+  body: (not (((project (DinnerSeats::initial) booked) <=? 12) && ((project (DinnerSeats::initial) list) <? 2)))
+}
+
+theorem{
+  name: startInBounds,
+  parameters: [],
+  statement: ((breaksStartInBounds) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::initial,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksStartInBounds
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv001AtStart,
+  parameters: [],
+  result: Bool,
+  body: (not ((project (DinnerSeats::initial) booked) <=? 12))
+}
+
+theorem{
+  name: inv001AtStart,
+  parameters: [],
+  statement: ((breaksInv001AtStart) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::initial,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksInv001AtStart
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksBookKeepsBounds,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  result: Bool,
+  body: ((((((project state booked) <=? 12) && ((project state list) <? 2)) && (1 <=? bookSeats)) && (bookSeats <=? 6)) && (not (((project (DinnerSeats::afterBook state bookSeats) booked) <=? 12) && ((project (DinnerSeats::afterBook state bookSeats) list) <? 2))))
+}
+
+theorem{
+  name: bookKeepsBounds,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  statement: ((breaksBookKeepsBounds state bookSeats) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::afterBook,
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksBookKeepsBounds
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv001KeptByBook,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  result: Bool,
+  body: (((((((project state booked) <=? 12) && ((project state list) <? 2)) && (1 <=? bookSeats)) && (bookSeats <=? 6)) && ((project state booked) <=? 12)) && (not ((project (DinnerSeats::afterBook state bookSeats) booked) <=? 12)))
+}
+
+theorem{
+  name: inv001KeptByBook,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  statement: ((breaksInv001KeptByBook state bookSeats) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::afterBook,
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksInv001KeptByBook
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv002Holds,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  result: Bool,
+  body: ((((((((project state booked) <=? 12) && ((project state list) <? 2)) && (1 <=? bookSeats)) && (bookSeats <=? 6)) && ((project state booked) <=? 12)) && ((project state list) =? (DinnerSeats::listClosed))) && ((DinnerSeats::replyBook state bookSeats) =? (DinnerSeats::answerBooked)))
+}
+
+theorem{
+  name: inv002Holds,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  statement: ((breaksInv002Holds state bookSeats) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      DinnerSeats::replyBook,
+      breaksInv002Holds
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv003Holds,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  result: Bool,
+  body: (((((((((project state booked) <=? 12) && ((project state list) <? 2)) && (1 <=? bookSeats)) && (bookSeats <=? 6)) && ((project state booked) <=? 12)) && (10 <? (project state booked))) && (3 <=? bookSeats)) && ((DinnerSeats::replyBook state bookSeats) =? (DinnerSeats::answerBooked)))
+}
+
+theorem{
+  name: inv003Holds,
+  parameters: [state : DinnerSeats::State, bookSeats : Nat],
+  statement: ((breaksInv003Holds state bookSeats) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      DinnerSeats::replyBook,
+      breaksInv003Holds
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksCancelKeepsBounds,
+  parameters: [state : DinnerSeats::State, cancelSeats : Nat],
+  result: Bool,
+  body: ((((((project state booked) <=? 12) && ((project state list) <? 2)) && (1 <=? cancelSeats)) && (cancelSeats <=? 6)) && (not (((project (DinnerSeats::afterCancel state cancelSeats) booked) <=? 12) && ((project (DinnerSeats::afterCancel state cancelSeats) list) <? 2))))
+}
+
+theorem{
+  name: cancelKeepsBounds,
+  parameters: [state : DinnerSeats::State, cancelSeats : Nat],
+  statement: ((breaksCancelKeepsBounds state cancelSeats) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::afterCancel,
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksCancelKeepsBounds
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv001KeptByCancel,
+  parameters: [state : DinnerSeats::State, cancelSeats : Nat],
+  result: Bool,
+  body: (((((((project state booked) <=? 12) && ((project state list) <? 2)) && (1 <=? cancelSeats)) && (cancelSeats <=? 6)) && ((project state booked) <=? 12)) && (not ((project (DinnerSeats::afterCancel state cancelSeats) booked) <=? 12)))
+}
+
+theorem{
+  name: inv001KeptByCancel,
+  parameters: [state : DinnerSeats::State, cancelSeats : Nat],
+  statement: ((breaksInv001KeptByCancel state cancelSeats) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::afterCancel,
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksInv001KeptByCancel
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksCloseKeepsBounds,
+  parameters: [state : DinnerSeats::State],
+  result: Bool,
+  body: ((((project state booked) <=? 12) && ((project state list) <? 2)) && (not (((project (DinnerSeats::afterClose state) booked) <=? 12) && ((project (DinnerSeats::afterClose state) list) <? 2))))
+}
+
+theorem{
+  name: closeKeepsBounds,
+  parameters: [state : DinnerSeats::State],
+  statement: ((breaksCloseKeepsBounds state) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::afterClose,
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksCloseKeepsBounds
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksInv001KeptByClose,
+  parameters: [state : DinnerSeats::State],
+  result: Bool,
+  body: (((((project state booked) <=? 12) && ((project state list) <? 2)) && ((project state booked) <=? 12)) && (not ((project (DinnerSeats::afterClose state) booked) <=? 12)))
+}
+
+theorem{
+  name: inv001KeptByClose,
+  parameters: [state : DinnerSeats::State],
+  statement: ((breaksInv001KeptByClose state) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      DinnerSeats::afterClose,
+      DinnerSeats::answerBooked,
+      DinnerSeats::answerCancelled,
+      DinnerSeats::answerClosed,
+      DinnerSeats::answerFull,
+      DinnerSeats::answerNothing,
+      DinnerSeats::listClosed,
+      DinnerSeats::listOpen,
+      breaksInv001KeptByClose
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

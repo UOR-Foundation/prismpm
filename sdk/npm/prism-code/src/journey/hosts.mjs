@@ -66,16 +66,26 @@ export const processLedger = networkLedger();
 
 /**
  * `fetch` behind the boundary. A request to a host outside it throws
- * `build.host-not-allowed` before anything is sent; an allowed one is made with the
- * given `fetch`, and the bytes of its body are counted when it is read whole.
+ * `build.host-not-allowed` before anything is sent, and so does a redirect to
+ * one: redirects are followed here, each hop checked. An allowed request is made
+ * with the given `fetch`, and the bytes of its body are counted when it is read whole.
  */
 export function buildFetch({ fetch = globalThis.fetch, optIn = [], ledger = processLedger } = {}) {
   return async (input, init) => {
     const url = typeof input === 'string' ? input : input?.url ?? String(input);
-    const why = refusal(url, { optIn });
-    if (why) throw hostNotAllowed(url, why);
-    const response = await fetch(input, init);
-    const count = (bytes) => (ledger.note(url, bytes), bytes);
+    let at = url;
+    let response;
+    // Redirects are followed here, one hop at a time, so every host the request reaches is held to the boundary.
+    for (let hop = 0; ; hop++) {
+      const why = refusal(at, { optIn });
+      if (why) throw hostNotAllowed(at, why);
+      response = await fetch(hop === 0 ? input : at, { ...init, redirect: 'manual' });
+      const next = response.status >= 300 && response.status < 400 ? response.headers?.get?.('location') : null;
+      if (!next) break;
+      if (hop >= 5) throw hostNotAllowed(at, 'more than five redirects');
+      at = new URL(next, at).href;
+    }
+    const count = (bytes) => (ledger.note(at, bytes), bytes);
     return new Proxy(response, {
       get(target, prop) {
         if (prop === 'arrayBuffer') return async () => { const b = await target.arrayBuffer(); count(b.byteLength); return b; };

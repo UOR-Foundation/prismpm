@@ -2,11 +2,9 @@
  * Gap telemetry: what a user needed that Prism or LexLean could not do, kept
  * as a fingerprint so it can be counted without anything the user wrote.
  *
- * Three points record a gap, none by judgment: a spec refused by validation
- * (which rule refused it), a spec that does not survive its own answers (a
- * Prism bug), and a property Lean did not prove where no sampled request
- * breaks it (a prover or model gap), or a model the toolchain refused. Each
- * gap is appended to `$PRISM_HOME/gaps.jsonl` and delivered in the `_meta` of
+ * One point records a gap, by no judgment: a model a LexLean or PrismPM step
+ * refused, by the step and the diagnostic code. Each gap is appended to
+ * `$PRISM_HOME/gaps.jsonl` and delivered in the `_meta` of
  * the next call prism-code already makes to the hosted verifier (hosted.mjs):
  * no endpoint, no request and no process of its own.
  *
@@ -25,16 +23,12 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { prismHome } from './agents.mjs';
 import { VERSION } from './version.mjs';
-import { REFUSALS } from './journey/spec.mjs';
-import { SPEC_FILE_REFUSALS } from './journey/spec-file.mjs';
-import { STATEFUL_REFUSALS } from './journey/stateful.mjs';
-import { ROUND_TRIP_PARTS, STEPS } from './journey/session.mjs';
 
 export const GAPS_SCHEMA = 'prism/gaps/1';
 /** The `_meta` key a batch travels under: namespaced, as MCP asks of `_meta` keys. */
 export const GAPS_META_KEY = 'foundation.uor/prism-gaps';
-export const GAP_KINDS = Object.freeze(['refusal', 'roundtrip', 'unproved', 'model-refused']);
-/** The steps of the SDK run whose failure on a generated model is Prism's. */
+export const GAP_KINDS = Object.freeze(['model-refused']);
+/** The steps of the SDK run a refusal is recorded under. */
 export const MODEL_STEPS = Object.freeze(['prelock', 'format', 'lock', 'check', 'verify', 'build', 'run']);
 /** At most this many ledger lines go in one batch; the rest go with the next call. */
 export const BATCH_LINES = 256;
@@ -42,12 +36,6 @@ export const BATCH_LINES = 256;
 /** A LexLean (`LLV7002`, `LLC...`) or SDK (`PP2014`) diagnostic code: a prefix and four digits. */
 const CODE = /^(?:LL[A-Z]|PP)[0-9]{4}$/;
 const VERSION_TEXT = /^\d{1,4}\.\d{1,4}\.\d{1,4}(?:-(?:alpha|beta|rc)\.\d{1,4})?$/;
-const SHAPES = new Set([
-  'choice-is',
-  'choice-is-not',
-  ...['lt', 'le', 'gt', 'ge', 'eq', 'ne'].flatMap((op) => [`number-${op}-const`, `number-${op}-field`]),
-]);
-const OP_NAMES = { '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge', '=': 'eq', '!=': 'ne' };
 
 /** Whether gaps are recorded and sent: on unless `PRISM_TELEMETRY` is off or `DO_NOT_TRACK` is set. */
 export function telemetryOn(env = process.env) {
@@ -59,48 +47,13 @@ export function telemetryOn(env = process.env) {
 /** The one line `prism-code setup` prints about it. */
 export function telemetryNotice(env = process.env) {
   return telemetryOn(env)
-    ? 'telemetry: when Prism refuses a spec or Lean cannot prove a property, prism-code tells the hosted verifier which rule or Lean code it was, with a random install ID, on its next request; never your text, names or numbers. PRISM_TELEMETRY=0 turns it off.'
+    ? 'telemetry: when LexLean or PrismPM refuses a model, prism-code tells the hosted verifier, if you opted in to it, which step and diagnostic code it was, with a random install ID, on its next request; never your text, names or numbers. PRISM_TELEMETRY=0 turns it off.'
     : 'telemetry: off (PRISM_TELEMETRY=0 or DO_NOT_TRACK=1); nothing is recorded or sent.';
 }
 
-/**
- * The shape of a property, from the fixed vocabulary: `always:choice-is+number-le-field`
- * says an `always` property over a choice test and a number compared with a field.
- * The order and the repetitions of the conditions are not kept.
- */
-export function propertyShape(property) {
-  const shapes = new Set(
-    (property.when ?? []).map((c) => {
-      if (c.op === 'is') return 'choice-is';
-      if (c.op === 'is not') return 'choice-is-not';
-      return `number-${OP_NAMES[c.op] ?? 'eq'}-${typeof c.value === 'object' ? 'field' : 'const'}`;
-    }),
-  );
-  return `${property.kind === 'always' ? 'always' : 'never'}:${[...shapes].sort().join('+')}`;
-}
-
-const PARTS = new Set([...ROUND_TRIP_PARTS, ...STEPS]);
-const REFUSED = new Set([...REFUSALS, ...SPEC_FILE_REFUSALS, ...STATEFUL_REFUSALS]);
-
 /** Whether `construct` belongs to the vocabulary of `kind`. */
 function knownConstruct(kind, construct) {
-  if (typeof construct !== 'string') return false;
-  switch (kind) {
-    case 'refusal':
-      return REFUSED.has(construct);
-    case 'roundtrip': {
-      const [part, refusal, ...rest] = construct.split(':');
-      return rest.length === 0 && PARTS.has(part) && (refusal === undefined || REFUSED.has(refusal));
-    }
-    case 'unproved': {
-      const m = /^(always|never):(.+)$/.exec(construct);
-      return Boolean(m) && m[2].split('+').every((s) => SHAPES.has(s));
-    }
-    case 'model-refused':
-      return MODEL_STEPS.includes(construct);
-    default:
-      return false;
-  }
+  return kind === 'model-refused' && MODEL_STEPS.includes(construct);
 }
 
 /**

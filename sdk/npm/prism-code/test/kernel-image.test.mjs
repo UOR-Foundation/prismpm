@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { compile } from '../src/journey/session.mjs';
-import { ruleWords } from '../src/journey/kernel-prove.mjs';
+import { ruleTable, tableWords } from '../src/journey/rule-table.mjs';
+import { ruleAppSnapshot } from './support/snapshot.mjs';
 import { HOLDS, proofLines, readLibrary } from '../src/journey/kernel-terms.mjs';
 import { IMAGE_SCHEMA, decodeImage, encodeImage, restoreImage } from '../src/journey/kernel-image.mjs';
 import { findImage, keepImage, opfsStore } from '../src/journey/kappa-opfs.mjs';
@@ -24,15 +24,7 @@ writeFileSync(loaderFile, glue);
 const factory = (await import(pathToFileURL(loaderFile).href)).default;
 const lib = readLibrary(library.toString('utf8'));
 
-const PARKING = {
-  purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
-  fields: 'hours: number 0..24, vehicle: car|motorcycle|truck',
-  outcomes: 'free, standard, premium',
-  rules: 'when hours = 0 then free\nwhen vehicle is motorcycle then free\nwhen vehicle is truck then premium\nwhen hours > 8 then premium\notherwise standard',
-  properties: 'never when vehicle is motorcycle then premium\nalways when vehicle is truck and hours > 0 then premium\nnever when hours = 0 then standard',
-  examples: '0 car -> free\n3 car -> standard\n10 car -> premium',
-};
-const { words, guarantees } = ruleWords(compile({ ...PARKING, review: 'yes' }).spec);
+const { words, guarantees } = tableWords(ruleTable(ruleAppSnapshot()));
 // False: the third rule makes a truck premium. The kernel must refuse it from an image as it does after a load.
 const falsehood = { ...guarantees[0], when: [[guarantees[0].when[0][0], guarantees[0].when[0][1], 2]] };
 

@@ -15,7 +15,7 @@ An example is one input and its expected output:
 {"input": {"op": "add", "a": 2, "b": 3}, "output": 5}
 ```
 
-A property is something the application must always or never do. The `properties` of `prism/spec.json` hold them, and each becomes a theorem Lean proves for every request.
+A property is something the application must always or never do. The model states each one as a LexLean theorem or guarantee, and Lean proves it for every request.
 
 ## Holo
 
@@ -91,6 +91,6 @@ The digest is the same in the registry, on disk and in `check`. A pull that does
 
 ## Next steps
 
-- [Write the spec](/docs/guides/write-from-examples)
+- [Write the model](/docs/guides/write-the-model)
 - [Verify and inspect](/docs/guides/verify-and-inspect)
 - [Run and gate](/docs/guides/run-and-gate)

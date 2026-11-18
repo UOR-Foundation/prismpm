@@ -35,7 +35,7 @@ export function derivationKey(domain, operands) {
 /** A proof's derivation key: the kernel, the library, its own statement and its axiom policy, in that order. */
 export const proofKey = ({ kernel, library, statement, policy }) => derivationKey(PROOF_SCHEMA, [kernel, library, statement, policyLabel(policy)]);
 
-/** The statement one guarantee's proof is about: the spec's numbers and that guarantee, and nothing of where it sits. */
+/** The statement one guarantee's proof is about: the rule app's numbers and that guarantee, and nothing of where it sits. */
 export const guaranteeStatement = (words, guarantee) => `sha256:${sha256HexSync(enc.encode(JSON.stringify(['prism/kernel-guarantee/1', words, guarantee])))}`;
 
 // ---- The reuse rule (RuleApp.lex.tex, `reuseAdmits`), one for one. ----

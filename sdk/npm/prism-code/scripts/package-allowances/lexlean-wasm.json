@@ -1,0 +1,4 @@
+{
+  "kib": 18,
+  "reason": "LexLean as WebAssembly (Phase 3): the pinned-module store and runner (journey/lexlean-wasm.mjs) and the read-only in-memory WASI host it runs on, which serves Node on every operating system and a browser (journey/wasi-memory.mjs), about 17.5 KiB. The 19 MB module itself is fetched once by its SHA-256, never packed."
+}

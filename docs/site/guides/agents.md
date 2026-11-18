@@ -59,12 +59,12 @@ Point any MCP client at it. For a client that reads a JSON configuration:
 
 The server refuses to start when the check fails, and it grants the instance exactly the capability set from the holo. The agent gets the tool description from the world, so it never guesses at the input shape.
 
-## Let an agent write the spec
+## Let an agent write the model
 
-An agent never writes the model. It writes one `prism/spec/1` spec through the `prism` MCP server (`npx prism-code@latest mcp`), you approve its properties, and Prism renders the model, has Lean prove every property on this machine, and builds the holo. `check` reads the proof, not who wrote the spec.
+An agent writes the app's LexLean model through the `prism` MCP server (`npx prism-code@latest mcp`): it starts the model from a content-addressed starter, checks every edit, and shows you the guarantees before Lean proves them. `check` reads the proof, not who wrote the model.
 
 ## Next steps
 
-- [Write the spec](/docs/guides/write-from-examples)
+- [Write the model](/docs/guides/write-the-model)
 - [Audit a holo](/docs/guides/audit)
 - [Use a holo as a tool](/docs/api/as-tool)

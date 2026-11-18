@@ -69,95 +69,57 @@ parameter exits 2. [Details and a check per OS][guide-setup].
 Beside `lexlean`, `setup` adds the local server `prism` to the same agents,
 Claude Desktop included: `prism-code mcp` on stdio.
 
-## Build a verified app from one sentence (experimental)
+## Build a verified app (experimental)
 
 With the `prism` server connected, ask the agent for a Prism app in one
-sentence, such as "build me a Prism app for loan approval". The agent
-translates the sentence into a draft, passes it to `prism_spec` to be completed
-and checked, and shows it to you once for approval, properties first: Lean
-proves them, so they must be the ones you mean. Nothing is built until you
-approve. The spec has six parts, and the agent asks about a part only when it
-cannot infer it:
+sentence, such as "build me a Prism app for loan approval". An app's one source
+of truth is its LexLean model under `prism/src/`, which the agent writes with
+you. Its machine-readable form is the JSON LexLean exports for the model,
+`lexlean/semantic-snapshot/2`, named by its `semantic_id`.
 
-| Part | Says | Becomes |
+`prism_start` lists the starters, and starts the app from the one that fits.
+Each is a LexLean module named by its SHA-256 in
+`templates/starters/index.json`, copied only when its bytes match:
+
+| Starter | Shape | Proved by |
 | --- | --- | --- |
-| purpose | what the app decides, in one sentence | the app's name and description |
-| fields | what goes into one request, and what each field means | a line of space-separated fields, each a number or a choice |
-| outcomes | what the answer can be, and what each answer means | the answers, plus `invalid` for a malformed request |
-| rules | `when ... then ...`, in order, then `otherwise`, each with its reason | the decision the guest runs |
-| properties | what must `never` or `always` happen, each with the harm it prevents | one theorem each, proved by Lean |
-| examples | real requests and their answers | acceptance vectors |
+| `rule-app` | one answer from one request, each condition a field against a value | Lean's kernel in this process, from the model's semantic snapshot; the app is the verified rule judge with the model's numbers, served as a static page |
+| `decision-app` | one answer from one request, with its own judge and theorems | `lexlean verify`, then built into a holo |
+| `stateful-app` | state kept between steps, with actions and invariants | `lexlean verify`, then built into a holo |
 
-A model writes only what you said: a `title`, the `fields`, the `rules` and
-the `otherwise` answer, and a property only when you stated one. That is the
-draft form of `prism/spec/1`, and Prism completes it, the same way every time
-(`completeSpec` in `src/journey/complete.mjs`, a pure function):
-
-| Left out | Prism derives |
-| --- | --- |
-| `outcomes` | the answers the rules and `otherwise` give, in first-appearance order; never `invalid` |
-| `purpose`, `name` | one sentence from the answers and the fields; the name from the title |
-| `examples` | the first request each rule decides, and one for `otherwise`, at most six |
-| `properties` (fewer than three) | proposals, up to three in all: `always <answer> when <conditions>` for each rule no earlier rule overrides, then `never <answer> when <field> is <value>` for each answer a choice never gets |
-
-A proposal is kept only when no request breaks it, every candidate request
-having been tried, and its `why` starts "Proposed by Prism", so the review
-shows it as proposed, first, and you keep or strike it before Lean proves it.
-A spec that already holds `purpose`, `outcomes`, `properties` and `examples` is
-not a draft: it is taken as written and nothing is proposed again, so a
-guarantee you struck stays struck. Prism also drops, and says so in `notes`, an
-`invalid` listed among the answers that no rule answers, and a guarantee whose
-conditions no request can meet; and it reads a number field compared with a
-bare word that names another number field (`"value": "limit"`) as that field. The completed spec is what `prism/spec.json`
-holds and what the app's seal names.
-
-For a caller that can hold a model's answer to a JSON schema,
-`src/journey/spec-schema.mjs` exports `DRAFT_JSON_SCHEMA` (the draft form,
-about 2 KiB, closed, whole non-negative bounds) and `SPEC_JSON_SCHEMA` (the
-whole spec). `checkSpec` completes and checks a spec in one call, and
-`repairMessage` turns a refusal into what to tell the model: each false
-guarantee as the JSON it wrote, beside the rule that decides against it and the
-request that shows it, with the two ways out. Why: [#666][issue-666].
-
-[issue-666]: https://github.com/UOR-Foundation/PrismPM/issues/666
-
-Beside these, `limits` lists what the app does not decide. Reasons, meanings
-and limits are for people: no proof depends on them, and they are kept with
-what they describe, so a reason is dropped when its rule changes.
-
-Prism writes the spec as `prism/SPEC.md` in the [OpenSpec](https://openspec.dev)
-format: a `## Purpose`, then a `### Requirement:` with SHALL and a
-`#### Scenario:` with WHEN and THEN for every guarantee and rule, each marked
-proved by Lean or tested. The app's repository carries the same file at
-`openspec/specs/<name>/spec.md`.
-
-The draft is checked as a whole. A property the rules break comes back
-with the request that breaks it, and an example the rules contradict comes back
-with the rule that decides it. `prism_build` then writes the LexLean model in
-`prism/`, has Lean prove every property (hosted, sending `prism/src/` to be stored
-unlisted, until the SDK image is here), builds the holo in the SDK image with
-the cache `setup` created, and replays its acceptance vectors through the
-guest. Wrong axiom sets are corrected without asking. Proving takes about a
-minute; a first build takes ten minutes or more. The properties are proved;
+The agent edits the model, and `prism_check` returns every diagnostic at the
+line of `prism/src/` it anchors to. The agent shows you the guarantees the
+model states before anything is proved. `prism_prove` and `prism_build` prove
+and build it, and `prism_try` answers from the built app. A rule app's
+guarantees are first tried for a counterexample among the values its
+conditions tell apart, then judged by Lean's kernel. Guarantees are proved;
 the reading of requests and the examples are tested.
 
-The tools are `prism_start`, `prism_answer`, `prism_spec` (read the whole spec
-as `prism/spec/1` JSON, or replace it with a draft or a whole spec), `prism_prove`, `prism_build`, `prism_try`
-(answer one request) and `prism_status`. Proving and building run as jobs, so a
-call returns `running` and the next call picks the job up. Design:
-[docs/proposals/325-prism-journey.md](../../../docs/proposals/325-prism-journey.md).
+**What runs without Docker.** LexLean's front end runs as WebAssembly on this
+machine once its pinned copy is here ([Phase 3](../../../docs/proposals/canonical-serverless-build.md)),
+on a read-only WASI host held in memory: it checks every app and takes its
+semantic snapshot in under a second, and a rule app is then proved by Lean's
+kernel in this process and built, with no Docker and no server. Its pinned copy is
+fetched once, about 4 MB, and used only when it has its κ-label (BLAKE3);
+`PRISM_LEXLEAN_FETCH=0` fetches nothing. Proving any other app's theorems needs Lean: the SDK image on this
+machine (Docker), or the hosted verifier, which only you choose, by setting
+`PRISM_CODE_TIER=hosted`, until in-process proof producers land (Phase 4). With
+nothing to run a step on, it fails with `build.frontend-unavailable`. Publishing to GitHub from `prism_build` waits for
+the template's ID rows, scenarios and tests to be written from the snapshot
+(`build.publish-unavailable`).
+
+The tools are `prism_start`, `prism_check`, `prism_prove`, `prism_build`,
+`prism_try` and `prism_status`. Proving and building run as jobs, so a call
+returns `running` and the next call picks the job up.
 
 ### What the journey reports, and how to turn it off
 
-When a journey asks for something Prism or Lean cannot do, `prism-code` writes a
-fingerprint to `$PRISM_HOME/gaps.jsonl`, with no question and no agent step:
+When LexLean or PrismPM refuses a model, `prism-code` writes a fingerprint to
+`$PRISM_HOME/gaps.jsonl`, with no question and no agent step:
 
 | Kind | When | Construct |
 | --- | --- | --- |
-| `refusal` | an answer or spec is refused by a validation rule | the rule, such as `fields.too-many` or `outcome.unknown` |
-| `roundtrip` | a valid spec does not come back from its own answers: a Prism bug | the part, and the rule that refused it, such as `rules:choice.value` |
-| `unproved` | Lean did not prove a property that no sampled request breaks | its shape, such as `always:choice-is+number-le-field`, with the Lean code |
-| `model-refused` | the toolchain refused the model Prism generated | the step, with the diagnostic code |
+| `model-refused` | a LexLean or PrismPM step refused the model | the step, with the diagnostic code |
 
 A fingerprint is the kind, the construct, the diagnostic code and the
 `prism-code` version: never a word, name or number the user wrote. The next call
@@ -369,8 +331,8 @@ const vars = resolveVariables(manifest, process.env);
 
 ### Develop locally
 
-An agent never writes the model: `build --unstable-author` was removed. Every
-app comes from one `prism/spec/1` spec through the guided path, `prism-code mcp`.
+An app's model is LexLean the agent writes under `prism/src/`, started from a
+starter by `prism-code mcp`.
 
 ```sh
 npx prism-code dev

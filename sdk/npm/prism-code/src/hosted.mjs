@@ -225,6 +225,27 @@ export async function hostedCheck(client, project) {
 }
 
 /**
+ * LexLean's semantic snapshot of the draft's own files (`lexlean/semantic-snapshot/2`):
+ * the JSON LexLean exports for the model, the one machine-readable form of a
+ * Prism app. Taken only on the user's opt-in to the hosted verifier, like any
+ * other hosted call. Resolves `{ draft, profile, snapshot }`.
+ */
+export async function hostedSnapshot(client, project) {
+  const { draft, profile } = await writeDraft(client, project);
+  const result = await client.call('lexlean_snapshot', { project: draft });
+  let snapshot = result?.structuredContent;
+  if (snapshot?.spec !== 'lexlean/semantic-snapshot/2') {
+    try {
+      snapshot = JSON.parse(result?.content?.[0]?.text ?? 'null');
+    } catch {
+      snapshot = null;
+    }
+  }
+  if (result?.isError || snapshot?.spec !== 'lexlean/semantic-snapshot/2') refused('lexlean_snapshot', result);
+  return { draft, profile, snapshot };
+}
+
+/**
  * `lexlean verify` on the draft's entrypoints, as a task, polled until it
  * ends. Resolves `{ state: 'verified', record }` only when every entrypoint's
  * module is in the record; `{ state: 'failed', diagnostics }` when Lean refused

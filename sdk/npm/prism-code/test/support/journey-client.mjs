@@ -1,19 +1,12 @@
 // Drive the real Prism server (`prism-code mcp`) over stdio, as an agent does: one process, JSON-RPC lines.
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const BIN = fileURLToPath(new URL('../../bin/prism-code.mjs', import.meta.url));
-export const FIXTURES = fileURLToPath(new URL('../fixtures/journey/', import.meta.url));
 const FAKE_DOCKER = fileURLToPath(new URL('./fake-docker.mjs', import.meta.url));
-
-/** The shipping draft the fixture holo was built from, and that holo (prism-code 0.9.1, SDK image cd3b47d7, 2026-11-16). */
-export const SHIPPING_DRAFT = JSON.parse(readFileSync(join(FIXTURES, 'shipping-method.draft.json'), 'utf8'));
-export const SHIPPING_HOLO = join(FIXTURES, 'shipping-method.holo');
-/** The seal that holo carries: the address of the spec.json Prism stores for the draft. It moves only if completion does. */
-export const SHIPPING_SEAL = 'blake3:f1479464e810a32665f748c15721b9506d819a3236bc18a65ad8abfe9767ae99';
 
 /** A new, empty project folder. */
 export const project = () => mkdtempSync(join(tmpdir(), 'prism-stress-'));
@@ -40,7 +33,7 @@ export function fakeDocker(cwd, plan = {}) {
  */
 export function startServer(cwd, { env = {} } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'prism-stress-home-'));
-  const child = spawn(process.execPath, [BIN, 'mcp'], { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PRISM_HOME: home, PRISM_TELEMETRY: '0', PRISM_CODE_TIER: '', PRISM_KERNEL_DIR: KERNEL_FIXTURES, ...env } });
+  const child = spawn(process.execPath, [BIN, 'mcp'], { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PRISM_HOME: home, PRISM_TELEMETRY: '0', PRISM_LEXLEAN_FETCH: '0', PRISM_CODE_TIER: '', PRISM_KERNEL_DIR: KERNEL_FIXTURES, ...env } });
   let buffer = '';
   let stderr = '';
   let next = 1;

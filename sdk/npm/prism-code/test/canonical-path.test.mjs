@@ -1,6 +1,7 @@
-// The canonical path is what `npx prism-code@latest setup` leads every user to: an agent writes
-// one JSON spec, `prism/spec.json`, which is deterministically rendered to LexLean and built.
-// These tests hold the whole surface a new user meets to that one path, and to no other.
+// The canonical path is what `npx prism-code@latest setup` leads every user to: an app's one source of
+// truth is its LexLean model, started from a content-addressed starter and written by the agent. There is
+// no spec file. These tests hold the whole surface a new user meets to that one path, and to no other, and
+// hold every part of it to saying what runs without Docker: LexLean as WebAssembly, and Lean for an app's own theorems.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -10,6 +11,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INSTRUCTIONS } from '../src/journey/mcp.mjs';
 
+// LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
+process.env.PRISM_LEXLEAN_FETCH = '0';
 const bin = fileURLToPath(new URL('../bin/prism-code.mjs', import.meta.url));
 const skill = readFileSync(new URL('../skill/SKILL.md', import.meta.url), 'utf8');
 const scratch = () => mkdtempSync(join(tmpdir(), 'prism-canonical-'));
@@ -35,51 +38,45 @@ test('setup gives every agent the local Prism server, and the hosted one only wh
   assert.match(run(['setup', '--dry-run', '--agents-only'], { env }).out, /not added; it stores models unlisted, not privately/);
 });
 
-test('setup ends by telling the user to ask an agent for an app', () => {
+test('setup ends by telling the user what runs without Docker, then to ask an agent for an app', () => {
   const plan = JSON.parse(run(['setup', '--dry-run', '--agents-only', '--json'], { env: agentHome() }).out);
-  assert.match(plan.next.join(' '), /build me a Prism app/);
+  assert.match(plan.next.join(' '), /Without Docker, LexLean runs as WebAssembly.*Phase 3.*Phase 4/);
+  assert.match(plan.next.at(-1), /build me a Prism app/);
 });
 
-test('the MCP instructions every agent receives name spec.json, state determinism and forbid LexLean', () => {
-  assert.match(INSTRUCTIONS, /one input: prism\/spec\.json/);
-  assert.match(INSTRUCTIONS, /The same JSON gives the same model\./);
-  assert.match(INSTRUCTIONS, /Never write LexLean/);
-  assert.ok(INSTRUCTIONS.split(/\s+/).length < 150, 'the instructions stay short enough to be read');
+test('the MCP instructions every agent receives name the LexLean model, what runs without Docker, and leave the hosted opt-in to the user', () => {
+  assert.match(INSTRUCTIONS, /one source of truth is its LexLean model in prism\/src\//);
+  assert.match(INSTRUCTIONS, /Without Docker, LexLean runs as WebAssembly/);
+  assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER=hosted yourself/);
+  assert.ok(INSTRUCTIONS.split(/\s+/).length < 200, 'the instructions stay short enough to be read');
 });
 
-test('the skill setup installs teaches the canonical path and no other', () => {
+test('the skill setup installs teaches the canonical path and no other, and says what runs without Docker', () => {
   assert.match(skill, /\*\*The canonical path\.\*\* Every Prism app is built this way, and no other/);
-  assert.match(skill, /There is no second way to build a Prism app\./);
-  // The routes that competed with it: an agent drafting LexLean, and a repository made by hand.
+  assert.match(skill, /There is no second way to build a Prism app/);
+  assert.match(skill, /\*\*What runs without Docker\.\*\*/);
+  assert.match(skill, /PRISM_LEXLEAN_WASM/);
+  assert.match(skill, /build\.frontend-unavailable/);
+  // The routes that competed with it: a spec file, an agent drafting on the hosted server, and a repository made by hand.
+  assert.doesNotMatch(skill, /spec\.json|prism\/spec\/|prism_spec|prism_answer/);
   assert.doesNotMatch(skill, /lexlean_draft_assemble|lexlean_draft_write/);
   assert.doesNotMatch(skill, /gh repo create OWNER\/NAME --template/);
-  assert.doesNotMatch(skill, /--unstable-author/);
 });
 
-test('a scaffolded LexLean project says it is not a Prism app, and names the app input', () => {
+test('a scaffolded LexLean project says a Prism app is one too, started from a starter', () => {
   const r = run(['init', join(scratch(), 'proj')]);
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /This is a LexLean project, not a Prism app\./);
-  assert.match(r.out, /prism\/spec\.json/);
+  assert.match(r.out, /A Prism app is a LexLean project too/);
+  assert.doesNotMatch(r.out, /spec\.json/);
 });
 
-test('the route where an agent wrote the model stays removed', () => {
-  const r = run(['build', '--unstable-author']);
-  assert.equal(r.code, 64);
-  assert.match(r.err, /unknown option --unstable-author/);
-});
-
-test('check holds a holo to a spec: --spec refuses one that carries no seal', () => {
+test('check takes no --spec: there is no spec to hold a holo to', () => {
   const dir = scratch();
   const policy = join(dir, 'p0.json');
   writeFileSync(policy, '{"minimum":"P0"}');
-  const spec = join(dir, 'spec.json');
-  writeFileSync(spec, JSON.stringify({ purpose: 'Decide whether a payment is approved.', fields: [{ name: 'role', kind: 'choice', values: ['clerk', 'manager'] }], outcomes: ['approved', 'refused'], rules: [{ when: [{ field: 'role', op: 'is', value: 'manager' }], then: 'approved' }], otherwise: 'refused' }));
   const holo = fileURLToPath(new URL('../fixtures/Calculator.holo', import.meta.url));
-  const asked = run(['check', holo, '--policy', policy, '--spec', spec]);
-  assert.equal(asked.code, 1, asked.err || asked.out);
-  assert.match(asked.out, /^spec {6}none {4}The holo carries no spec seal/m);
-  // Without the flag, and with no spec beside the holo, the check says nothing about a spec.
+  const asked = run(['check', holo, '--policy', policy, '--spec', join(dir, 'spec.json')]);
+  assert.equal(asked.code, 64, asked.err || asked.out);
   const plain = run(['check', holo, '--policy', policy]);
   assert.equal(plain.code, 0, plain.err);
   assert.doesNotMatch(plain.out, /^spec /m);

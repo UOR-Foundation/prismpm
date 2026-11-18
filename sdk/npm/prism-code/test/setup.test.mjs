@@ -1,6 +1,7 @@
 // prism-code setup (experimental): detection and writing on fixture home directories for each OS, the
 // handler registration commands, the preferred agent and the printed lines. No test reads or writes the
 // real home directory, the registry or LaunchServices: every command goes to a recording stand-in.
+import { NO_DOCKER_FREE_BUILD } from '../src/journey/frontend.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -361,10 +362,11 @@ test('setup ends with what to do next: sign in when needed, restart the agent it
     preferred: { agent: 'claude-code', steps: [] },
   });
   const ask = `Ask Claude Code: "${FIRST_SENTENCE}"`;
-  assert.deepEqual(nextSteps(plan('already')), [ask], 'nothing changed: no restart');
-  assert.deepEqual(nextSteps(plan('already', 'configure')), ['Restart Claude Code, so it loads the new servers.', ask]);
+  // Said before the first sentence, every time: what runs without Docker, and what still needs Lean.
+  assert.deepEqual(nextSteps(plan('already')), [NO_DOCKER_FREE_BUILD, ask], 'nothing changed: no restart');
+  assert.deepEqual(nextSteps(plan('already', 'configure')), [NO_DOCKER_FREE_BUILD, 'Restart Claude Code, so it loads the new servers.', ask]);
   const signedOut = { id: 'github', status: 'manual', detail: 'not signed in: run gh auth login, so apps build on GitHub Actions without Docker' };
-  assert.equal(nextSteps(plan('configure'), { github: signedOut })[0], 'Run gh auth login, so your app builds on GitHub Actions and this machine needs no Docker.');
+  assert.equal(nextSteps(plan('configure'), { github: signedOut })[0], 'Run gh auth login, so your app can be published on GitHub.');
   const missing = { agents: [{ agent: 'claude-code', status: 'not-found' }], journey: [], preferred: { agent: null, steps: [] } };
   assert.match(nextSteps(missing)[0], /^Install an agent, such as Claude Code \(https:/);
   assert.equal(formatNext(['one', 'two']), 'next\n  1. one\n  2. two\n');
@@ -436,7 +438,7 @@ test('Claude Desktop running: its prism entry is not written, because the app re
   applySetup(plan, recorder());
   assert.equal(readFileSync(file, 'utf8'), before);
   assert.match(formatSetup(plan), /claude-desktop {2}manual {14}Claude Desktop is running/);
-  assert.deepEqual(nextSteps(plan), ['Quit Claude Desktop (from the tray or menu bar too), then run npx prism-code@latest setup again, so it keeps the prism server.', `Ask Claude Desktop: "${FIRST_SENTENCE}"`]);
+  assert.deepEqual(nextSteps(plan), [NO_DOCKER_FREE_BUILD, 'Quit Claude Desktop (from the tray or menu bar too), then run npx prism-code@latest setup again, so it keeps the prism server.', `Ask Claude Desktop: "${FIRST_SENTENCE}"`]);
 
   // Quit, the same run writes it.
   const quit = planSetup({ agent: 'claude-desktop' }, { ...context('win32', home), claudeDesktopRunning: () => false });

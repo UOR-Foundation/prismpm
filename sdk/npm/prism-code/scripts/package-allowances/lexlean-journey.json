@@ -1,0 +1,4 @@
+{
+  "kib": 72,
+  "reason": "The LexLean journey: the content-addressed starter modules an app starts from (templates/starters, about 57 KiB), and the snapshot reader, request format and front-end gate that replace the spec renderer (journey/rule-table.mjs, journey/request-text.mjs, journey/frontend.mjs, about 15 KiB)."
+}

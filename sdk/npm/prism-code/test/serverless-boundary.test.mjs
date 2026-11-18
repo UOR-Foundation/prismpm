@@ -6,7 +6,8 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compile } from '../src/journey/session.mjs';
+import { ruleTable, tableWords } from '../src/journey/rule-table.mjs';
+import { ruleAppSnapshot } from './support/snapshot.mjs';
 import { HOSTED_HOST, buildFetch, networkLedger, optedIn, refusal } from '../src/journey/hosts.mjs';
 import { kappaStore } from '../src/journey/kappa-store.mjs';
 import { kernelProve, openKernel } from '../src/journey/kernel-prove.mjs';
@@ -17,15 +18,7 @@ import { publicStore, pullProofs } from '../src/journey/proof-store.mjs';
 const KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 process.env.PRISM_KERNEL_DIR = KERNEL_DIR;
 const home = () => ({ PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-boundary-')), PRISM_KERNEL_DIR: KERNEL_DIR });
-const spec = () => compile({
-  purpose: 'Parking fee tier: decide the parking fee tier for a vehicle from the hours parked and the vehicle type.',
-  fields: 'hours: number 0..24, vehicle: car|motorcycle|truck',
-  outcomes: 'free, standard, premium',
-  rules: 'when hours = 0 then free\nwhen vehicle is motorcycle then free\nwhen vehicle is truck then premium\nwhen hours > 8 then premium\notherwise standard',
-  properties: 'never when vehicle is motorcycle then premium\nalways when vehicle is truck and hours > 0 then premium\nnever when hours = 0 then standard',
-  examples: '0 car -> free',
-  review: 'yes',
-}).spec;
+const spec = () => tableWords(ruleTable(ruleAppSnapshot()));
 const files = (dir) => (existsSync(dir) ? readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(e.parentPath ?? e.path, e.name)) : []);
 
 test('the boundary admits GitHub\'s static hosts and the user\'s Pages site, and nothing else', () => {
@@ -56,6 +49,23 @@ test('planted defect B1: a build that reaches a non-allowed host is refused befo
   await assert.rejects(ensureKernel({ env, fetch: spy }), { code: 'kernel.unavailable' });
   assert.match(asked, /^https:\/\/raw\.githubusercontent\.com\//);
   await assert.rejects(fetchPinned('standards.lock', { fetch: spy }), /answered HTTP 404/);
+});
+
+test('planted defect B2: a redirect from an allowed host to one outside the boundary is refused before it is followed', async () => {
+  const asked = [];
+  const fetch = async (url) => {
+    asked.push(String(url));
+    if (String(url).startsWith('https://github.com/')) return new Response(null, { status: 302, headers: { location: 'https://example.com/elsewhere' } });
+    return new Response('x');
+  };
+  const guarded = buildFetch({ fetch, ledger: networkLedger() });
+  await assert.rejects(guarded('https://github.com/a/b/releases/download/t/f'), (e) => e.code === 'build.host-not-allowed' && e.url === 'https://example.com/elsewhere');
+  assert.deepEqual(asked, ['https://github.com/a/b/releases/download/t/f']);
+  // A redirect inside the boundary is followed, and its bytes are counted against where they came from.
+  const ledger = networkLedger();
+  const inside = buildFetch({ fetch: async (url) => (String(url).includes('github.com/') ? new Response(null, { status: 302, headers: { location: 'https://release-assets.githubusercontent.com/x' } }) : new Response(new Uint8Array(7))), ledger });
+  await (await inside('https://github.com/a/b/releases/download/t/f')).arrayBuffer();
+  assert.deepEqual(ledger.report(), [{ host: 'release-assets.githubusercontent.com', requests: 1, bytes: 7 }]);
 });
 
 test('the ledger reports each host asked and the bytes received', async () => {
