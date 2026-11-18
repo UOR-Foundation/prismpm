@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.97"
 name = "lexlean"
-version = "0.4.0"
+version = "0.4.3"
 authors = ["Alex Flom"]
 build = "build.rs"
 autolib = false
@@ -37,6 +37,10 @@ categories = [
 ]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/UOR-Foundation/LexLean"
+
+[features]
+default = ["production-data"]
+production-data = []
 
 [lib]
 name = "lexlean"
@@ -77,13 +81,6 @@ version = "1.2"
 version = "4.5"
 features = ["derive"]
 
-[dependencies.fs4]
-version = "0.13"
-features = ["sync"]
-
-[dependencies.same-file]
-version = "1.0"
-
 [dependencies.semver]
 version = "1.0"
 
@@ -112,6 +109,25 @@ version = "2"
 
 [dev-dependencies.proptest]
 version = "1.6"
+
+[build-dependencies.sha2]
+version = "0.10"
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies.fs4]
+version = "0.13"
+features = ["sync"]
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies.same-file]
+version = "1.0"
+
+[target.'cfg(target_os = "wasi")'.dependencies.rustix]
+version = "1"
+features = [
+    "std",
+    "process",
+    "fs",
+]
+default-features = false
 
 [target."cfg(unix)".dependencies.rustix]
 version = "1"

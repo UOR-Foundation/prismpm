@@ -354,7 +354,7 @@ The three honesty levels:
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `VR-01` | `build` | LexLean verifies formal models against the Lean 4.32.1 kernel. |
+| `VR-01` | `build` | LexLean verifies formal models against the Lean 4.32.2 kernel. |
 | `VR-02` | `build` | Verification records executable digests and normalized toolchain commands. |
 | `VR-03` | `build` | Lake stages generated Lean modules in isolated temporary workspaces. |
 | `VR-04` | `build` | leanchecker replays compiled module environments independently. |
@@ -373,10 +373,10 @@ The three honesty levels:
 | --- | --- | --- | --- | --- |
 | `BLAKE3-VECTORS-1-5-5` | `1.5.5` | https://raw.githubusercontent.com/BLAKE3-team/BLAKE3/81f772a4cd70dc0325047a6a737d2f6f4b92180e/test_vectors/test_vectors.json | `dcb91ea8accc77e6d6e632af7cdc1a99a9f3ae78cf648da595c7d064db32f624` | `HO-14` |
 | `IETF-RFC-7636` | `September 2015` | https://www.rfc-editor.org/rfc/rfc7636.txt | `1972e5d81cbaba7066cfd46374207bc2b4546b085ed5dd9b034e79e023e0ca31` | `ST-17` |
-| `LEAN-REL-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-01`, `VR-02` |
-| `LAKE-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-03` |
-| `LEANCHECKER-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-04` |
-| `PRINT-AXIOMS-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-05` |
+| `LEAN-REL-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-01`, `VR-02` |
+| `LAKE-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-03` |
+| `LEANCHECKER-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-04` |
+| `PRINT-AXIOMS-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-05` |
 | `OCI-IMAGE-1-1-1` | `1.1.1` | https://codeload.github.com/opencontainers/image-spec/tar.gz/147f9c13cedb47a0c4d9a11a222961073d585877 | `f632804ca432d6df5c0fad506d003ebdb99f57fff22c4559cb4163e1e240a7f4` | `AU-01`, `OC-01` |
 | `OCI-DISTRIBUTION-1-1-1` | `1.1.1` | https://codeload.github.com/opencontainers/distribution-spec/tar.gz/a139cc423184af6078077b9b7ee336eddbd03f8f | `e69fbe28c2eb4b2ef5a12c76b21c32d959ee97a646afe7704577b14c295641d2` | `AU-01`, `OC-04`, `OC-05` |
 | `OCI-RUNTIME-1-3-0` | `1.3.0` | https://codeload.github.com/opencontainers/runtime-spec/tar.gz/92249139eea7161e13745abd4cb6d0ea02a3227a | `fbed724a4bbdce2260eea9a4d6dcf534a5e2446e581ed1b8bf27abe536cee17a` | `AU-01`, `LC-03` |
@@ -423,10 +423,10 @@ The three honesty levels:
 
 | ID | Level | Claim |
 | --- | --- | --- |
-| `AUTH-LEAN-REL-4-32-1` | `some-true` | Lean 4.32.1 provides the formal kernel and elaborator that verifies generated PrismPM declarations. |
-| `AUTH-LAKE-4-32-1` | `some-true` | Lake resolves hermetic Lean workspaces without network access when all dependencies are pinned. |
-| `AUTH-LEANCHECKER-4-32-1` | `some-true` | leanchecker replays compiled module environments through the Lean kernel in an isolated process. |
-| `AUTH-PRINT-AXIOMS-4-32-1` | `some-true` | Lean 4.32.1 reports transitive axiom dependencies through #print axioms. |
+| `AUTH-LEAN-REL-4-32-2` | `some-true` | Lean 4.32.2 provides the formal kernel and elaborator that verifies generated PrismPM declarations. |
+| `AUTH-LAKE-4-32-2` | `some-true` | Lake resolves hermetic Lean workspaces without network access when all dependencies are pinned. |
+| `AUTH-LEANCHECKER-4-32-2` | `some-true` | leanchecker replays compiled module environments through the Lean kernel in an isolated process. |
+| `AUTH-PRINT-AXIOMS-4-32-2` | `some-true` | Lean 4.32.2 reports transitive axiom dependencies through #print axioms. |
 | `AUTH-ISO-42010-2022` | `some-true` | ISO/IEC/IEEE 42010:2022 establishes conceptual foundations for architecture descriptions of systems. |
 | `AUTH-ISO-27034-1-2011` | `some-true` | ISO/IEC 27034-1 provides concepts and principles for application security. |
 | `AUTH-ISO-27034-5-2017` | `some-true` | ISO/IEC 27034-5 defines application security control data structures. |

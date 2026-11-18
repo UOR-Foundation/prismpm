@@ -282,7 +282,7 @@ Feature: sdk
 
   @DK-45 @build
   Scenario: The canonical build of prism-code follows model/canonical-build, which Lean proves: a holo is admitted only when its semantic_id recomputes under the pinned kernel, library and compiler; a stored proof term stands in for producing one only under the same derivation key, kernel, library, statement, exact axiom policy and bytes, and never for judging one, so the kernel judges every term, reused or produced, in the run that reports it; a theorem is proved only when the kernel accepted its own term within its policy, a missing term is pending and a refused one refused; where a term came from never decides its verdict; and every network read of a build goes through one boundary that admits GitHub's static hosts and the user's Pages site, admits the hosted verifier only on PRISM_CODE_TIER=hosted, refuses any other host with build.host-not-allowed before anything is sent, and reads a public proof store only by GET, copying bytes only when they re-derive.
-    Given model/canonical-build verified by Lean 4.32.1, the pinned kernel as WebAssembly, and a public store served as static files
+    Given model/canonical-build verified by Lean 4.32.2, the pinned kernel as WebAssembly, and a public store served as static files
     When the rules are evaluated beside the model's text on generated inputs, a spec is proved twice, and a build asks hosts inside and outside the boundary
     Then the JavaScript agrees with the model on every input, every reused term is judged again by the kernel, and nothing is reused under another library, statement or axiom policy
     And a host outside the boundary is refused before anything is sent, and store bytes that do not re-derive are not copied

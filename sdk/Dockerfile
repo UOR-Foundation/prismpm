@@ -117,8 +117,8 @@ RUN case "$TARGETARCH" in \
     && mkdir /tmp/elan \
     && tar --extract --gzip --file /tmp/elan.tar.gz --directory /tmp/elan \
     && /tmp/elan/elan-init -y --no-modify-path --default-toolchain none \
-    && elan toolchain install leanprover/lean4:v4.32.1 \
-    && chmod -R a+rX,go-w /usr/local/elan/toolchains/leanprover--lean4---v4.32.1 \
+    && elan toolchain install leanprover/lean4:v4.32.2 \
+    && chmod -R a+rX,go-w /usr/local/elan/toolchains/leanprover--lean4---v4.32.2 \
     && rm /tmp/elan.tar.gz \
     && rm /tmp/elan/elan-init \
     && rmdir /tmp/elan
@@ -408,7 +408,7 @@ RUN set -eu; \
 ENV CARGO_HOME=/home/vscode/.cargo \
     RUSTUP_HOME=/usr/local/rustup \
     ELAN_HOME=/usr/local/elan \
-    ELAN_TOOLCHAIN=leanprover/lean4:v4.32.1 \
+    ELAN_TOOLCHAIN=leanprover/lean4:v4.32.2 \
     PRISMPM_SDK_INVENTORY=/opt/prismpm/share/inventory.json \
     PATH=/usr/local/elan/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin
 
@@ -538,7 +538,7 @@ ENV LANG=C.UTF-8 \
     CARGO_HOME=/home/vscode/.cargo \
     RUSTUP_HOME=/usr/local/rustup \
     ELAN_HOME=/usr/local/elan \
-    ELAN_TOOLCHAIN=leanprover/lean4:v4.32.1 \
+    ELAN_TOOLCHAIN=leanprover/lean4:v4.32.2 \
     PRISMPM_SDK_INVENTORY=/opt/prismpm/share/inventory.json \
     PRISMPM_OCI_PACKAGE=sdk-build \
     PATH=/usr/local/elan/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin

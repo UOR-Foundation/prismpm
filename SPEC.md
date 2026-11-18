@@ -21,7 +21,7 @@ The normative PrismPM 0.4.0 interface is the digest-pinned Linux SDK OCI index
 for `linux/amd64` and `linux/arm64`. Native archives support
 `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`; other hosts use the
 SDK through Docker and the Development Container Specification. Rust 1.97.1
-and Lean 4.32.1 are mandatory inside that SDK. Tool and platform identities are
+and Lean 4.32.2 are mandatory inside that SDK. Tool and platform identities are
 closed by `prismpm.lock` and `standards.lock`.
 
 ### 1.1 Project configuration
@@ -1288,9 +1288,9 @@ and verification are offline. Canonical platform-independent artifacts contain
 no absolute checkout path, hostname, locale text, random identifier, timestamp,
 or traversal-order dependence.
 
-The only imported Lean-source exception is the registered LexLean 0.4.0 package
-at revision `e0b74b81e6f49c83596a957d232c8383a5db1a25`, the commit of the
-annotated `v0.4.0` tag, from which the LexLean v0.4.0 release was cut.
+The only imported Lean-source exception is the registered LexLean 0.4.3 package
+at revision `fa271080652887976ae25d0aef84edc7472b0276`, the commit the
+annotated `v0.4.3` tag names, from which the LexLean v0.4.3 release was cut.
 Its exact 4-file compiler-authority closure is the following paths under
 `vendor/lexlean/language/preservation-1.2/`:
 `modules/LexLeanTarget/{RustSemantics,RustSyntax,TargetSemantics,TargetSyntax}.lean`.
@@ -1305,7 +1305,7 @@ revision and crate path, and clean package VCS provenance. It then independently
 decodes the registered archive and requires the exact 4-member Lean set and
 complete archive-member/tree-manifest membership and byte equality, including
 the package VCS file and every non-Lean file. Only the extracted tree's root
-`MANIFEST.sha256` and `lexlean-0.4.0.crate`, added by the normal package importer,
+`MANIFEST.sha256` and `lexlean-0.4.3.crate`, added by the normal package importer,
 are excluded from archive membership; no nested path or `target/` is excluded.
 Duplicate, traversing, aliased, nonregular, missing, substituted or additional
 Lean members are refused, including a separately resealed tree. Archive admission
@@ -4540,7 +4540,7 @@ Every row below is normative, has the honesty level registered in `model/ids.tom
 | `EX-08` | `execution` | Generated Rust validators never panic on caller-controlled inputs. | §7 |
 | `EX-09` | `execution` | Erased proof fields are not claimed as runtime checks. | §7 |
 | `EX-10` | `execution` | Type boundary conversions between Lean Nat and Rust u64 are explicitly bounded. | §7 |
-| `VR-01` | `verification` | LexLean verifies formal models against the Lean 4.32.1 kernel. | §8 |
+| `VR-01` | `verification` | LexLean verifies formal models against the Lean 4.32.2 kernel. | §8 |
 | `VR-02` | `verification` | Verification records executable digests and normalized toolchain commands. | §8 |
 | `VR-03` | `verification` | Lake stages generated Lean modules in isolated temporary workspaces. | §8 |
 | `VR-04` | `verification` | leanchecker replays compiled module environments independently. | §8 |
