@@ -142,6 +142,21 @@ capability = "DK-41"
 statement = "The project has no .lex.tex file under its source roots, so there is nothing to audit."
 
 [[error]]
+code = "build.frontend-unavailable"
+capability = "DK-46"
+statement = "LexLean's front end is not available: no SDK image on this machine and no PRISM_CODE_TIER=hosted. A Docker-free build waits for LexLean's front end as WebAssembly (Phase 3); the hosted verifier is never chosen for the user."
+
+[[error]]
+code = "build.host-not-allowed"
+capability = "DK-45"
+statement = "A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier without PRISM_CODE_TIER=hosted. Nothing was sent, and there is no fallback."
+
+[[error]]
+code = "build.publish-unavailable"
+capability = "DK-46"
+statement = "Publishing an app to GitHub is not available until the template's ID rows, scenarios and tests are written from the model's semantic snapshot."
+
+[[error]]
 code = "canonical.algorithm"
 capability = "DK-41"
 statement = "The digest algorithm needs node:crypto, which this host does not have; sha256 stays available."
@@ -420,6 +435,21 @@ statement = "inspect was given a directory or a closure, which has no section ta
 code = "inspect.selector"
 capability = "OC-11"
 statement = "The inspect selector is malformed; it is a dotted path such as sections[0].digest.sha256."
+
+[[error]]
+code = "lexlean.wasm-failed"
+capability = "DK-47"
+statement = "LexLean as WebAssembly gave no command result."
+
+[[error]]
+code = "lexlean.wasm-mismatch"
+capability = "DK-47"
+statement = "The bytes of LexLean as WebAssembly, kept, fetched or named by PRISM_LEXLEAN_WASM, are not the pinned ones."
+
+[[error]]
+code = "lexlean.wasm-unavailable"
+capability = "DK-47"
+statement = "LexLean as WebAssembly is not on this machine and no public copy is pinned to fetch it from."
 
 [[error]]
 code = "load.fetch"
@@ -784,6 +814,41 @@ capability = "CT-12"
 statement = "A replay could not be carried out or its statement failed."
 
 [[error]]
+code = "rule-table.index"
+capability = "DK-46"
+statement = "A field, operator or answer index of the rule app names nothing."
+
+[[error]]
+code = "rule-table.module"
+capability = "DK-46"
+statement = "No module, or more than one, of the snapshot defines every definition of a rule app."
+
+[[error]]
+code = "rule-table.range"
+capability = "DK-46"
+statement = "A number of the rule app lies outside its field or outside what the rule judge reads in one request."
+
+[[error]]
+code = "rule-table.refused"
+capability = "DK-47"
+statement = "LexLean refused the model, so it has no semantic snapshot to read a rule app from; its diagnostics are returned."
+
+[[error]]
+code = "rule-table.shape"
+capability = "DK-46"
+statement = "A definition of the rule app does not have the shape of its structure."
+
+[[error]]
+code = "rule-table.snapshot"
+capability = "DK-46"
+statement = "The input is not a lexlean/semantic-snapshot/2 with its semantic, source and compiler-semantics IDs and its modules."
+
+[[error]]
+code = "rule-table.term"
+capability = "DK-46"
+statement = "A definition of the rule app is not literal data: a number, a string, a list or a record."
+
+[[error]]
 code = "session.busy"
 capability = "HO-45"
 statement = "A step was started on a session while another step of the same session was still running; steps of one session are taken in order, and the session stays open."
@@ -824,6 +889,16 @@ code = "signing_failed"
 class = "SigningError"
 capability = "CT-12"
 statement = "Attest could not produce a signature."
+
+[[error]]
+code = "start.exists"
+capability = "DK-46"
+statement = "The app folder already holds a LexLean model; no starter is written over it."
+
+[[error]]
+code = "start.starter"
+capability = "DK-46"
+statement = "The starter named is not one this package carries, or one of its files is not the bytes its index names."
 
 [[error]]
 code = "subject_mismatch"
@@ -869,6 +944,11 @@ capability = "CT-12"
 statement = "The trusted root is missing or malformed."
 
 [[error]]
+code = "try.unbuilt"
+capability = "DK-46"
+statement = "No app is built yet, so no request is answered; Prism answers only from a built app."
+
+[[error]]
 code = "verification_failed"
 class = "VerificationError"
 capability = "CT-12"
@@ -904,83 +984,3 @@ code = "world_mismatch"
 class = "WorldMismatchError"
 capability = "CT-12"
 statement = "The guest does not have the interface of the WIT world it declares, or the world is not the one the caller pinned."
-
-[[error]]
-code = "build.host-not-allowed"
-capability = "DK-45"
-statement = "A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier without PRISM_CODE_TIER=hosted. Nothing was sent, and there is no fallback."
-
-[[error]]
-code = "build.frontend-unavailable"
-capability = "DK-46"
-statement = "LexLean's front end is not available: no SDK image on this machine and no PRISM_CODE_TIER=hosted. A Docker-free build waits for LexLean's front end as WebAssembly (Phase 3); the hosted verifier is never chosen for the user."
-
-[[error]]
-code = "build.publish-unavailable"
-capability = "DK-46"
-statement = "Publishing an app to GitHub is not available until the template's ID rows, scenarios and tests are written from the model's semantic snapshot."
-
-[[error]]
-code = "try.unbuilt"
-capability = "DK-46"
-statement = "No app is built yet, so no request is answered; Prism answers only from a built app."
-
-[[error]]
-code = "start.starter"
-capability = "DK-46"
-statement = "The starter named is not one this package carries, or one of its files is not the bytes its index names."
-
-[[error]]
-code = "start.exists"
-capability = "DK-46"
-statement = "The app folder already holds a LexLean model; no starter is written over it."
-
-[[error]]
-code = "rule-table.snapshot"
-capability = "DK-46"
-statement = "The input is not a lexlean/semantic-snapshot/2 with its semantic, source and compiler-semantics IDs and its modules."
-
-[[error]]
-code = "rule-table.module"
-capability = "DK-46"
-statement = "No module, or more than one, of the snapshot defines every definition of a rule app."
-
-[[error]]
-code = "rule-table.term"
-capability = "DK-46"
-statement = "A definition of the rule app is not literal data: a number, a string, a list or a record."
-
-[[error]]
-code = "rule-table.shape"
-capability = "DK-46"
-statement = "A definition of the rule app does not have the shape of its structure."
-
-[[error]]
-code = "rule-table.index"
-capability = "DK-46"
-statement = "A field, operator or answer index of the rule app names nothing."
-
-[[error]]
-code = "rule-table.range"
-capability = "DK-46"
-statement = "A number of the rule app lies outside its field or outside what the rule judge reads in one request."
-
-[[error]]
-code = "lexlean.wasm-mismatch"
-capability = "DK-47"
-statement = "The bytes of LexLean as WebAssembly, kept, fetched or named by PRISM_LEXLEAN_WASM, are not the pinned ones."
-
-[[error]]
-code = "lexlean.wasm-unavailable"
-capability = "DK-47"
-statement = "LexLean as WebAssembly is not on this machine and no public copy is pinned to fetch it from."
-
-[[error]]
-code = "lexlean.wasm-failed"
-capability = "DK-47"
-statement = "LexLean as WebAssembly gave no command result."
-
-[[error]]
-code = "rule-table.refused"
-capability = "DK-47"
-statement = "LexLean refused the model, so it has no semantic snapshot to read a rule app from; its diagnostics are returned."
