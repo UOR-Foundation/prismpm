@@ -1,0 +1,36 @@
+{
+  "name": "@prism-code/lean-prover",
+  "version": "0.1.0",
+  "description": "Lean 4.32.2's elaborator and kernel as WebAssembly: prove a LexLean project in Node with no hosted server and no Docker, every blob checked by its BLAKE3 label.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": "./src/prover.mjs",
+    "./gate": "./src/gate.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "engine-label": "node build/engine-label.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UOR-Foundation/PrismPM",
+    "directory": "sdk/npm/lean-prover"
+  },
+  "homepage": "https://github.com/UOR-Foundation/PrismPM/tree/main/sdk/npm/lean-prover",
+  "bugs": "https://github.com/UOR-Foundation/PrismPM/issues",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -140,3 +140,13 @@ ingress_nginx_admission = "registry.k8s.io/ingress-nginx/kube-webhook-certgen@sh
 
 [oracle-images]
 oci_distribution_reference = "docker.io/library/registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+
+[emsdk]
+# Emscripten for the WASM Lean prover's engine (sdk/npm/lean-prover). The release archive is
+# taken directly, checked by sha256, and configured without running emsdk's installer.
+version = "6.0.13"
+emsdk_commit = "35659964bc2762fffec0d257997fb61475f765b7"
+release = "eb132757325583b787fe9414b09afea9442b72ad"
+platform = "linux"
+url = "https://storage.googleapis.com/webassembly/emscripten-releases-builds/linux/eb132757325583b787fe9414b09afea9442b72ad/wasm-binaries.tar.xz"
+sha256 = "cda6801012ff3319a539111826ed02a9abd7eff135c2ef261c8941caf5a3763e"

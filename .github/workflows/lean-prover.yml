@@ -1,0 +1,193 @@
+name: lean prover
+
+# The WASM Lean prover in sdk/npm/lean-prover: Lean 4.32.2's elaborator and kernel as WebAssembly, so a Prism SDK
+# build proves its model in Node with no hosted server and no Docker.
+#
+# - unit: the Node entry, blob admission, the axiom audit, the store and the gate's rules, without the engine.
+# - spec: the prover's specs (spec/) and the gate's committed corpus project are LexLean source, and Lean proves
+#   every declaration with the release LexLean 0.4.3 and elan's Lean 4.32.2; a planted weaker axiom policy is
+#   refused with LLV7005.
+# - engine: the engine build, cached by the BLAKE3 label of its inputs (build/engine-label.mjs). It reruns only when
+#   the Lean commit, the patch, Emscripten, the driver, a dependency pin or a build script changes.
+# - gate: the engine equals native Lean on every corpus declaration, and every planted defect is refused. Its
+#   attestation names the engine, library, LexLean and corpus labels.
+#
+# No container image is pulled: every tool is fetched by its pin and checked before use.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - sdk/npm/lean-prover/**
+      - sdk/npm/prism-code/src/blake3.mjs
+      - tools.lock
+      - .github/workflows/lean-prover.yml
+  push:
+    branches: [main]
+    paths:
+      - sdk/npm/lean-prover/**
+      - sdk/npm/prism-code/src/blake3.mjs
+      - tools.lock
+      - .github/workflows/lean-prover.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lean-prover-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: sdk/npm/lean-prover
+
+jobs:
+  unit:
+    name: unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - run: npm test
+
+  spec:
+    name: Lean proves the specs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      WORK: ${{ runner.temp }}/lean-prover
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Fetch elan, Lean 4.32.2 and LexLean 0.4.3 by their pins
+        run: |
+          set -euo pipefail
+          TOOLS=lean bash build/fetch-tools.sh
+          mkdir -p "$WORK/lexlean"
+          url=$(python3 -c 'import json; print(json.load(open("engine.lock.json"))["lexlean"]["binaries"]["url"])')
+          sha=$(python3 -c 'import json; print(json.load(open("engine.lock.json"))["lexlean"]["binaries"]["sha256"])')
+          curl -fsSL "$url" -o "$WORK/lexlean/binaries.tar.gz"
+          echo "$sha  $WORK/lexlean/binaries.tar.gz" | sha256sum -c -
+          tar -xzf "$WORK/lexlean/binaries.tar.gz" -C "$WORK/lexlean"
+          echo "$WORK/lexlean/bin/x86_64-unknown-linux-gnu" >> "$GITHUB_PATH"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The locks are current and Lean proves every declaration
+        run: |
+          set -euo pipefail
+          for project in spec gate/corpus/leap; do
+            ( cd "$project" && lexlean lock && lexlean fmt --all && lexlean lock && lexlean verify --all ) | tee verify.log
+            grep -q '^verified ' verify.log
+            rm verify.log
+          done
+          git diff --exit-code -- .
+      - name: "Planted defect: a weaker axiom policy is refused with LLV7005"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          path = 'spec/src/BlobLabel.lex.tex'
+          text = open(path, encoding='utf8').read()
+          start = text.index('name: admittedOnlyWhenTheDecodedLabelIsTheManifests')
+          sound = 'axioms: [Classical.choice, Quot.sound, propext]'
+          at = text.index(sound, start)
+          open(path, 'w', encoding='utf8', newline='\n').write(text[:at] + 'axioms: [Quot.sound, propext]' + text[at + len(sound):])
+          PY
+          ! git diff --quiet -- spec/src/BlobLabel.lex.tex
+          set +e
+          ( cd spec && lexlean lock && lexlean verify --all ) > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q 'LLV7005' defect.log
+          ! grep -q '^verified' defect.log
+          rm defect.log
+          git checkout -- .
+
+  engine:
+    name: engine (cached by BLAKE3 label)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    outputs:
+      label: ${{ steps.label.outputs.label }}
+    env:
+      WORK: ${{ runner.temp }}/lean-prover
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: The pinned patch, and the engine's label
+        id: label
+        run: |
+          set -euo pipefail
+          node build/check-pins.mjs patch
+          label=$(node build/engine-label.mjs)
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "engine inputs: $label"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: cache
+        with:
+          path: |
+            ${{ runner.temp }}/lean-prover/dist
+            ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
+          key: lean-prover-engine-${{ steps.label.outputs.label }}
+      - name: Make room for the build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Build the engine
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          JOBS: '4'
+        run: bash build/build-engine.sh
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ${{ runner.temp }}/lean-prover/dist
+            ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
+          key: lean-prover-engine-${{ steps.label.outputs.label }}
+
+  gate:
+    name: corpus gate (WASM equals native)
+    needs: engine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      WORK: ${{ runner.temp }}/lean-prover
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/lean-prover/dist
+            ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
+          key: lean-prover-engine-${{ needs.engine.outputs.label }}
+          fail-on-cache-miss: true
+      - name: Fetch elan and Lean 4.32.2
+        run: TOOLS=lean bash build/fetch-tools.sh
+      - name: The engine agrees with native Lean on every corpus declaration; every planted defect is refused
+        run: bash gate/run-gate.sh
+      - name: Keep the gate's evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-gate
+          path: |
+            ${{ runner.temp }}/lean-prover/gate/*.jsonl
+            ${{ runner.temp }}/lean-prover/gate/*.json
+            ${{ runner.temp }}/lean-prover/gate/*.txt
+          if-no-files-found: warn
