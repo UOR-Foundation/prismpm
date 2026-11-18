@@ -2470,6 +2470,7 @@ dependencies = [
 name = "xtask"
 version = "0.5.0"
 dependencies = [
+ "blake3",
  "camino",
  "flate2",
  "lexlean",

@@ -8,6 +8,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+blake3 = { workspace = true }
 camino = { workspace = true }
 flate2 = { workspace = true }
 lexlean = { workspace = true }
