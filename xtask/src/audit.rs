@@ -6,6 +6,8 @@ use sha2::Digest;
 use std::collections::BTreeSet;
 use std::path::Path;
 
+mod lean_prover;
+
 /// Bind the shipped standards lock to the live embedded authority catalog.
 /// This compares exact bytes without refreshing, writing, or executing oracles.
 pub fn audit_shipped_standards_lock(root: &Path) -> Result<(), Fail> {
@@ -150,6 +152,12 @@ pub fn audit_no_handwritten_lean(root: &Path) -> Result<(), Fail> {
             allowed.insert(root.join("vendor/lexlean").join(relative));
         }
     }
+    // The WASM Lean prover's driver, admitted only as the bytes its pinned LexLean release publishes, and its
+    // patch to Lean's C++, which may change nothing in Lean's kernel but one pinned declaration.
+    for path in lean_prover::audit_lean_prover_driver(root)? {
+        allowed.insert(path);
+    }
+    lean_prover::audit_lean_prover_patch(root)?;
     let golden_manifest = golden_root.join("golden-manifest.json");
     if golden_manifest.is_file() {
         let value: serde_json::Value = serde_json::from_slice(&std::fs::read(&golden_manifest)?)?;

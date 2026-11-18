@@ -1316,6 +1316,22 @@ Both the archive and complete LexLean tree must be registered. No other vendored
 Lean path is admitted, even when checksummed. This boundary cannot introduce
 handwritten PrismPM definitions, proofs or replacement application behavior.
 
+The second and last Lean-source exception is the driver of the WASM Lean prover
+in `sdk/npm/lean-prover/`: the exact 2 files `driver/Elab.lean` and
+`driver/SymList.lean`. They are LexLean-owned, published in a LexLean release,
+and admitted only as that release's bytes: `model/dependencies.toml` registers
+the dependency `lean-prover-driver` with `source = "lexlean-release"`, the
+release, its full commit, and the BLAKE3 label of each file. Admission requires
+the directory to hold exactly those regular files, each with its pinned label;
+an edited, missing, additional, nonregular or unpinned file is refused. The
+prover's generated patch to Lean's C++ at the pinned Lean commit is registered
+in the same dependency by its BLAKE3 label and is not Lean source. It may change no
+file under Lean's `src/kernel/` except one line of `src/kernel/environment.cpp`:
+the return type of the extern declaration of `lean_kernel_diag_is_enabled`, from
+`uint8*` to `uint8`, so it matches the definition Lean's generated C gives it. Any
+other kernel change, or a kernel file added, removed, moved or re-moded, is
+refused. Neither admission introduces PrismPM-authored Lean.
+
 `cargo xtask vv` is the sole normative acceptance entry point and `just vv` is
 its alias. It performs these 15 non-mutating gates in order: formatting; model,
 diagnostic, standards, and generated-document validation; SPEC/register/
