@@ -11,7 +11,16 @@ import { parseArchive, resolveArchive, asBytes } from './archive.mjs';
 import { attestationSection, readAttestations } from './attestations.mjs';
 import { decodeHoloview } from './view.mjs';
 import { compileGuest, checkRequest, instantiateGuest, runInstance, runAcceptance } from './core.mjs';
-import { isSessionContract, openSession, runSessionAcceptance, runStep } from './session.mjs';
+import {
+  checkpointBytes,
+  isCheckpointContract,
+  isSessionContract,
+  openSession,
+  readState,
+  restoreState,
+  runSessionAcceptance,
+  runStep,
+} from './session.mjs';
 import { parseCapabilities, grantOf, DEFAULT_SET } from './capabilities.mjs';
 import { verifyClosure, closureDispatch, initializeGlue } from './closure.mjs';
 import { CapabilityDeniedError, DigestMismatchError, PrismCodeError, ReferenceInvalidError, fail } from './errors.mjs';
@@ -85,7 +94,17 @@ export { CONTAINER_SCHEMA, memoryContainerStore } from './containers.mjs';
 export { parseArchive, resolveArchive, canonicalJson } from './archive.mjs';
 export { decodeHoloview, encodeHoloview } from './view.mjs';
 export { compileGuest, runGuest, runAcceptance } from './core.mjs';
-export { SESSION_CONTRACT, decodeResponses, openSession, runStep, runSessionAcceptance } from './session.mjs';
+export {
+  SESSION_CONTRACT,
+  CHECKPOINT_CONTRACT,
+  checkpointBytes,
+  decodeResponses,
+  openSession,
+  readState,
+  restoreState,
+  runStep,
+  runSessionAcceptance,
+} from './session.mjs';
 export { MIDDLEWARE_STEPS } from './middleware.mjs';
 export { experimental_tracing } from './tracing.mjs';
 export { parseCapabilities, grantOf, CAPABILITIES_SCHEMA, CAPABILITY_KINDS, DEFAULT_SET } from './capabilities.mjs';
@@ -229,7 +248,7 @@ function worldWithinGrant(directory, grant) {
     within: result.within,
     pure: result.pure,
     effects: result.effects === null ? null : Object.freeze([...result.effects]),
-    /** True for the session world (#629): `open()` takes steps, `dispatch` is refused. */
+    /** True for a session world (#629, HO-47): `open()` takes steps, `dispatch` is refused. */
     session: isSessionContract(contract),
   });
 }
@@ -276,18 +295,39 @@ export async function loadArchive(source, options = {}) {
     const response = await step('dispatch', (args) => runInstance(args.instance, args.request), { request, instance });
     return step('record', (args) => args.response, { request, response });
   };
-  /** A new session on a fresh instance (#629). Each step runs the middleware `dispatch` and `record` steps. */
-  const open = () => {
-    if (!world.session) fail('session.unsupported', `the world ${world.contract} is stateless; it has no sessions, so dispatch on the application`);
-    return openSession({
-      instantiate: () => step('instantiate', (args) => instantiateGuest(args.module, args.imports), { module, imports: {} }),
+  const checkpointing = isCheckpointContract(world.contract);
+  /**
+   * A session on a fresh instance (#629), empty or, for `openAt`, holding a
+   * restored state (HO-48). Each step runs the middleware `dispatch` and `record` steps.
+   */
+  const session = (state) =>
+    openSession({
+      instantiate: async () => {
+        const instance = await step('instantiate', (args) => instantiateGuest(args.module, args.imports), { module, imports: {} });
+        return state === null ? instance : restoreState(instance, state);
+      },
       check: (request) => checkRequest(request, limits),
       step: async (instance, input) => {
         const request = asBytes(input);
         const responses = await step('dispatch', (args) => runStep(args.instance, args.request, limits), { request, instance });
         return step('record', (args) => args.response, { request, response: responses });
       },
+      checkpoint: checkpointing ? readState : null,
     });
+  /** A new session on a fresh instance with an empty state (#629). */
+  const open = () => {
+    if (!world.session) fail('session.unsupported', `the world ${world.contract} is stateless; it has no sessions, so dispatch on the application`);
+    return session(null);
+  };
+  /**
+   * A new session on a fresh instance whose state is the checkpoint `address`
+   * names (HO-48). `source` is the state bytes or a store with `get(address)`.
+   * The bytes are checked against the label and the declared state maximum
+   * before any instance exists.
+   */
+  const openAt = async (address, source) => {
+    if (!checkpointing) fail('checkpoint.unsupported', `the world ${world.contract} does not export its state; only hologram:guest/core-wasm@3 restores a checkpoint`);
+    return session(await checkpointBytes(address, source, limits));
   };
   let inspection = null;
   app = Object.freeze({
@@ -312,6 +352,7 @@ export async function loadArchive(source, options = {}) {
     sessions,
     dispatch,
     open,
+    openAt,
     attestations: () => readAttestations(parsed),
     acceptance: () => (world.session ? runSessionAcceptance(sessions, open) : runAcceptance(vectors, dispatch)),
     /** What the holo says about itself, read from the section table; the guest is not run. */

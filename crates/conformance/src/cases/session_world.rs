@@ -58,3 +58,19 @@ pub(super) fn verify_generator(root: &Path) {
         ],
     );
 }
+
+/// HO-47: the checkpoint world `hologram:guest/core-wasm@3`, the @2 shim with
+/// `holo_state` and `holo_restore`. The owning suite is the generator's tests.
+pub(super) fn verify_checkpoint_generator(root: &Path) {
+    let stdout = run(root, "HO-47", &["--lib", "session_guest"]);
+    require(
+        "HO-47",
+        &stdout,
+        &[
+            "the_checkpoint_package_is_the_session_package_with_two_more_exports",
+            "the_checkpoint_manifest_names_the_checkpoint_contract",
+            "the_session_package_is_unchanged_when_checkpoints_are_off",
+            "the_checkpoint_probe_is_the_generated_shim_around_the_same_entry",
+        ],
+    );
+}

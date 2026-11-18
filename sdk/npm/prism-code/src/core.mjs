@@ -7,13 +7,14 @@
  */
 import { fail } from './errors.mjs';
 import { NO_CAPABILITIES } from './capabilities.mjs';
-import { SESSION_CONTRACT, SESSION_EXPORTS } from './session.mjs';
+import { CHECKPOINT_CONTRACT, CHECKPOINT_EXPORTS, SESSION_CONTRACT, SESSION_EXPORTS } from './session.mjs';
 
 export const CORE_CONTRACT = 'hologram:guest/core-wasm@1';
-/** The exports each guest contract requires, exactly (issues #278, #629). */
+/** The exports each guest contract requires, exactly (issues #278, #629, HO-47). */
 const REQUIRED_EXPORTS = Object.freeze({
   [CORE_CONTRACT]: ['memory', 'holo_alloc', 'holo_run'],
   [SESSION_CONTRACT]: [...SESSION_EXPORTS],
+  [CHECKPOINT_CONTRACT]: [...CHECKPOINT_EXPORTS],
 });
 
 /**

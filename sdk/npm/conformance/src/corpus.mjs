@@ -220,6 +220,8 @@ const name = (text) => concat([leb(enc.encode(text).length), enc.encode(text)]);
 const CORE_WASM_1 = 'hologram:guest/core-wasm@1';
 /** A guest of the session world (#629): the session ABI probe of prism-code, the generated shim around a test entry. */
 const SESSION_PROBE = here('../corpus/session-probe.wasm');
+/** A guest of the checkpoint world (HO-47): the checkpoint ABI probe of prism-code, the generated @3 shim around the same entry. */
+const CHECKPOINT_PROBE = here('../corpus/checkpoint-probe.wasm');
 
 /**
  * Every archive by name. A name is part of the suite's contract: scenarios refer
@@ -301,6 +303,9 @@ export const ARCHIVES = Object.freeze({
   // A guest of the session world hologram:guest/core-wasm@2 (#629), named as such by the directory and the
   // provenance. The manifest suffix and the model document keep @1 until a format revision admits the session world (#630).
   'session-world': () => withGuest(new Uint8Array(readFileSync(SESSION_PROBE)), 'hologram:guest/core-wasm@2'),
+
+  // A guest of the checkpoint world hologram:guest/core-wasm@3 (HO-47), named as such like the session world above.
+  'checkpoint-world': () => withGuest(new Uint8Array(readFileSync(CHECKPOINT_PROBE)), 'hologram:guest/core-wasm@3'),
 
   // The attestation section.
   'unsigned-p3-claim': () => assemble([...rowsOf(reference()), attestationRow()]),

@@ -112,9 +112,11 @@ export type CoreWasmContract = 'hologram:guest/core-wasm@1';
 
 /** The Core-Wasm session contract (issue #629). See `worlds/core-wasm-2.wit`. */
 export type SessionContract = 'hologram:guest/core-wasm@2';
+/** The Core-Wasm checkpoint contract (HO-47): sessions whose state is addressable. */
+export type CheckpointContract = 'hologram:guest/core-wasm@3';
 
 /** Every guest contract that has a world in `WORLDS`. */
-export type GuestContract = CoreWasmContract | SessionContract;
+export type GuestContract = CoreWasmContract | SessionContract | CheckpointContract;
 
 /** The guest's exports as a host sees them after instantiation. */
 export interface CoreWasmExports {

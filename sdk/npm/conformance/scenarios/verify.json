@@ -595,6 +595,14 @@
           }
         }
       }
+    },
+    {
+      "id": "verify.checkpoint-world.documents",
+      "title": "Format revision 2026-10-23 admits only the @1 guest contract in its documents, so an archive naming the checkpoint world fails holo.documents and withholds P1 until a revision admits it (HO-47, #630).",
+      "op": "verify",
+      "archive": "checkpoint-world",
+      "input": { "policy": { "minimum": "P1" } },
+      "expect": { "ok": true, "result": { "passed": false, "reasons": { "$contains": [{ "check": "holo.documents", "withholds": "P1" }] } } }
     }
   ]
 }

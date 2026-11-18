@@ -578,6 +578,13 @@ pub fn run_at(root: &Path, id: &str) {
             "600000",
         ),
         "HO-46" => qualified_definitions::verify(root),
+        "HO-47" => session_world::verify_checkpoint_generator(root),
+        "HO-48" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/checkpoint.test.mjs", 8)],
+            "600000",
+        ),
 
         "CT-01" | "CT-02" | "CT-03" | "CT-04" | "CT-05" | "CT-06" | "CT-07" | "CT-08" | "CT-09"
         | "CT-10" | "CT-11" => {
