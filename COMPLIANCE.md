@@ -22,8 +22,8 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | Typed errors (`errors`) | 8 | + | - | N/A |
 | Load a holo (`load`) | 22 | + | - | N/A |
 | Histories and replay (`replay`) | 5 | + | - | N/A |
-| Verify a holo (`verify`) | 26 | + | + | N/A |
-| The world contract (`world`) | 17 | + | - | N/A |
+| Verify a holo (`verify`) | 27 | + | + | N/A |
+| The world contract (`world`) | 18 | + | - | N/A |
 
 ## Checks
 
@@ -193,6 +193,7 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | `verify.env.call-wins` | A minimum named by the call replaces PRISM_MINIMUM_LEVEL. | + | + | N/A |
 | `verify.env.invalid` | A PRISM_MINIMUM_LEVEL that names no level is an invalid policy. | + | + | N/A |
 | `verify.session-world.documents` | Format revision 2026-10-23 admits only the @1 guest contract in its documents, so an archive naming the session world fails holo.documents and withholds P1 until a revision admits it (#629, #630). | + | + | N/A |
+| `verify.checkpoint-world.documents` | Format revision 2026-10-23 admits only the @1 guest contract in its documents, so an archive naming the checkpoint world fails holo.documents and withholds P1 until a revision admits it (HO-47, #630). | + | + | N/A |
 
 ### The world contract
 
@@ -215,6 +216,7 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | `world.effects.pure-passes` | A pure world passes a policy that allows no effects. | + | + | N/A |
 | `world.effects.invalid` | An effect nobody defined is an invalid policy. | + | + | N/A |
 | `world.session.loaded` | A guest of the session world hologram:guest/core-wasm@2 loads as that world: pure and within an empty grant, because it imports nothing (#629). | + | - | N/A |
+| `world.checkpoint.loaded` | A guest of the checkpoint world hologram:guest/core-wasm@3 loads as that world: pure and within an empty grant, because it imports nothing (HO-47). | + | - | N/A |
 
 ## Expected failures
 
@@ -298,3 +300,4 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | Rust | `world.reference.loaded` | The Rust runtime has no load operation yet (#298). |
 | Rust | `world.load.refuses-wrong-exports` | The Rust runtime has no load operation yet (#298). |
 | Rust | `world.session.loaded` | The Rust runtime has no load operation yet (#298). |
+| Rust | `world.checkpoint.loaded` | The Rust runtime has no load operation yet (#298). |

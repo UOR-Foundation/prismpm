@@ -603,13 +603,19 @@ export interface Application {
     readonly within: boolean | null;
     readonly pure: boolean | null;
     readonly effects: ReadonlyArray<'clock' | 'random' | 'socket' | 'filesystem' | 'unknown'> | null;
-    /** True for the session world `hologram:guest/core-wasm@2` (#629): steps are taken on `open()`, and `dispatch` is refused. */
+    /** True for a session world, `hologram:guest/core-wasm@2` (#629) or `@3` (HO-47): steps are taken on `open()`, and `dispatch` is refused. */
     readonly session: boolean;
   };
   /** The acceptance of a session world as ordered sessions of steps (#629); empty for a stateless world. */
   sessions: SessionVector[][];
   /** A new session on a fresh instance (#629). Throws `session.unsupported` for a stateless world. */
   open(): Promise<Session>;
+  /**
+   * A new session on a fresh instance whose state is the checkpoint `address` names (HO-48). `source` is the state
+   * bytes or a store with `get(address)`. Rejects with `checkpoint.address` for bytes that do not hash to the label,
+   * `checkpoint.state` for bytes over the declared state maximum, and `checkpoint.unsupported` outside the checkpoint world.
+   */
+  openAt(address: string, source: Uint8Array | { get(address: string): Uint8Array | undefined | Promise<Uint8Array | undefined> }): Promise<Session>;
   /** Run one request through the guest on a fresh instance; bytes in, bytes out. Rejects with `session.required` for a session world. */
   dispatch(request: Uint8Array | ArrayBuffer): Promise<Uint8Array>;
   /** Replay every acceptance vector, or every step of every acceptance session, comparing bytes. */
@@ -761,12 +767,28 @@ export interface Session {
   dispatch(request: Uint8Array | ArrayBuffer): Promise<Uint8Array[]>;
   /** Take one step and yield its responses one at a time, after the step has run. */
   stream(request: Uint8Array | ArrayBuffer): AsyncIterable<Uint8Array>;
+  /** The state after the steps so far: its BLAKE3 kappa label and a copy of its bytes (HO-48). Throws `checkpoint.unsupported` outside the checkpoint world. */
+  checkpoint(): Checkpoint;
   close(): void;
   readonly closed: boolean;
   readonly steps: number;
 }
 
+/** A session's state, named by the BLAKE3 kappa label of its bytes (HO-48). */
+export interface Checkpoint {
+  readonly address: string;
+  readonly state: Uint8Array;
+}
+
 export declare const SESSION_CONTRACT: 'hologram:guest/core-wasm@2';
+/** The checkpoint world (HO-47): a session world whose state is addressable. */
+export declare const CHECKPOINT_CONTRACT: 'hologram:guest/core-wasm@3';
+/** A copy of the resident state of a checkpoint-world instance. */
+export function readState(instance: WebAssembly.Instance): Uint8Array;
+/** Install a state in a fresh checkpoint-world instance; the shim traps on any other instance. */
+export function restoreState(instance: WebAssembly.Instance, state: Uint8Array): WebAssembly.Instance;
+/** The state bytes a checkpoint names, checked against the label and the declared state maximum. */
+export function checkpointBytes(address: string, source: Uint8Array | { get(address: string): Uint8Array | undefined | Promise<Uint8Array | undefined> }, limits?: { state?: number }): Promise<Uint8Array>;
 export declare const SESSION_HISTORY_SCHEMA: 'prism/history/2';
 /** The records of a history in order: the events of `/1`, or every step and failure of every session of `/2`. */
 export function historyEvents(history: History | SessionHistory): (HistoryEvent | SessionHistoryStep | { request: string; error: string })[];
@@ -779,6 +801,7 @@ export function openSession(parts: {
   instantiate: () => WebAssembly.Instance | Promise<WebAssembly.Instance>;
   step: (instance: WebAssembly.Instance, request: Uint8Array) => Uint8Array[] | Promise<Uint8Array[]>;
   check?: (request: Uint8Array) => void;
+  checkpoint?: ((instance: WebAssembly.Instance) => Uint8Array) | null;
 }): Promise<Session>;
 /** Run acceptance sessions, each on a fresh session, comparing every step's responses. */
 export function runSessionAcceptance(sessions: SessionVector[][], open: () => Promise<Session>): Promise<AcceptanceResult>;
