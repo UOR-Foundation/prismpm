@@ -1318,7 +1318,8 @@ handwritten PrismPM definitions, proofs or replacement application behavior.
 
 The second and last Lean-source exception is the driver of the WASM Lean prover
 in `sdk/npm/lean-prover/`: the exact 2 files `driver/Elab.lean` and
-`driver/SymList.lean`. They are LexLean-owned, published in a LexLean release,
+`driver/SymList.lean`, beside which `driver/` holds only the `lakefile.toml` and
+`lean-toolchain` published with them. They are LexLean-owned, published in a LexLean release,
 and admitted only as that release's bytes: `model/dependencies.toml` registers
 the dependency `lean-prover-driver` with `source = "lexlean-release"`, the
 release, its full commit, and the BLAKE3 label of each file. Admission requires

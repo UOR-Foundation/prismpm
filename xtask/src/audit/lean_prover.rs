@@ -13,9 +13,11 @@ use crate::Fail;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-/// The driver's directory, and its exact files.
+/// The driver's directory, its two Lean sources, and every file it holds: the sources with the Lake
+/// configuration and toolchain pin that LexLean's release publishes beside them (`lean/wasm-prover/driver`).
 pub(super) const LEAN_PROVER_DRIVER: &str = "sdk/npm/lean-prover/driver";
 pub(super) const LEAN_PROVER_DRIVER_SOURCES: [&str; 2] = ["Elab.lean", "SymList.lean"];
+pub(super) const LEAN_PROVER_DRIVER_FILES: [&str; 4] = ["Elab.lean", "SymList.lean", "lakefile.toml", "lean-toolchain"];
 /// The prover's generated patch to Lean's C++.
 pub(super) const LEAN_PROVER_PATCH: &str = "sdk/npm/lean-prover/upstream/lean-wasm-elaborator.patch";
 /// The one kernel file the patch may change, and the declaration it may change there.
@@ -85,7 +87,7 @@ pub(super) fn lean_prover_pin(root: &Path) -> Result<Option<LeanProverPin>, Fail
 }
 
 /// Admit the driver: its directory holds exactly the pinned files, each with its pinned κ-label. Resolves
-/// the admitted paths, none when there is no driver.
+/// the admitted Lean sources, none when there is no driver.
 pub(super) fn audit_lean_prover_driver(root: &Path) -> Result<Vec<PathBuf>, Fail> {
     let directory = root.join(LEAN_PROVER_DRIVER);
     if !directory.exists() {
@@ -93,8 +95,8 @@ pub(super) fn audit_lean_prover_driver(root: &Path) -> Result<Vec<PathBuf>, Fail
     }
     let pin = lean_prover_pin(root)?
         .ok_or("the lean-prover driver is present, and model/dependencies.toml pins no lean-prover-driver release")?;
-    let expected: BTreeSet<String> = LEAN_PROVER_DRIVER_SOURCES.iter().map(|file| format!("{LEAN_PROVER_DRIVER}/{file}")).collect();
-    let pinned: BTreeSet<String> = pin.files.keys().filter(|path| path.ends_with(".lean")).cloned().collect();
+    let expected: BTreeSet<String> = LEAN_PROVER_DRIVER_FILES.iter().map(|file| format!("{LEAN_PROVER_DRIVER}/{file}")).collect();
+    let pinned: BTreeSet<String> = pin.files.keys().filter(|path| path.starts_with(&format!("{LEAN_PROVER_DRIVER}/"))).cloned().collect();
     if pinned != expected {
         return Err(format!("lean-prover-driver pins {pinned:?}, not exactly {expected:?}").into());
     }
@@ -125,7 +127,7 @@ pub(super) fn audit_lean_prover_driver(root: &Path) -> Result<Vec<PathBuf>, Fail
             return Err(format!("{relative} is {got}, not the {want} LexLean {} ({}) publishes", pin.release, pin.revision).into());
         }
     }
-    Ok(expected.iter().map(|relative| root.join(relative)).collect())
+    Ok(LEAN_PROVER_DRIVER_SOURCES.iter().map(|file| root.join(format!("{LEAN_PROVER_DRIVER}/{file}"))).collect())
 }
 
 /// Admit the patch: its pinned κ-label, and no kernel change but the one pinned declaration.
@@ -225,7 +227,7 @@ mod tests {
         let dir = root.path().join(LEAN_PROVER_DRIVER);
         std::fs::create_dir_all(&dir).unwrap();
         let mut files = Vec::new();
-        for name in LEAN_PROVER_DRIVER_SOURCES {
+        for name in LEAN_PROVER_DRIVER_FILES {
             std::fs::write(dir.join(name), format!("-- {name}\n")).unwrap();
             files.push((format!("{LEAN_PROVER_DRIVER}/{name}"), kappa_of(&dir.join(name)).unwrap()));
         }
