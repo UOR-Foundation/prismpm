@@ -81,7 +81,7 @@ export function lexleanWasmFile({ env = process.env, pin = null } = {}) {
 
 /**
  * Whether LexLean as WebAssembly can run here, fetching it once when it is not
- * here yet. Never fetches for a user who opted in to the hosted verifier, and
+ * here yet. Never fetches for a user who asked for the hosted verifier, and
  * never throws: a module that cannot be had leaves the other front ends.
  */
 export async function lexleanReady({ env = process.env, fetch = globalThis.fetch, log = () => {}, pin = null } = {}) {

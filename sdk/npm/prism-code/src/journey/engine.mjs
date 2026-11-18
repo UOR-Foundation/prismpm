@@ -1,44 +1,28 @@
 /**
  * Check, prove, build and try a Prism app whose one source is its LexLean
- * model (project.mjs). Nothing here writes the model: the author does.
+ * model (project.mjs). Nothing here writes the model: the author does, and
+ * nothing here runs a local image.
  *
- * Where LexLean's front end runs is frontend.mjs: the SDK image on this
- * machine, or the hosted verifier only when the user sets
- * PRISM_CODE_TIER=hosted. With neither, every step fails with
- * `build.frontend-unavailable`, which names Phase 3 of the canonical build
- * (LexLean's front end as WebAssembly) as the missing capability.
+ * Where each step runs is frontend.mjs: LexLean as WebAssembly on this
+ * machine checks the model and takes its semantic snapshot, and the hosted
+ * verifier proves any other app's theorems unless the user is offline.
  *
  * A rule app (the `rule-app` starter) is checked by Lean's kernel in this
  * process from the model's semantic snapshot, and becomes the verified rule
- * judge with the model's numbers (rule-app.mjs). Any other app is proved by
- * `lexlean verify` and built into a holo in the SDK image.
+ * judge with the model's numbers (rule-app.mjs). Any other app is proved on
+ * the hosted verifier, and is not built into a holo here: that needs Lean's
+ * export, Rust and WebAssembly, which no step runs without an image yet.
  */
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { PrismCodeError } from '../errors.mjs';
 import { fromFile } from '../node.mjs';
 import { VERSION } from '../version.mjs';
-import { SDK_IMAGE_DOWNLOAD } from '../setup-machine.mjs';
 import { gapLedger } from '../gaps.mjs';
-import { NO_DOCKER_FREE_BUILD, frontendUnavailable, frontendWhere, proverWhere } from './frontend.mjs';
+import { NO_DOCKER_FREE_BUILD, frontendWhere, proverWhere } from './frontend.mjs';
 import { lexleanReady, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
-import { bind, isBound, newestHolo, sourceDigest } from './project.mjs';
-import { BUILD_SCRIPT, CHECK_SCRIPT, DEFAULT_SDK_IMAGE, axiomViolations, buildProgress, docker, forbiddenAxioms, forbiddenMessage, hasImage, imageOf, parseDiagnostics, resolveDocker, runInImage, steps } from './sdk.mjs';
-
-const PROVE_SCRIPT_FULL = [
-  'echo "@@step prelock"; lexlean lock 2>&1; code=$?; echo "@@exit prelock $code"; [ $code -eq 0 ] || exit $code',
-  'echo "@@step format"; lexlean fmt --all 2>&1; code=$?; echo "@@exit format $code"; [ $code -eq 0 ] || exit $code',
-  'echo "@@step lock"; lexlean lock 2>&1; code=$?; echo "@@exit lock $code"; [ $code -eq 0 ] || exit $code',
-  'echo "@@step check"; prismpm check 2>&1; code=$?; echo "@@exit check $code"; [ $code -eq 0 ] || exit $code',
-  'echo "@@step verify"; lexlean verify --all 2>&1; code=$?; echo "@@exit verify $code"; exit $code',
-].join('; ');
-
-/** The image this app is or will be pinned to. */
-const imageFor = (dir, session) => (isBound(dir) ? imageOf(dir) : session.image ?? DEFAULT_SDK_IMAGE);
-
-/** Whether the SDK image can run here now: Docker answers and the image is on this machine. */
-export const hasLocal = (dir, session) => !resolveDocker().error && hasImage(imageFor(dir, session));
+import { sourceDigest } from './project.mjs';
+import { axiomViolations, forbiddenAxioms, forbiddenMessage } from './sdk.mjs';
 
 /** A front-end probe that answers what was found. */
 const wasmProbe = (here) => () => here;
@@ -46,108 +30,7 @@ const wasmProbe = (here) => () => here;
 /** Whether this app is a rule app: started from the `rule-app` starter. */
 export const isRuleApp = (session) => session.starter === 'rule-app';
 
-const tail = (text, n = 25) => String(text).split(/\r?\n/).filter((l) => !l.startsWith('@@')).slice(-n).join('\n');
 const failure = (error) => ({ ok: false, code: error.code, message: error.message });
-
-/**
- * Make sure Docker, the image and the project's SDK pin are in place. With
- * `pull`, a missing image is downloaded first and the log says so; without it,
- * a missing image is refused.
- */
-export async function prepare(dir, session, log, { pull = false } = {}) {
-  const d = resolveDocker();
-  if (d.error) return { ok: false, code: 'build.frontend-unavailable', message: frontendUnavailable(d.error).message };
-  const image = imageFor(dir, session);
-  if (!hasImage(image)) {
-    if (!pull) return { ok: false, code: 'build.frontend-unavailable', message: frontendUnavailable(`The SDK image is not on this machine. Run \`npx prism-code@latest setup --image ${image} --machine-only\` in a terminal, from any folder, to download it (about ${SDK_IMAGE_DOWNLOAD})`).message };
-    log(`The SDK image is not on this machine yet. Downloading it once now, about ${SDK_IMAGE_DOWNLOAD}; this can take a while.`);
-    const pulled = await docker(['pull', image], { onLine: (l) => /^(Status|Digest|[0-9a-f]{12}: Pull complete)/.test(l) && log(l) });
-    if (pulled.code !== 0) return { ok: false, message: `Could not download the SDK image:\n${tail(pulled.output)}` };
-  }
-  if (!isBound(dir)) {
-    log('Pinning the project to the SDK image (prismpm update)...');
-    const r = await bind(dir, image, { onLine: log });
-    if (!r.ok) return { ok: false, message: `Could not pin the SDK image:\n${tail(r.output)}` };
-  }
-  return { ok: true };
-}
-
-/**
- * The step a script was in when its output stopped: it began and never said how
- * it ended. A step that fails says so (`@@exit step code`), so a missing exit
- * means the shell itself went away: the container was killed, Docker or WSL
- * restarted, or the machine ran out of memory.
- */
-export function cutOff(output) {
-  const begun = [...String(output).matchAll(/^@@step (\S+)\s*$/gm)].map((m) => m[1]);
-  const last = begun.at(-1);
-  return last && !steps(output).some((s) => s.step === last) ? last : null;
-}
-
-/** The result of a job whose environment stopped under it: not the model's fault, and safe to run again. */
-function interrupted(dir, kind, step, run, seconds) {
-  writeFileSync(join(dir, '.prism-last.log'), run.output);
-  return {
-    ok: false,
-    interrupted: true,
-    stage: kind,
-    step,
-    seconds,
-    message: `The ${kind} did not finish: its environment stopped during the ${step} step, before that step reported a result. Docker or WSL restarted, the machine ran out of memory, or the process was killed. Nothing is wrong with the model.`,
-    next: `Call prism_${kind} again. If it stops again, free memory or close other builds first; what it printed is in prism/.prism-last.log.`,
-  };
-}
-
-/** A holo under `.prism/build` that the toolchain finished verifying: a record under `.prism/verified` names its build and its bytes. */
-export function verifiedHolo(dir) {
-  const root = join(dir, '.prism', 'verified');
-  if (!existsSync(root)) return null;
-  const find = (value) => {
-    if (Array.isArray(value)) return value.map(find).find(Boolean) ?? null;
-    if (!value || typeof value !== 'object') return null;
-    if (typeof value.path === 'string' && value.path.endsWith('.holo') && typeof value.sha256 === 'string') return value;
-    return Object.values(value).map(find).find(Boolean) ?? null;
-  };
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    let record;
-    try {
-      record = JSON.parse(readFileSync(join(root, entry.name, 'manifest.json'), 'utf8'));
-    } catch {
-      continue;
-    }
-    const artifact = typeof record.build_id === 'string' && /^[0-9a-f]{64}$/.test(record.build_id) ? find(record) : null;
-    if (!artifact || artifact.path.includes('/') || artifact.path.includes('\\')) continue;
-    const holo = join(dir, '.prism', 'build', record.build_id, artifact.path);
-    if (existsSync(holo) && createHash('sha256').update(readFileSync(holo)).digest('hex') === artifact.sha256) return holo;
-  }
-  return null;
-}
-
-/** Seconds since anything under the app's build folders changed, or null when there is none: a build still running keeps writing there. */
-export function buildQuietFor(dir, { now = Date.now() } = {}) {
-  let newest = 0;
-  const visit = (d, depth) => {
-    let entries;
-    try {
-      entries = readdirSync(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const p = join(d, entry.name);
-      try {
-        newest = Math.max(newest, statSync(p).mtimeMs);
-      } catch {
-        // A file the build removed between the listing and the look.
-      }
-      if (entry.isDirectory() && depth < 4) visit(p, depth + 1);
-    }
-  };
-  visit(join(dir, '.prism'), 0);
-  visit(join(dir, 'target'), 0);
-  return newest ? Math.max(0, Math.round((now - newest) / 1000)) : null;
-}
 
 /** A Lean warning, such as an unused simp argument: reported, never a reason a step failed. */
 export const isWarning = (d) => d.severity === 'warning' || /^Lean rejected `[^`]+` \(warning\):/.test(d.message);
@@ -169,19 +52,7 @@ function repair(diagnostics) {
   return 'Fix the model at the lines named, then call the same tool again.';
 }
 
-/** Run a script in the image and read its diagnostics. */
-async function inImage(dir, session, script, { log, kind, onLine }) {
-  const ready = await prepare(dir, session, log, { pull: kind === 'build' });
-  if (!ready.ok) return { done: { ok: false, stage: kind, code: ready.code, message: ready.message } };
-  const started = Date.now();
-  const run = await runInImage(dir, script, { socket: kind === 'build', onLine });
-  const seconds = Math.round((Date.now() - started) / 1000);
-  writeFileSync(join(dir, '.prism-last.log'), run.output);
-  if (run.code !== 0 && cutOff(run.output)) return { done: interrupted(dir, kind, cutOff(run.output), run, seconds) };
-  return { run, seconds, diagnostics: parseDiagnostics(run.output) };
-}
-
-/** The hosted client, built only on the user's opt-in. */
+/** The hosted client. */
 async function hostedOf(client, gaps) {
   const hosted = await import('../hosted.mjs');
   return { hosted, client: client ?? hosted.hostedClient({ version: VERSION, gaps }) };
@@ -191,11 +62,11 @@ async function hostedOf(client, gaps) {
  * Check the model: LexLean reads, links and elaborates it, and every
  * diagnostic is returned anchored to its line. Proves nothing.
  */
-export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), local = () => hasLocal(dir, session), wasm = null } = {}) {
+export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
-    where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
+    where = frontendWhere({ env, hasWasm: wasm });
   } catch (error) {
     return failure(error);
   }
@@ -212,23 +83,15 @@ export async function check(dir, session, { log = () => {}, env = process.env, c
     session.status.checked = result.outcome.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where } : null;
     return result.outcome.success ? { ok: true, where, message: 'The model checks.' } : { ok: false, where, diagnostics: shown(diagnostics), message: repair(diagnostics) };
   }
-  if (where === 'wasm') {
-    let result;
-    try {
-      result = await wasmCheck(dir, { env });
-    } catch (error) {
-      return { ...failure(error), where };
-    }
-    const diagnostics = (result.diagnostics ?? []).map(fromHosted);
-    session.status.checked = result.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where, ms: result.ms, semanticId: result.semantic_id ? `sha256:${result.semantic_id}` : null } : null;
-    return result.success ? { ok: true, where, ms: result.ms, semanticId: session.status.checked.semanticId, message: `The model checks, in ${result.ms} ms, with LexLean as WebAssembly on this machine.` } : { ok: false, where, ms: result.ms, diagnostics: shown(diagnostics), message: repair(diagnostics) };
+  let result;
+  try {
+    result = await wasmCheck(dir, { env });
+  } catch (error) {
+    return { ...failure(error), where };
   }
-  log('Locking, formatting and checking the model in the SDK image...');
-  const r = await inImage(dir, session, CHECK_SCRIPT, { log, kind: 'check', onLine: (l) => /^(error|warning|checked|check passed)/.test(l) && log(l) });
-  if (r.done) return r.done;
-  const ok = r.run.code === 0;
-  session.status.checked = ok ? { source: sourceDigest(dir), at: new Date().toISOString(), where, seconds: r.seconds } : null;
-  return ok ? { ok: true, where, seconds: r.seconds, message: `The model checks, in ${r.seconds} s.` } : { ok: false, where, seconds: r.seconds, diagnostics: shown(r.diagnostics), message: repair(r.diagnostics), output: r.diagnostics.length ? undefined : tail(r.run.output) };
+  const diagnostics = (result.diagnostics ?? []).map(fromHosted);
+  session.status.checked = result.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where, ms: result.ms, semanticId: result.semantic_id ? `sha256:${result.semantic_id}` : null } : null;
+  return result.success ? { ok: true, where, ms: result.ms, semanticId: session.status.checked.semanticId, message: `The model checks, in ${result.ms} ms, with LexLean as WebAssembly on this machine.` } : { ok: false, where, ms: result.ms, diagnostics: shown(diagnostics), message: repair(diagnostics) };
 }
 
 /**
@@ -236,55 +99,46 @@ export async function check(dir, session, { log = () => {}, env = process.env, c
  * this process from its semantic snapshot; any other app's theorems are proved
  * by `lexlean verify`. Returns `{ ok, where, guarantees | message, diagnostics }`.
  */
-export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, local = () => hasLocal(dir, session), wasm = null } = {}) {
+export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
-    where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
+    where = frontendWhere({ env, hasWasm: wasm });
     // A rule app is proved by Lean's kernel in this process; any other app's theorems by `lexlean verify`, which needs Lean.
-    if (!isRuleApp(session)) where = proverWhere({ env, hasLocal: local });
+    if (!isRuleApp(session)) where = proverWhere({ env });
   } catch (error) {
     return failure(error);
   }
   if (isRuleApp(session)) return proveRuleApp(dir, session, { log, where, client, gaps, kernel, env });
   const started = Date.now();
-  if (where === 'hosted') {
-    const h = await hostedOf(client, gaps);
-    log(`Asking Lean to prove the model on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted: not searchable, but readable by anyone with the draft's ID.`);
-    let project;
-    let outcome;
-    try {
-      project = h.hosted.hostedProject(dir);
-      const all = { ...project, entrypoints: project.files.map((f) => f.path).filter((p) => h.hosted.moduleOf(p)) };
-      outcome = await h.hosted.hostedVerify(h.client, all, { onWait: (s) => s % 30 < 5 && log(`Lean is working, ${s} s...`) });
-      if (outcome.state === 'verified') h.hosted.writeHostedRecord(dir, { ...outcome, url: h.client.url, entrypoints: all.entrypoints });
-    } catch (error) {
-      return { ok: false, where, code: error.code, message: `The hosted verifier did not prove the model: ${error.message}` };
-    }
-    const seconds = Math.round((Date.now() - started) / 1000);
-    if (outcome.state === 'verified') return proved(dir, session, { where, seconds, attestation: outcome.record.attestation_id });
-    const diagnostics = outcome.diagnostics.map(fromHosted);
-    return { ok: false, where, seconds, diagnostics: shown(diagnostics), message: repair(diagnostics) };
+  const h = await hostedOf(client, gaps);
+  log(`Asking Lean to prove the model on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted: not searchable, but readable by anyone with the draft's ID.`);
+  let project;
+  let outcome;
+  try {
+    project = h.hosted.hostedProject(dir);
+    const all = { ...project, entrypoints: project.files.map((f) => f.path).filter((p) => h.hosted.moduleOf(p)) };
+    outcome = await h.hosted.hostedVerify(h.client, all, { onWait: (s) => s % 30 < 5 && log(`Lean is working, ${s} s...`) });
+    if (outcome.state === 'verified') h.hosted.writeHostedRecord(dir, { ...outcome, url: h.client.url, entrypoints: all.entrypoints });
+  } catch (error) {
+    return { ok: false, where, code: error.code, message: `The hosted verifier did not prove the model: ${error.message}` };
   }
-  log('Formatting, locking and checking the model, then asking Lean to prove it in the SDK image...');
-  const r = await inImage(dir, session, PROVE_SCRIPT_FULL, { log, kind: 'prove', onLine: (l) => /^(error|warning|verified|checked|check passed)/.test(l) && log(l) });
-  if (r.done) return r.done;
-  if (r.run.code === 0) return proved(dir, session, { where, seconds: r.seconds });
-  return { ok: false, where, seconds: r.seconds, diagnostics: shown(r.diagnostics), message: repair(r.diagnostics), output: r.diagnostics.length ? undefined : tail(r.run.output) };
+  const seconds = Math.round((Date.now() - started) / 1000);
+  if (outcome.state === 'verified') return proved(dir, session, { where, seconds, attestation: outcome.record.attestation_id });
+  const diagnostics = outcome.diagnostics.map(fromHosted);
+  return { ok: false, where, seconds, diagnostics: shown(diagnostics), message: repair(diagnostics) };
 }
 
 /** Record that Lean proved this model as it is on disk. */
 function proved(dir, session, { where, seconds, attestation = null }) {
   session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where, seconds, ...(attestation ? { attestation } : {}) };
-  const there = where === 'hosted' ? ' on the hosted verifier, which is trusted, not local' : ' in the SDK image on this machine';
-  return { ok: true, where, seconds, ...(attestation ? { attestation } : {}), message: `Lean proved every theorem of the model (lexlean verify --all)${there}, in ${seconds} s.` };
+  return { ok: true, where, seconds, ...(attestation ? { attestation } : {}), message: `Lean proved every theorem of the model (lexlean verify --all) on the hosted verifier, which is trusted, not local, in ${seconds} s.` };
 }
 
 /**
  * The model's semantic snapshot, `lexlean/semantic-snapshot/2`: the JSON LexLean
- * exports for it. This prism-code takes it from the hosted verifier, on the
- * user's opt-in; on this machine it needs LexLean's front end as WebAssembly
- * (Phase 3). Throws `build.frontend-unavailable` otherwise.
+ * exports for it: from LexLean as WebAssembly on this machine, else from the
+ * hosted verifier.
  */
 async function snapshotOf(dir, { where, client, gaps, log, env }) {
   if (where === 'wasm') {
@@ -293,7 +147,6 @@ async function snapshotOf(dir, { where, client, gaps, log, env }) {
     log(`Took the model's semantic snapshot with LexLean as WebAssembly, in ${taken.ms} ms.`);
     return taken.snapshot;
   }
-  if (where !== 'hosted') throw frontendUnavailable("A rule app is read from its model's semantic snapshot, and the SDK image's LexLean has no snapshot command");
   const h = await hostedOf(client, gaps);
   log(`Taking the model's semantic snapshot on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted.`);
   return (await h.hosted.hostedSnapshot(h.client, h.hosted.hostedProject(dir))).snapshot;
@@ -347,65 +200,23 @@ async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, en
 
 /**
  * Build the app. A rule app is written as the verified rule judge and the
- * model's numbers, named together, with its page; any other app is proved,
- * then built into a holo in the SDK image, and its vectors are replayed here.
+ * model's numbers, named together, with its page. Any other app is refused:
+ * its holo needs Lean's export, Rust and WebAssembly, which no step runs
+ * without an image yet.
  */
-export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, local = () => hasLocal(dir, session), wasm = null } = {}) {
+export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
-  if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. Until it does, an app builds on this machine. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
-  if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, local, wasm });
-  const current = session.status.proved?.source === sourceDigest(dir);
-  if (!current) {
-    const p = await prove(dir, session, { log, env, client, gaps, local });
-    if (!p.ok) return { ...p, stage: 'prove' };
-  }
-  if (env.PRISM_CODE_TIER === 'hosted' && !local()) return { ok: false, stage: 'build', code: 'build.frontend-unavailable', message: `The model is proved on the hosted verifier, and a holo is built in the SDK image, which is not on this machine. ${NO_DOCKER_FREE_BUILD}` };
-  log('Building the app: Lean export, Rust, WebAssembly, the holo and its independent acceptance run. The first build takes ten minutes or more...');
-  const r = await inImage(dir, session, BUILD_SCRIPT, {
-    log,
-    kind: 'build',
-    onLine: (l) => {
-      const stage = buildProgress(l);
-      if (stage) log(stage);
-      else if (/^(error|warning|verified|built|wrote|PP\d|  \w)/.test(l)) log(l);
-    },
-  });
-  if (r.done) return r.done;
-  if (r.run.code !== 0) return { ok: false, stage: 'build', seconds: r.seconds, message: 'The build failed. The last lines are below; the whole log is prism/.prism-last.log.', diagnostics: shown(r.diagnostics), output: r.diagnostics.length ? undefined : tail(r.run.output, 30) };
-  const holo = newestHolo(dir);
-  if (!holo) return { ok: false, stage: 'build', seconds: r.seconds, message: 'The build passed but wrote no holo that Prism could find under prism/.prism/build. That is a fault in Prism or the toolchain, not in the model.' };
-  return built(dir, session, holo, r.seconds);
-}
-
-/** Record a built holo, replay its vectors here and say how to run it. */
-export async function built(dir, session, holo, seconds) {
-  const app = await fromFile(holo);
-  const acceptance = await app.acceptance();
-  session.status.holo = holo;
-  session.status.built = { source: sourceDigest(dir), at: new Date().toISOString(), seconds, passed: acceptance.passed, total: acceptance.total };
-  writeFileSync(join(dir, 'run-policy.json'), '{"minimum": "P0"}\n');
-  const rel = relative(process.cwd(), holo) || holo;
-  const policy = relative(process.cwd(), join(dir, 'run-policy.json')) || join(dir, 'run-policy.json');
-  const ok = acceptance.failed.length === 0;
-  return {
-    ok,
-    stage: 'build',
-    seconds,
-    holo,
-    vectors: { passed: acceptance.passed, total: acceptance.total },
-    message: ok
-      ? `Built in ${seconds} s. Lean proved the model before the build. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass in the built guest. The holo carries no signed proof statement, so the default \`prism-code check\` reports P0; run it with the run policy below.`
-      : `Built, but ${acceptance.failed.length} of ${acceptance.total} acceptance vectors fail in the guest: the model's vectors and its judge disagree.`,
-    run: { serve: `npx prism-code run "${rel}" --policy "${policy}" --port 8080` },
-  };
+  if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
+  if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, wasm });
+  return { ...failure(new PrismCodeError('build.frontend-unavailable', `This app's holo is built from Lean's export through Rust to WebAssembly, and no step runs that without an image yet; a rule app (the rule-app starter) builds with nothing compiled. prism_prove proves this app's theorems. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
 }
 
 /** A rule app: kernel-checked from its snapshot, then written as the rule judge and its numbers, with its page. */
-async function buildRuleApp(dir, session, { log, env, client, gaps, kernel, local, wasm }) {
+async function buildRuleApp(dir, session, { log, env, client, gaps, kernel, wasm }) {
   const started = Date.now();
   let where;
   try {
-    where = frontendWhere({ env, hasWasm: wasm, hasLocal: local });
+    where = frontendWhere({ env, hasWasm: wasm });
   } catch (error) {
     return { ...failure(error), stage: 'prove' };
   }

@@ -38,16 +38,16 @@ test('setup gives every agent the local Prism server, and the hosted one only wh
   assert.match(run(['setup', '--dry-run', '--agents-only'], { env }).out, /not added; it stores models unlisted, not privately/);
 });
 
-test('setup ends by telling the user what runs without Docker, then to ask an agent for an app', () => {
+test('setup ends by telling the user that no step needs Docker, then to ask an agent for an app', () => {
   const plan = JSON.parse(run(['setup', '--dry-run', '--agents-only', '--json'], { env: agentHome() }).out);
-  assert.match(plan.next.join(' '), /Without Docker, LexLean runs as WebAssembly.*Phase 3.*Phase 4/);
+  assert.match(plan.next.join(' '), /No step needs Docker or an image\. LexLean runs as WebAssembly.*Phase 3.*Phase 4/);
   assert.match(plan.next.at(-1), /build me a Prism app/);
 });
 
-test('the MCP instructions every agent receives name the LexLean model, what runs without Docker, and leave the hosted opt-in to the user', () => {
+test('the MCP instructions every agent receives name the LexLean model, that no step needs Docker, and leave the tier to the user', () => {
   assert.match(INSTRUCTIONS, /one source of truth is its LexLean model in prism\/src\//);
-  assert.match(INSTRUCTIONS, /Without Docker, LexLean runs as WebAssembly/);
-  assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER=hosted yourself/);
+  assert.match(INSTRUCTIONS, /No step needs Docker or an image\. LexLean runs as WebAssembly/);
+  assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER yourself/);
   assert.ok(INSTRUCTIONS.split(/\s+/).length < 200, 'the instructions stay short enough to be read');
 });
 
