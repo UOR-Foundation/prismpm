@@ -119,7 +119,7 @@ test('every theorem says its counterexample is impossible, and the record of Lea
   const sha = (text) => `sha256:${createHash('sha256').update(text).digest('hex')}`;
   assert.equal(VERIFIED.schema, 'prism/model-verification/1');
   assert.equal(VERIFIED.result, 'verified 2 modules');
-  assert.equal(VERIFIED.lean, '4.32.2');
+  assert.equal(VERIFIED.lean, '4.32.1');
   assert.equal(VERIFIED.sources['src/CanonicalBuild.lex.tex'], sha(readFileSync(new URL('../model/canonical-build/src/CanonicalBuild.lex.tex', import.meta.url))));
   assert.equal(VERIFIED.sources['src/CanonicalBuildProofs.lex.tex'], sha(readFileSync(new URL('../model/canonical-build/src/CanonicalBuildProofs.lex.tex', import.meta.url))));
   assert.equal(VERIFIED.sources['lexlean.lock'], sha(readFileSync(new URL('../model/canonical-build/lexlean.lock', import.meta.url))));
