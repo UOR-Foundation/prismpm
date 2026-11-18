@@ -257,8 +257,8 @@ fn exact(object: &std::collections::BTreeMap<String, Json>, keys: &[&str]) -> bo
 
 /// Read the value at `pos`.
 fn read_at(reader: &mut Reader<'_>, pos: Pos, depth: usize) -> Result<Json, SurfaceError> {
-    if depth > MAX_DEPTH {
-        return Err(reader.error("nested more deeply than the notation reads"));
+    if depth > reader.max_depth {
+        return Err(reader.error(generic::TOO_DEEP));
     }
     match pos {
         Pos::Term => terms::read(reader, depth),
@@ -574,6 +574,9 @@ mod types {
 
     /// Read a type.
     pub(super) fn read(reader: &mut Reader<'_>, depth: usize) -> Result<Json, SurfaceError> {
+        if depth > reader.max_depth {
+            return Err(reader.error(super::generic::TOO_DEEP));
+        }
         let offset = reader.offset();
         match reader.peek() {
             Some(Token::Word(word)) => {
@@ -1150,6 +1153,9 @@ mod terms {
 
     /// Read a term.
     pub(super) fn read(reader: &mut Reader<'_>, depth: usize) -> Result<Json, SurfaceError> {
+        if depth > reader.max_depth {
+            return Err(reader.error(super::generic::TOO_DEEP));
+        }
         let offset = reader.offset();
         match reader.peek() {
             Some(Token::Str(text)) => {
@@ -1678,7 +1684,21 @@ pub fn print_module(module: &Json) -> Result<String, SurfaceError> {
 ///
 /// Text that is not a sequence of declarations.
 pub fn parse_module(text: &str, spec: &str) -> Result<Json, SurfaceError> {
-    let mut reader = Reader::new(text)?;
+    parse_module_bounded(text, spec, MAX_DEPTH)
+}
+
+/// [`parse_module`] reading to `max_depth` levels of nesting, on a stack the
+/// caller has sized for them (the linker: `max_scope_depth`, §25.5).
+///
+/// # Errors
+///
+/// Text that is not a sequence of declarations.
+pub fn parse_module_bounded(
+    text: &str,
+    spec: &str,
+    max_depth: usize,
+) -> Result<Json, SurfaceError> {
+    let mut reader = Reader::new(text)?.with_max_depth(max_depth);
     let mut declarations = Vec::new();
     while !reader.done() {
         declarations.push(read_at(&mut reader, declaration(), 1)?);
@@ -1695,7 +1715,20 @@ pub fn parse_module(text: &str, spec: &str) -> Result<Json, SurfaceError> {
 ///
 /// Text that is not a sequence of declarations.
 pub fn declaration_spans(text: &str) -> Result<Vec<(usize, usize)>, SurfaceError> {
-    let mut reader = Reader::new(text)?;
+    declaration_spans_bounded(text, MAX_DEPTH)
+}
+
+/// [`declaration_spans`] reading to `max_depth` levels of nesting, on a stack
+/// the caller has sized for them.
+///
+/// # Errors
+///
+/// Text that is not a sequence of declarations.
+pub fn declaration_spans_bounded(
+    text: &str,
+    max_depth: usize,
+) -> Result<Vec<(usize, usize)>, SurfaceError> {
+    let mut reader = Reader::new(text)?.with_max_depth(max_depth);
     let mut spans = Vec::new();
     while !reader.done() {
         let start = reader.offset();
@@ -1853,6 +1886,34 @@ mod tests {
         assert_eq!(&back, value, "{text}");
         assert_eq!(print_at(&back, position), text, "the notation is canonical");
         text
+    }
+
+    #[test]
+    fn readable_nesting_has_an_explicit_bound() {
+        std::thread::Builder::new()
+            .stack_size(crate::READER_STACK)
+            .spawn(|| {
+                for (position, prefix, leaf, bound) in [
+                    (Position::Term, "(not ", "true", 255),
+                    (Position::Term, "(cons 1 ", "(nil Nat)", 254),
+                    (Position::Type, "(List ", "Nat", 255),
+                ] {
+                    let at_bound = format!("{}{}{}", prefix.repeat(bound), leaf, ")".repeat(bound));
+                    assert!(parse_at(&at_bound, position).is_ok());
+                    let beyond = format!(
+                        "{}{}{}",
+                        prefix.repeat(bound + 1),
+                        leaf,
+                        ")".repeat(bound + 1)
+                    );
+                    let error = parse_at(&beyond, position).expect_err("nesting must be bounded");
+                    assert_eq!(error.message, "nested more deeply than the notation reads");
+                    assert!(error.offset > 0 && error.offset < beyond.len());
+                }
+            })
+            .expect("reader thread")
+            .join()
+            .expect("reader must not panic");
     }
 
     /// The readable forms print as the SPEC says they do, and parse back.

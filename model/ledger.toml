@@ -1,28 +1,28 @@
 spec = "prismpm/ledger/1"
 
 [[claim]]
-id = "AUTH-LEAN-REL-4-32-1"
+id = "AUTH-LEAN-REL-4-32-2"
 level = "some-true"
-statement = "Lean 4.32.1 provides the formal kernel and elaborator that verifies generated PrismPM declarations."
-authority = "LEAN-REL-4-32-1"
+statement = "Lean 4.32.2 provides the formal kernel and elaborator that verifies generated PrismPM declarations."
+authority = "LEAN-REL-4-32-2"
 
 [[claim]]
-id = "AUTH-LAKE-4-32-1"
+id = "AUTH-LAKE-4-32-2"
 level = "some-true"
 statement = "Lake resolves hermetic Lean workspaces without network access when all dependencies are pinned."
-authority = "LAKE-4-32-1"
+authority = "LAKE-4-32-2"
 
 [[claim]]
-id = "AUTH-LEANCHECKER-4-32-1"
+id = "AUTH-LEANCHECKER-4-32-2"
 level = "some-true"
 statement = "leanchecker replays compiled module environments through the Lean kernel in an isolated process."
-authority = "LEANCHECKER-4-32-1"
+authority = "LEANCHECKER-4-32-2"
 
 [[claim]]
-id = "AUTH-PRINT-AXIOMS-4-32-1"
+id = "AUTH-PRINT-AXIOMS-4-32-2"
 level = "some-true"
-statement = "Lean 4.32.1 reports transitive axiom dependencies through #print axioms."
-authority = "PRINT-AXIOMS-4-32-1"
+statement = "Lean 4.32.2 reports transitive axiom dependencies through #print axioms."
+authority = "PRINT-AXIOMS-4-32-2"
 
 [[claim]]
 id = "AUTH-ISO-42010-2022"
