@@ -18,7 +18,7 @@ import { blake3Label, checkEntry, ProverError, readAdmitted } from "./blob.mjs";
 import { gateAdmits } from "./gate.mjs";
 import { libraryLabel, unofficialInit } from "./library.mjs";
 import { cachedCheck, storeResult } from "./store.mjs";
-import { entrypointsOf, judge } from "./verdict.mjs";
+import { entrypointsOf, judge, judgedRows } from "./verdict.mjs";
 import { run as runWasi } from "./wasi.mjs";
 
 export { libraryLabel, ProverError };
@@ -202,6 +202,13 @@ export async function proveWith({ engine, render: renderProject, manifest, evide
   const answers = new Map();
   const reused = new Set();
   try {
+    // A runtime module with policies is the library's compiled module: the driver's check imports it and replays
+    // every declaration through the kernel, which also observes the axioms its policy rows are judged on.
+    for (const row of judgedRows(rendered).filter((m) => m.kind === "runtime")) {
+      const { answer } = await engine.call({ op: "request", request: { op: "check", outDir: "/out", module: row.lean_module } });
+      if (answer?.error) throw new ProverError("lean-prover.engine-trap", `${row.lean_module}: ${answer.error}`);
+      answers.set(row.lean_module, answer);
+    }
     for (const row of rendered.modules.filter((m) => m.kind === "project")) {
       const text = enc.encode(row.text);
       const path = sourcePath(row.lean_module);

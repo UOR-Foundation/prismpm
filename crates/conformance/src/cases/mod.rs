@@ -443,8 +443,8 @@ pub fn run_at(root: &Path, id: &str) {
             root,
             id,
             &[
-                ("sdk/npm/lean-prover/test/axioms.test.mjs", 3),
-                ("sdk/npm/lean-prover/test/verdict.test.mjs", 5),
+                ("sdk/npm/lean-prover/test/axioms.test.mjs", 4),
+                ("sdk/npm/lean-prover/test/verdict.test.mjs", 6),
             ],
             "120000",
         ),

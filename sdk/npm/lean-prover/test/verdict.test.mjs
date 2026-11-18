@@ -21,7 +21,7 @@ test("an elaboration error refuses the module with lean-prover.elaboration-error
 });
 
 test("observed axioms that differ from the declared policy refuse with lean-prover.axiom-policy (LLV7005)", () => {
-  const rendered = renderedProject({ policies: [{ declaration: "Leap.leapRule", policy: "exact", axioms: ["Quot.sound", "propext"] }] });
+  const rendered = renderedProject({ leap: [{ declaration: "Leap.leapRule", kind: "exact", axioms: ["Quot.sound", "propext"], rule: "semantic" }] });
   const v = judge({ rendered, answers: goodAnswers(), entrypoints: ENTRYPOINTS });
   assert.equal(v.accepted, false);
   assert.deepEqual([...new Set(codes(v))], ["lean-prover.axiom-policy"]);
@@ -32,9 +32,21 @@ test("observed axioms that differ from the declared policy refuse with lean-prov
 });
 
 test("without LexLean's declared policies nothing is admitted", () => {
-  const v = judge({ rendered: renderedProject({ policies: null }), answers: goodAnswers(), entrypoints: ENTRYPOINTS });
+  const v = judge({ rendered: renderedProject({ tables: false }), answers: goodAnswers(), entrypoints: ENTRYPOINTS });
   assert.equal(v.accepted, false);
   assert.equal(v.refusal.code, "lean-prover.axiom-policy");
+});
+
+test("a runtime module's policy rows are judged on the axioms the driver's check of that module observed", () => {
+  const rendered = renderedProject();
+  rendered.modules[1].axiom_policies = [{ declaration: "LexLeanRuntime.Portable.law", kind: "exact", axioms: ["propext"], rule: "runtime" }];
+  const answers = goodAnswers();
+  answers.set("LexLeanRuntime.Portable", { elaborated: true, checked: true, replayRefused: null, decls: [{ name: "LexLeanRuntime.Portable.law", kind: "theorem", type: "1", value: "2", axioms: ["propext"] }] });
+  assert.equal(judge({ rendered, answers, entrypoints: ENTRYPOINTS }).accepted, true);
+  answers.get("LexLeanRuntime.Portable").decls[0].axioms = [];
+  assert.equal(judge({ rendered, answers, entrypoints: ENTRYPOINTS }).refusal.code, "lean-prover.axiom-policy");
+  answers.delete("LexLeanRuntime.Portable");
+  assert.equal(judge({ rendered, answers, entrypoints: ENTRYPOINTS }).accepted, false, "an unchecked runtime module");
 });
 
 test("the entrypoints are read from lexlean.toml", () => {

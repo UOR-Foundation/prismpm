@@ -1,14 +1,20 @@
 // prove's verdict, from what LexLean rendered and what the engine answered. Pure, so every rule is tested without
 // the engine. A module is admitted only when LexLean's check and render accepted the project, Lean elaborated it
 // without error, the kernel replay accepted every declaration, and each declaration's observed axioms meet its
-// declared policy (LP-01). Every entrypoint must appear in the verdict (LP-09), and every declaration reports its
-// observed axioms (LP-10). Nothing the kernel refuses is accepted (LP-07).
+// declared policy (LP-01), judged by the policy table LexLean prints with each module, the one `lexlean verify`'s
+// stage 11 reads. Every entrypoint must appear in the verdict (LP-09), and every declaration reports its observed
+// axioms (LP-10). Nothing the kernel refuses is accepted (LP-07).
 import { auditPolicies, nonstandard } from "./axioms.mjs";
 
 /** The project's entrypoints, read from lexlean.toml's `entrypoints = [...]`. */
 export function entrypointsOf(lexleanToml) {
   const m = /^entrypoints\s*=\s*\[([^\]]*)\]/m.exec(lexleanToml);
   return m ? [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]) : [];
+}
+
+/** The rows prove must answer for: every project module (elaborated) and every runtime module with policies (checked). */
+export function judgedRows(rendered) {
+  return rendered.modules.filter((m) => m.kind === "project" || (m.kind === "runtime" && m.axiom_policies?.length));
 }
 
 /**
@@ -18,10 +24,10 @@ export function entrypointsOf(lexleanToml) {
 export function judge({ rendered, answers, entrypoints }) {
   const refusals = [];
   const refuse = (code, diagnostics) => refusals.push({ code, diagnostics });
-  const rows = rendered.modules.filter((m) => m.kind === "project");
-  if (rows.length === 0) refuse("lean-prover.front-end-refused", "LexLean rendered no project module");
+  const projectRows = rendered.modules.filter((m) => m.kind === "project");
+  if (projectRows.length === 0) refuse("lean-prover.front-end-refused", "LexLean rendered no project module");
   const observed = new Map();
-  const modules = rows.map((row) => {
+  const modules = judgedRows(rendered).map((row) => {
     const answer = answers.get(row.lean_module) ?? { elaborated: false };
     const elaborated = answer.elaborated === true;
     const kernelAccepted = elaborated && (answer.replayRefused ?? null) === null;
@@ -32,19 +38,24 @@ export function judge({ rendered, answers, entrypoints }) {
       observed.set(d.name, axioms);
       return { name: d.name, kind: d.kind, accepted: kernelAccepted, axioms };
     });
-    return { module: row.lean_module, source: row.module ?? null, accepted: kernelAccepted, elaborated, replayRefused: answer.replayRefused ?? null, declarations };
+    return { module: row.lean_module, kind: row.kind, source: row.module ?? null, accepted: kernelAccepted, elaborated, replayRefused: answer.replayRefused ?? null, declarations };
   });
 
-  // The declared policies are LexLean's (`axiom_policies`); without them no declaration can be judged against its
-  // policy, so nothing is admitted.
+  // The declared policies are LexLean's; a module without its table cannot be judged, so nothing is admitted.
+  const untabled = rendered.modules.filter((m) => !Array.isArray(m.axiom_policies));
   let policies = [];
-  if (!Array.isArray(rendered.axiom_policies)) {
-    refuse("lean-prover.axiom-policy", "LexLean's render named no axiom policies, so no declaration can be judged against its policy");
+  const failed = new Set();
+  if (untabled.length) {
+    refuse("lean-prover.axiom-policy", `LexLean's render printed no axiom policies for ${untabled.map((m) => m.lean_module).join(", ")}, so no declaration can be judged against its policy`);
   } else {
-    policies = auditPolicies(rendered.axiom_policies, observed);
-    for (const p of policies.filter((p) => !p.holds)) refuse("lean-prover.axiom-policy", `LLV7005: ${p.declaration}: ${p.why}`);
+    const rows = rendered.modules.flatMap((m) => m.axiom_policies);
+    policies = auditPolicies(rows, observed);
+    policies.forEach((p, i) => {
+      if (p.holds) return;
+      refuse("lean-prover.axiom-policy", `LLV7005: ${p.declaration}: ${p.why}`);
+      for (const name of [p.declaration, ...(rows[i].members ?? [])]) failed.add(name);
+    });
   }
-  const failed = new Set(policies.filter((p) => !p.holds).flatMap((p) => [p.declaration, ...(rendered.axiom_policies.find((r) => r.declaration === p.declaration)?.members ?? [])]));
   for (const m of modules) {
     for (const d of m.declarations) {
       const outside = nonstandard(d.axioms);
@@ -54,7 +65,7 @@ export function judge({ rendered, answers, entrypoints }) {
     m.accepted = m.accepted && m.declarations.every((d) => d.accepted);
   }
 
-  const covered = new Set(rows.map((r) => r.module).filter(Boolean));
+  const covered = new Set(projectRows.map((r) => r.module).filter(Boolean));
   for (const e of entrypoints) if (!covered.has(e)) refuse("lean-prover.entrypoint-uncovered", `${e} is not in the verdict`);
 
   const accepted = refusals.length === 0 && modules.every((m) => m.accepted);

@@ -30,7 +30,7 @@ await prover.close();
 3. It replays every declaration through a second, fresh kernel environment.
 4. It applies the axiom audit as `lexlean verify` does (LLV7005): for each declaration, the observed axioms must match its declared policy. Prism also refuses any axiom outside `propext`, `Quot.sound` and `Classical.choice`.
 
-The declared policies come from LexLean's render. Until LexLean emits that table, `prove` admits nothing: it reports every declaration's observed axioms and refuses with `lean-prover.axiom-policy`.
+The declared policies are the table `lexlean lean-modules` prints with each module (LexLean CL-28), the same table `lexlean verify`'s stage 11 reads: rows `{ declaration, kind, axioms, rule, members? }` with the rules document, core, semantic, model and runtime (`src/axioms.mjs`). A runtime module's rows are judged on the axioms the driver's check of that module observes. A render without the table admits nothing: `prove` reports every declaration's observed axioms and refuses with `lean-prover.axiom-policy`.
 
 The answer is `{ accepted, modules: [{ module, accepted, declarations: [{ name, kind, accepted, axioms }] }], policies, evidence }`. A refusal carries `refusal: { code, diagnostics }`.
 
