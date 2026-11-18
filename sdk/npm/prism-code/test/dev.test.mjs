@@ -41,10 +41,21 @@ after(() => {
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 
-/** Save as an editor does: a temporary file renamed over the source, so nothing sees it half written. */
+/**
+ * Save as an editor does: a temporary file renamed over the source, so nothing sees it half written. On Windows a
+ * rename over a file the watcher holds open for reading fails with EPERM, EACCES or EBUSY until the read ends, so
+ * it is tried again, as an editor's save is.
+ */
 function save(root, path, text) {
   writeFileSync(join(root, `${path}.tmp`), text);
-  renameSync(join(root, `${path}.tmp`), join(root, path));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return renameSync(join(root, `${path}.tmp`), join(root, path));
+    } catch (error) {
+      if (attempt >= 50 || !['EPERM', 'EACCES', 'EBUSY'].includes(error?.code)) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    }
+  }
 }
 
 async function until(predicate, what, ms = 15000) {
