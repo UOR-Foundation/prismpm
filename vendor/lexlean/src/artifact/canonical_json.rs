@@ -111,7 +111,9 @@ impl Json {
         Self::from_serde(&value)
     }
 
-    fn from_serde(value: &serde_json::Value) -> Result<Self, String> {
+    /// Convert an already structured value while retaining the canonical domain checks.
+    /// Raw byte inputs must use `parse` so duplicate keys are checked before decoding.
+    pub(crate) fn from_serde(value: &serde_json::Value) -> Result<Self, String> {
         match value {
             serde_json::Value::Null => Err("canonical JSON has no null".to_owned()),
             serde_json::Value::Bool(b) => Ok(Self::Bool(*b)),
@@ -158,10 +160,25 @@ fn write_escaped(text: &str, out: &mut String) {
     out.push('"');
 }
 
+/// `serde_json::from_str` without its 128-level limit on nesting, for text
+/// whose depth the caller has bounded and whose stack it has sized for it.
+pub(crate) fn from_str_unbounded<T: serde::de::DeserializeOwned>(
+    text: &str,
+) -> Result<T, serde_json::Error> {
+    let mut reader = serde_json::Deserializer::from_str(text);
+    reader.disable_recursion_limit();
+    let value = T::deserialize(&mut reader)?;
+    reader.end()?;
+    Ok(value)
+}
+
 /// A streaming duplicate-key check over raw JSON bytes: every object level
-/// keeps the set of keys seen so far (as their raw escaped spelling, which
-/// canonical JSON makes unique per key). Structural errors are left to the
-/// full parser; only a duplicate is reported here.
+/// keeps the set of keys seen so far, compared after JSON escape decoding.
+/// The input need not be canonical yet, so `"a"` and `"\u0061"` are the same
+/// key and must collide here; comparing the raw spelling would let the full
+/// parser keep the last of them silently. Structural errors, including a key
+/// that does not decode, are left to the full parser; only a duplicate is
+/// reported here.
 fn check_duplicate_keys(bytes: &[u8]) -> Result<(), String> {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum Frame {
@@ -189,8 +206,9 @@ fn check_duplicate_keys(bytes: &[u8]) -> Result<(), String> {
                 }
                 if expecting_key {
                     if let Some((Frame::Object, keys)) = frames.last_mut() {
-                        let key = bytes[start..end].to_vec();
-                        if !keys.insert(key) {
+                        // The slice includes both quotes, so it is one JSON string.
+                        let decoded = serde_json::from_slice::<String>(&bytes[start - 1..=end]);
+                        if decoded.is_ok_and(|key| !keys.insert(key.into_bytes())) {
                             return Err(format!(
                                 "duplicate key {}",
                                 String::from_utf8_lossy(&bytes[start..end])

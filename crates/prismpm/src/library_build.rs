@@ -346,7 +346,7 @@ fn generate_in(
     )?;
     write(
         &workspace.join("lean-toolchain"),
-        b"leanprover/lean4:v4.32.1\n",
+        b"leanprover/lean4:v4.32.2\n",
     )?;
     let lake = executable("lake")?;
     let replacements = [

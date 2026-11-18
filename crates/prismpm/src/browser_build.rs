@@ -273,7 +273,7 @@ fn compile_inner(project: &Path) -> Result<Compilation, PrismError> {
     )?;
     write(
         &workspace.join("lean-toolchain"),
-        b"leanprover/lean4:v4.32.1\n",
+        b"leanprover/lean4:v4.32.2\n",
     )?;
     let exporter = workspace.join("exporter");
     write(

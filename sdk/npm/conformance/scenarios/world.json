@@ -165,6 +165,16 @@
         "ok": true,
         "result": { "world": { "contract": "hologram:guest/core-wasm@2", "within": true, "pure": true, "effects": [] } }
       }
+    },
+    {
+      "id": "world.checkpoint.loaded",
+      "title": "A guest of the checkpoint world hologram:guest/core-wasm@3 loads as that world: pure and within an empty grant, because it imports nothing (HO-47).",
+      "op": "load",
+      "archive": "checkpoint-world",
+      "expect": {
+        "ok": true,
+        "result": { "world": { "contract": "hologram:guest/core-wasm@3", "within": true, "pure": true, "effects": [] } }
+      }
     }
   ]
 }

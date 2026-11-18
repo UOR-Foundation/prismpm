@@ -318,3 +318,22 @@ Feature: holo
     And the entry and every definition with a unique last component keep that component as their name
     And the acceptance vectors pass
     And the same application with both definitions requested as roots is refused with PP5004, naming both
+
+  @HO-47 @build
+  Scenario: The checkpoint world hologram:guest/core-wasm@3 is a new contract with its own WIT file and registry row, import-free, exporting exactly memory, holo_alloc, holo_step, holo_state and holo_restore; its guest package is the @2 package generated from the same bounds and entry, and its shim is the @2 shim with two more exports: holo_state returns the location of the resident state bytes and changes nothing, and holo_restore reserves the resident state of a fresh instance, trapping on a length over the declared state maximum, on an instance that has taken a step or holds a state, and on a second call; the @1 and @2 rows, files and shims are unchanged.
+    Given the session generator with the bounds of the session probe and the checkpoint world selected
+    When the guest package is generated and built
+    Then the module imports nothing and exports exactly memory, holo_alloc, holo_step, holo_state and holo_restore
+    And holo_state after three steps locates the state those steps left, and the next step answers as if it were not called
+    And holo_restore on a fresh instance installs a state the next step sees
+    And holo_restore over the state maximum, after a step, and a second time each trap
+    And the @2 package generated from the same bounds is byte for byte what it was before
+
+  @HO-48 @build
+  Scenario: prism-code checkpoints and restores sessions of the checkpoint world: checkpoint on a session returns the BLAKE3 kappa label of the state bytes and a copy of them; openAt opens a session on a fresh instance whose state is the given bytes, refusing with checkpoint.address bytes that do not hash to the label or a label that is not a BLAKE3 kappa label and with checkpoint.state bytes over the declared state maximum, before the guest runs; a session resumed from a checkpoint returns the same responses to the same requests as the session it was taken from; checkpoint and openAt on a guest of another world fail checkpoint.unsupported.
+    Given a holo whose guest is the checkpoint world
+    When a session takes three steps and is checkpointed
+    Then the checkpoint is the BLAKE3 kappa label of the state bytes
+    And a session opened at the checkpoint answers the next requests exactly as the original session does
+    And bytes with one byte flipped, a label that is not BLAKE3 and bytes over the state maximum are refused before the guest runs
+    And checkpoint and openAt on a session-world or stateless guest fail checkpoint.unsupported

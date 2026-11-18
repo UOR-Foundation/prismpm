@@ -1,5 +1,48 @@
 # PrismPM falsifiability and verification record
 
+## Checkpoint world (HO-47, HO-48), 2026-11-18
+
+Tested, in WSL Ubuntu with Rust 1.97.1 and Node 22.22.2, on the branch
+`guest/session-world-wiring`:
+
+- `cargo test -p prismpm --lib session_guest`: 15 passed, including the four
+  HO-47 owning tests. Before the checkpoint probe fixture existed,
+  `the_checkpoint_probe_is_the_generated_shim_around_the_same_entry` failed and
+  the other 14 passed, the @2 probe among them.
+- `cargo test -p repo-conformance --test conformance` for `conformance_ho_44`,
+  `_45`, `_47` and `_48`: 4 passed.
+- `node --test test/checkpoint.test.mjs` (prism-code): 8 passed, the exact count
+  HO-48 requires.
+- `node --test` in `sdk/npm/spec` (141 passed) and `sdk/npm/verify` (264 passed),
+  and in `sdk/npm/conformance` (86 passed) after `matrix --write`. The full
+  prism-code suite fails the same 43 tests as a clean `main` in this environment
+  (the optional sigstore packages and `npm test` are unavailable there) and no
+  other.
+- `prism-conformance gate --base origin/main`: both format rules covered, by
+  `world.checkpoint.loaded` and `verify.checkpoint-world.documents`.
+- The session probe rebuilt from its directory with Rust 1.97.1 is byte for byte
+  its committed `probe.wasm`; the checkpoint probe is built the same way.
+
+Planted defects, each on a clean worktree of the commit, each rejected:
+
+| Defect | Command | Rejected by |
+| --- | --- | --- |
+| The host stops comparing state bytes with the label | `node --test test/checkpoint.test.mjs` | test 5, flipped byte not refused |
+| `openAt` opens an empty session instead of restoring | `node --test test/checkpoint.test.mjs` | tests 4 and 7 |
+| `holo_restore` without its fresh-instance guard, in the template and a rebuilt probe | `cargo test -p prismpm --lib session_guest`; `node --test test/checkpoint.test.mjs` | `the_checkpoint_package_is_the_session_package_with_two_more_exports`; test 2, restore after a step does not trap |
+| `holo_state` reports one byte too few, in a rebuilt probe | `node --test test/checkpoint.test.mjs` | tests 1, 3 and 4 |
+
+Measured, 2026-11-18, AMD Ryzen AI MAX 390, Windows 11, Node 22.21.0, the
+checkpoint probe with a 104-byte state: a warm step 1.1 µs median (p90 1.7);
+instantiation 18.4 µs; restoring the state 0.8 µs; checkpoint (read and BLAKE3
+label) 4.5 µs; the `openAt` check 4.8 µs. The stateless call of the same day,
+Hologram AI's kernel under prism-code 0.2.0, was 18.1 µs median, 14.5 µs of it
+instantiation.
+
+This accepts the @3 world, its shim and the runtime's checkpoint and restore.
+It does not accept a profile that declares @3 in a holo (#630), a history that
+starts at a checkpoint, or any SDK release.
+
 ## Unaccepted integration checkpoint (2026-10-14)
 
 The production-component/compiler reconciliation is preparation only. Current

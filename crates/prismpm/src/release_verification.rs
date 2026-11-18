@@ -1373,9 +1373,9 @@ fn process_platform(rows: &[Value]) -> Result<&'static str, PrismError> {
             "verification preflight process differs",
         )?;
     }
-    let (host, platform) = [("x86_64-unknown-linux-gnu", "linux/amd64"), ("aarch64-unknown-linux-gnu", "linux/arm64")].into_iter().find(|(host, _)| rows[0]["stdout"] == format!("Lean (version 4.32.1, {host}, commit f054605aea4b840552cca2e725580bffd1e1b704, Release)\n")).ok_or_else(|| invalid("verification process Lean version differs"))?;
+    let (host, platform) = [("x86_64-unknown-linux-gnu", "linux/amd64"), ("aarch64-unknown-linux-gnu", "linux/arm64")].into_iter().find(|(host, _)| rows[0]["stdout"] == format!("Lean (version 4.32.2, {host}, commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, Release)\n")).ok_or_else(|| invalid("verification process Lean version differs"))?;
     ensure(
-        rows[1]["stdout"] == "Lake version 5.0.0-src+f054605 (Lean version 4.32.1)\n"
+        rows[1]["stdout"] == "Lake version 5.0.0-src+f3b06c7 (Lean version 4.32.2)\n"
             && rows[2]["stdout"] == "rustfmt 1.9.0-stable (8bab26f4f6 2026-07-14)\n",
         "verification process tool version differs",
     )?;

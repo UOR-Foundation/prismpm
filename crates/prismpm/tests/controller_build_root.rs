@@ -66,7 +66,7 @@ fn project(lexlean_directory: &str, build_root: Option<&str>) -> tempfile::TempD
         format!(
             "spec = \"lexlean/project/1\"\nname = \"trivial\"\nlanguage = \"1.2\"\nmodule_prefix = \"Trivial\"\n\
 source_roots = [\"src\"]\nentrypoints = [\"src/Trivial.lex.tex\"]\n{build_root}\
-lockfile = \"lexlean.lock\"\nlean_workspace = \".\"\nlean_toolchain = \"leanprover/lean4:v4.32.1\"\n\n\
+lockfile = \"lexlean.lock\"\nlean_workspace = \".\"\nlean_toolchain = \"leanprover/lean4:v4.32.2\"\n\n\
 [[lexicon_source]]\npackage = \"lexlean.std.nat\"\nkind = \"builtin\"\n\n\
 [[lexicon_source]]\npackage = \"trivial.module\"\nkind = \"path\"\npath = \"language/trivial.module\"\n\n{limits}"
         ),

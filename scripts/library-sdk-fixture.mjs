@@ -54,7 +54,7 @@ export function lockFixture(authority=sourceAuthorityFixture,standards=Buffer.fr
    if(encode(captured.lock)!==bytes.toString())throw Error('synthetic graph lock differs');return captured.evidence;}};
 }
 
-export const sourceAuthorityFixture={archive_sha256:'3'.repeat(64),toolchain:'leanprover/lean4:v4.32.1'};
+export const sourceAuthorityFixture={archive_sha256:'3'.repeat(64),toolchain:'leanprover/lean4:v4.32.2'};
 export function qualificationFixture(binding,authority=sourceAuthorityFixture) {
  const manifest=seedManifestFixture(binding.platform.split('/')[1],authority),bytes=encode(manifest)+'\n';
  const lake=manifest.configuration.environment.PATH.split(':')[0]+'/lake';

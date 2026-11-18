@@ -381,7 +381,7 @@ pub(crate) fn preflight_toolchain(
         executables(["lake", "lean", "rustfmt", "rustc", "timeout"])?;
     let no_env = BTreeMap::new();
     let lean_version = format!(
-        "Lean (version 4.32.1, {lean_host}, commit f054605aea4b840552cca2e725580bffd1e1b704, Release)\n"
+        "Lean (version 4.32.2, {lean_host}, commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, Release)\n"
     );
     let specifications = [
         (
@@ -394,7 +394,7 @@ pub(crate) fn preflight_toolchain(
             "lake-version",
             lake.as_path(),
             vec!["--version".to_owned()],
-            "Lake version 5.0.0-src+f054605 (Lean version 4.32.1)\n",
+            "Lake version 5.0.0-src+f3b06c7 (Lean version 4.32.2)\n",
         ),
         (
             "rustfmt-version",
@@ -2919,7 +2919,7 @@ pub(crate) fn run(
     write(&workspace.join("lakefile.toml"), lakefile.as_bytes())?;
     write(
         &workspace.join("lean-toolchain"),
-        b"leanprover/lean4:v4.32.1\n",
+        b"leanprover/lean4:v4.32.2\n",
     )?;
 
     let lake = toolchain.lake;

@@ -578,6 +578,13 @@ pub fn run_at(root: &Path, id: &str) {
             "600000",
         ),
         "HO-46" => qualified_definitions::verify(root),
+        "HO-47" => session_world::verify_checkpoint_generator(root),
+        "HO-48" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/checkpoint.test.mjs", 8)],
+            "600000",
+        ),
 
         "CT-01" | "CT-02" | "CT-03" | "CT-04" | "CT-05" | "CT-06" | "CT-07" | "CT-08" | "CT-09"
         | "CT-10" | "CT-11" => {
@@ -3132,11 +3139,11 @@ fn verify_rp_02(root: &Path) {
     let rust_toolchain = std::fs::read_to_string(root.join("rust-toolchain.toml")).unwrap();
     assert!(rust_toolchain.contains("1.97.1"));
     let lean_toolchain = std::fs::read_to_string(root.join("lean-toolchain")).unwrap();
-    assert!(lean_toolchain.contains("leanprover/lean4:v4.32.1"));
+    assert!(lean_toolchain.contains("leanprover/lean4:v4.32.2"));
     assert_contains(
         root,
         "tools.lock",
-        &["1.97.1", "v4.32.1", "4.2.3", "1.57.0", "0.20.2"],
+        &["1.97.1", "v4.32.2", "4.2.3", "1.57.0", "0.20.2"],
     );
 }
 
@@ -3149,7 +3156,7 @@ fn verify_rp_04(root: &Path) {
     assert_contains(
         root,
         ".devcontainer/Dockerfile",
-        &["rustup-init", "sha256sum -c", "leanprover/lean4:v4.32.1"],
+        &["rustup-init", "sha256sum -c", "leanprover/lean4:v4.32.2"],
     );
     // The main-push verification is the Prism factory's: one carried
     // obligation per part, each running `just vv-part PART` once in the
@@ -4240,7 +4247,7 @@ fn verify_verification(root: &Path, id: &str) {
     match id {
         "VR-01" => {
             assert!(tools.contains("lake-build-generated"));
-            assert_contains(root, "lean-toolchain", &["leanprover/lean4:v4.32.1"]);
+            assert_contains(root, "lean-toolchain", &["leanprover/lean4:v4.32.2"]);
         }
         "VR-02" => {
             for row in manifest["processes"].as_array().unwrap() {
