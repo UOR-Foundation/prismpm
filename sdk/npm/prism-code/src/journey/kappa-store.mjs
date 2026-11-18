@@ -17,9 +17,10 @@
  * proved by Lean (`model/rule-app`): only under the same key, kernel, library
  * and proof bytes. The store is trusted no further than that rule.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { prismHome } from '../agents.mjs';
+import { kappa as blake3Kappa } from '../blake3.mjs';
 import { isKappa, kappa } from '../uorc.mjs';
 import { proofFacts, proofRealization } from './kappa-rules.mjs';
 
@@ -28,6 +29,51 @@ export { PROOF_SCHEMA, derivationKey, policyLabel, proofKey, proofReferences, re
 
 /** Where the store keeps its bytes. `PRISM_KAPPA_DIR` names another place; `PRISM_KAPPA=0` keeps nothing. */
 export const kappaDirectory = (env = process.env) => env.PRISM_KAPPA_DIR || join(prismHome(env), 'kappa');
+
+/** Write `bytes` beside `file` and move them into place, so a reader, or a crash, never leaves half a file. A name already taken holds the same bytes. */
+export function writeAtomic(file, bytes) {
+  mkdirSync(join(file, '..'), { recursive: true });
+  const partial = `${file}.${process.pid}.partial`;
+  writeFileSync(partial, bytes);
+  try {
+    renameSync(partial, file);
+  } catch (error) {
+    if (!existsSync(file)) throw error;
+  }
+}
+
+/**
+ * The files this prism-code pins (Lean's kernel, LexLean as WebAssembly), kept once per machine under
+ * `pinned/` by the BLAKE3 κ-label of their bytes. The labels the installed prism-code pins are the only
+ * roots: store-gc.mjs removes every pinned file they do not name.
+ */
+export const pinnedFile = (label, env = process.env) => join(kappaDirectory(env), 'pinned', label.slice(7, 9), label.slice(9));
+
+/** A pinned file's bytes, only when they re-derive to `label`; null when it is not here or is not those bytes. */
+export function readPinnedFile(label, env = process.env) {
+  const file = pinnedFile(label, env);
+  if (!existsSync(file)) return null;
+  const bytes = readFileSync(file);
+  return blake3Kappa(bytes) === label ? bytes : null;
+}
+
+/** Keep pinned bytes under their label, which they must have. Returns the file. */
+export function keepPinnedFile(bytes, label, env = process.env) {
+  if (blake3Kappa(bytes) !== label) throw new Error(`these bytes are ${blake3Kappa(bytes)}, not ${label}`);
+  const file = pinnedFile(label, env);
+  writeAtomic(file, bytes);
+  return file;
+}
+
+/** Mark a cached entry as just used: the cache is evicted least recently used first (store-gc.mjs). */
+const touch = (file) => {
+  try {
+    const now = new Date();
+    utimesSync(file, now, now);
+  } catch {
+    // Read-only, or removed since: the entry is only older than it is.
+  }
+};
 
 /**
  * The store. `put` returns the bytes' κ-label; `get` returns bytes only when
@@ -38,17 +84,7 @@ export function kappaStore({ env = process.env } = {}) {
   const off = env.PRISM_KAPPA === '0';
   const directory = kappaDirectory(env);
   const fileOf = (kind, label) => join(directory, kind, label.slice(7, 9), label.slice(9));
-  const write = (file, bytes) => {
-    mkdirSync(join(file, '..'), { recursive: true });
-    // Moved into place, so a reader never sees half a file. A name already taken holds the same bytes.
-    const partial = `${file}.${process.pid}.partial`;
-    writeFileSync(partial, bytes);
-    try {
-      renameSync(partial, file);
-    } catch (error) {
-      if (!existsSync(file)) throw error;
-    }
-  };
+  const write = writeAtomic;
   return {
     directory,
     off,
@@ -59,6 +95,7 @@ export function kappaStore({ env = process.env } = {}) {
     },
     get(label) {
       if (off || !isKappa(label) || !existsSync(fileOf('bytes', label))) return null;
+      touch(fileOf('bytes', label));
       const bytes = new Uint8Array(readFileSync(fileOf('bytes', label)));
       // The universal check under every stored byte: bytes that are not what their name says are not there.
       return kappa(bytes) === label ? bytes : null;
@@ -68,6 +105,7 @@ export function kappaStore({ env = process.env } = {}) {
     },
     bound(key) {
       if (off || !isKappa(key) || !existsSync(fileOf('derived', key))) return null;
+      touch(fileOf('derived', key));
       const label = readFileSync(fileOf('derived', key), 'utf8');
       return isKappa(label) ? label : null;
     },

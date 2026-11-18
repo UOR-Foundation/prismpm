@@ -55,6 +55,14 @@ export async function runSetup(argv, usage, context = hostSetupContext(), machin
   const failed = (machine ? machineFailed(machine) : false) || rows.some((row) => row.status === 'failed');
   const github = machine?.rows.find((row) => row.id === 'github') ?? null;
   const next = agentsHalf ? nextSteps(plan, { github }) : [];
+  // Setup leaves the machine store holding only what this prism-code pins, and a proof cache within its size.
+  const { collectStore } = await import('./journey/store-gc.mjs');
+  let store = null;
+  try {
+    store = collectStore({ dryRun });
+  } catch {
+    store = null;
+  }
   if (named.json) {
     const row = ({ agent, status, detail }) => ({ agent, status, detail: detail ?? null });
     const report = {
@@ -68,6 +76,7 @@ export async function runSetup(argv, usage, context = hostSetupContext(), machin
       preferredAgent: plan.preferred.agent,
       next,
       telemetry: telemetryNotice(),
+      store,
       failed,
     };
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -75,6 +84,8 @@ export async function runSetup(argv, usage, context = hostSetupContext(), machin
   }
   if (machine) process.stdout.write(formatMachine(machine, { dryRun }));
   if (agentsHalf) process.stdout.write(formatSetup(plan, { dryRun }));
+  if (store?.freed) process.stdout.write(`The Prism store in $PRISM_HOME/kappa ${dryRun ? 'would free' : 'freed'} ${(store.freed / 1e6).toFixed(1)} MB of files this prism-code no longer pins.
+`);
   process.stdout.write(formatNext(next));
   process.stdout.write(`${telemetryNotice()}
 `);

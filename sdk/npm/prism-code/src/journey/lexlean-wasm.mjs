@@ -7,9 +7,9 @@
  * runs `check` and `snapshot`, never `verify`: Lean is not in it.
  *
  * The bytes are named by their UOR κ-label (BLAKE3) and used only when they have it,
- * whether they were just fetched or read from disk. They are kept under
- * `$PRISM_HOME/lexlean/`, or read from `PRISM_LEXLEAN_WASM` when that names a
- * file. Where they are fetched from is `LEXLEAN_WASM.url`, read through the
+ * whether they were just fetched or read from disk. They are kept once per
+ * machine in the pinned store (`$PRISM_HOME/kappa/pinned/`, kappa-store.mjs), or
+ * read from `PRISM_LEXLEAN_WASM` when that names a file. Where they are fetched from is `LEXLEAN_WASM.url`, read through the
  * serverless boundary (hosts.mjs), once; `PRISM_LEXLEAN_FETCH=0` fetches nothing.
  *
  * It runs in this process on wasi-memory.mjs, a WASI host over the project's
@@ -17,13 +17,13 @@
  * same host serves a browser. The module is compiled once per process, so
  * every check after the first pays only for the run.
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { prismHome } from '../agents.mjs';
 import { PrismCodeError } from '../errors.mjs';
 import { kappa } from '../blake3.mjs';
 import { buildFetch } from './hosts.mjs';
+import { pinnedFile, writeAtomic } from './kappa-store.mjs';
 import { runWasi } from './wasi-memory.mjs';
 
 /**
@@ -46,17 +46,17 @@ export const LEXLEAN_WASM = Object.freeze({
 });
 
 
-/** The folder the executable is kept in. */
-export const lexleanDirectory = (env = process.env) => join(prismHome(env), 'lexlean');
-
 /** The pin to hold the bytes to: the package's, or the one a caller names (a test, or a build of LexLean being tried). */
 const pinOf = (pin) => pin ?? LEXLEAN_WASM;
 
-/** Files already found to have the pinned κ-label in this process, by path, size and change time: BLAKE3 in JavaScript takes about 0.7 s on these 19 MB. */
+/** Files already found to have the pinned κ-label in this process, by path, size and change time: BLAKE3 in JavaScript takes about 0.15 s on the 4 MB kept. */
 const verified = new Map();
 
-/** The file a κ-label is kept under. */
-const keptName = (label) => `${label.slice('blake3:'.length)}.wasm`;
+/**
+ * What is kept: the gzipped bytes as served, under their own κ-label, when the pin names one (4 MB in place of 19 MB;
+ * inflating is deterministic, so those bytes fix the module), else the module itself. The store-gc roots name this label.
+ */
+export const keptLabel = (pin = LEXLEAN_WASM) => pin.gzipKappa ?? pin.kappa;
 
 /**
  * The executable's file, checked against its pin's κ-label, or null when it is
@@ -68,13 +68,15 @@ const keptName = (label) => `${label.slice('blake3:'.length)}.wasm`;
 export function lexleanWasmFile({ env = process.env, pin = null } = {}) {
   const want = pinOf(pin);
   if (!want.kappa) return null;
-  const file = env.PRISM_LEXLEAN_WASM ? resolve(env.PRISM_LEXLEAN_WASM) : join(lexleanDirectory(env), keptName(want.kappa));
+  // A file the user names is the module itself; the kept one is what keptLabel says.
+  const label = env.PRISM_LEXLEAN_WASM ? want.kappa : keptLabel(want);
+  const file = env.PRISM_LEXLEAN_WASM ? resolve(env.PRISM_LEXLEAN_WASM) : pinnedFile(label, env);
   if (!existsSync(file)) return null;
   const stat = statSync(file);
-  const seen = `${want.kappa} ${stat.size} ${stat.mtimeMs}`;
+  const seen = `${label} ${stat.size} ${stat.mtimeMs}`;
   if (verified.get(file) === seen) return file;
   const got = kappa(readFileSync(file));
-  if (got !== want.kappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${file} is ${got}, not the pinned ${want.kappa}`);
+  if (got !== label) throw new PrismCodeError('lexlean.wasm-mismatch', `${file} is ${got}, not the pinned ${label}`);
   verified.set(file, seen);
   return file;
 }
@@ -123,12 +125,9 @@ export async function ensureLexleanWasm({ env = process.env, pin = null, fetch =
   const bytes = gunzipSync(gz);
   const got = kappa(bytes);
   if (got !== want.kappa) throw new PrismCodeError('lexlean.wasm-mismatch', `${want.url} gave a module that is ${got}, not the pinned ${want.kappa}`);
-  const directory = lexleanDirectory(env);
-  mkdirSync(directory, { recursive: true });
-  const partial = join(directory, `${keptName(want.kappa)}.${process.pid}.partial`);
-  writeFileSync(partial, bytes);
-  renameSync(partial, join(directory, keptName(want.kappa)));
-  return join(directory, keptName(want.kappa));
+  const file = pinnedFile(keptLabel(want), env);
+  writeAtomic(file, want.gzipKappa ? gz : bytes);
+  return file;
 }
 
 /** Folders a check never reads: build outputs, caches and version control. */
@@ -150,9 +149,13 @@ export function projectFiles(projectDir) {
 
 const compiled = new Map();
 
-/** The compiled module of the file, compiled once per process. */
+/** The compiled module of the file, inflated when it is kept gzipped, compiled once per process. */
 function moduleOf(file) {
-  if (!compiled.has(file)) compiled.set(file, WebAssembly.compile(readFileSync(file)));
+  const read = () => {
+    const bytes = readFileSync(file);
+    return bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes;
+  };
+  if (!compiled.has(file)) compiled.set(file, WebAssembly.compile(read()));
   return compiled.get(file);
 }
 

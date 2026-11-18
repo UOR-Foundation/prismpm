@@ -101,7 +101,10 @@ on a read-only WASI host held in memory: it checks every app and takes its
 semantic snapshot in under a second, and a rule app is then proved by Lean's
 kernel in this process and built, with no Docker and no server. Its pinned copy is
 fetched once, about 4 MB, and used only when it has its κ-label (BLAKE3);
-`PRISM_LEXLEAN_FETCH=0` fetches nothing. Proving any other app's theorems needs Lean: the SDK image on this
+`PRISM_LEXLEAN_FETCH=0` fetches nothing. It and Lean's kernel are kept once per machine in
+`$PRISM_HOME/kappa`. `setup` and the first check after an upgrade remove what this
+version no longer pins; `prism-code system df` shows what that frees, and
+`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Proving any other app's theorems needs Lean: the SDK image on this
 machine (Docker), or the hosted verifier, which only you choose, by setting
 `PRISM_CODE_TIER=hosted`, until in-process proof producers land (Phase 4). With
 nothing to run a step on, it fails with `build.frontend-unavailable`. Publishing to GitHub from `prism_build` waits for
