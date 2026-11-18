@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { agree, load } from "../gate/agree.mjs";
 import { attest, gateLabel } from "../gate/attest.mjs";
-import { gateAdmits } from "../src/gate.mjs";
 import { fixture } from "./helpers.mjs";
 
 const answer = (module, decls, extra = {}) => JSON.stringify({ module, elaborated: true, replayRefused: null, decls, ...extra });
@@ -37,18 +36,4 @@ test("the gate attests only full agreement with every planted defect refused, na
   assert.throws(() => attestFor(manifest, { wasm: corpusAnswers([d("Leap.a", "9"), d("Leap.b")]) }), /disagree/);
   assert.throws(() => attestFor(manifest, { defects: [{ name: "x", refused: false }] }), /not refused: x/);
   assert.throws(() => attestFor(manifest, { defects: [] }), /not refused/);
-});
-
-test("a manifest is admitted only by the gate that admitted its own engine, library and LexLean", () => {
-  const { manifest } = fixture();
-  const a = attestFor(manifest);
-  assert.deepEqual(gateAdmits({ ...manifest, gate: gateLabel(a) }, a), { admitted: true });
-  assert.equal(gateAdmits(manifest, a).admitted, false, "no gate named");
-  const other = structuredClone(manifest);
-  other.engine.wasm.kappa = `blake3:${"0".repeat(64)}`;
-  assert.match(gateAdmits({ ...other, gate: gateLabel(a) }, a).why, /another engine/);
-  const lib = structuredClone(manifest);
-  lib.library[0].kappa = `blake3:${"1".repeat(64)}`;
-  assert.match(gateAdmits({ ...lib, gate: gateLabel(a) }, a).why, /another library/);
-  assert.match(gateAdmits({ ...manifest, gate: `blake3:${"2".repeat(64)}` }, a).why, /not the one the manifest names/);
 });

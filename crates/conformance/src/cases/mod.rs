@@ -437,6 +437,83 @@ pub fn run_at(root: &Path, id: &str) {
         "HO-32" | "HO-33" | "HO-34" | "HO-35" => verify_build_provenance(root, id),
         // prism.verify (#449) is the existing checks under one namespace; its complete
         // owning file holds it to them on the conformance corpus and the signed fixtures.
+        // The WASM Lean prover (sdk/npm/lean-prover): each guarantee is its complete owning test files,
+        // exactly; the engine itself is held by the corpus gate in .github/workflows/lean-prover.yml.
+        "LP-01" => node_suite::verify_exact(
+            root,
+            id,
+            &[
+                ("sdk/npm/lean-prover/test/axioms.test.mjs", 3),
+                ("sdk/npm/lean-prover/test/verdict.test.mjs", 5),
+            ],
+            "120000",
+        ),
+        "LP-02" => node_suite::verify_exact(
+            root,
+            id,
+            &[
+                ("sdk/npm/lean-prover/test/blob.test.mjs", 2),
+                ("sdk/npm/lean-prover/test/manifest.test.mjs", 4),
+            ],
+            "120000",
+        ),
+        "LP-03" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/encoding.test.mjs", 1)],
+            "120000",
+        ),
+        "LP-04" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/gate-admits.test.mjs", 2)],
+            "120000",
+        ),
+        "LP-05" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/library.test.mjs", 2)],
+            "120000",
+        ),
+        "LP-06" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/trap.test.mjs", 2)],
+            "120000",
+        ),
+        "LP-07" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/kernel.test.mjs", 2)],
+            "120000",
+        ),
+        "LP-08" => node_suite::verify_exact(
+            root,
+            id,
+            &[
+                ("sdk/npm/lean-prover/test/gate.test.mjs", 2),
+                ("sdk/npm/lean-prover/test/pins.test.mjs", 5),
+            ],
+            "120000",
+        ),
+        "LP-09" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/coverage.test.mjs", 2)],
+            "120000",
+        ),
+        "LP-10" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/axioms-report.test.mjs", 1)],
+            "120000",
+        ),
+        "LP-11" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/lean-prover/test/collect.test.mjs", 1)],
+            "120000",
+        ),
         "AL-07" => node_suite::verify_exact(
             root,
             id,

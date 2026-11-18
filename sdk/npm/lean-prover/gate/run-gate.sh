@@ -96,11 +96,21 @@ mapfile -t specs < "$out/corpus.txt"
 # The manifest, then the engine on the same modules in the same order.
 node "$pkg/scripts/make-manifest.mjs" --sysroot "$LEAN_SYSROOT" --runtime "$rt" --engine "$WORK/dist" \
   --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
+# The official release's Init files by label, as elan installed them from the release, for the library check.
+node --input-type=module -e '
+  import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"; import { join, relative } from "node:path";
+  import { kappa } from "'"$pkg"'/src/vendor/blake3.mjs";
+  const [root, out] = process.argv.slice(1); const lib = join(root, "lib", "lean"); const listing = {};
+  for (const f of readdirSync(lib, { recursive: true }).map(String)) {
+    const p = join(lib, f); const rel = relative(root, p).replaceAll("\\", "/");
+    if (/^lib\/lean\/Init(\.|\/)/.test(rel) && statSync(p).isFile()) listing[rel] = kappa(readFileSync(p));
+  }
+  writeFileSync(out, JSON.stringify(listing));' "$LEAN_SYSROOT" "$out/official-init.json"
 node "$here/run-wasm.mjs" "$out/manifest" "${specs[@]}" > "$out/wasm.jsonl"
 
 node "$here/agree.mjs" "$out/native.jsonl" "$out/wasm.jsonl" | tee "$out/agree.txt"
 node "$here/defects.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" --wasm "$out/wasm.jsonl" \
-  --elab "$ELAB" --module "$(grep -m1 '^Leap.' "$out/corpus.txt")" --work "$out/defect" --out "$out/defects.json"
+  --elab "$ELAB" --official "$out/official-init.json" --module "$(grep -m1 '^Leap.' "$out/corpus.txt")" --work "$out/defect" --out "$out/defects.json"
 node "$here/attest.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" --wasm "$out/wasm.jsonl" \
   --corpus "$out/corpus.txt" --lexlean-sha256 "$(lock lexlean binaries linux_x86_64_sha256)" \
   --defects "$out/defects.json" --out "$out/gate.json" | tee "$out/gate-label.txt"

@@ -4633,3 +4633,14 @@ Every row below is normative, has the honesty level registered in `model/ids.tom
 | `TM-04` | `template-ci` | Least-privilege jobs build once and pass the exact digest through protected signing, publication, deployment, and verification boundaries. | §17 |
 | `TM-05` | `template-ci` | Template checks are read-only and explicit updates produce reviewable downstream patches or pull requests without hidden branch mutation. | §17 |
 | `TM-06` | `template-ci` | All in-scope UOR and Prism repositories use the common SDK bootstrap while preserving their repository-specific acceptance gates. | §17 |
+| `LP-01` | `lean-prover` | prove admits a module only when LexLean's check and render accept it, Lean elaborates it without error, the kernel replay accepts every declaration, and each declaration's observed axioms equal its declared policy. | §12 |
+| `LP-02` | `lean-prover` | A blob is admitted only when it decodes and the BLAKE3 label of the decoded bytes equals its manifest label; any other blob is refetched, and prove refuses a manifest whose label is not the pinned one. | §12 |
+| `LP-03` | `lean-prover` | The encoding changes neither which blobs are admitted nor the bytes the prover reads. | §12 |
+| `LP-04` | `lean-prover` | prove refuses an engine whose label the manifest's gate attestation does not name. | §12 |
+| `LP-05` | `lean-prover` | prove refuses a library any of whose Init files differs by label from the official Lean release. | §12 |
+| `LP-06` | `lean-prover` | A missed extern or a wait nothing can answer refuses the run; it never hangs or passes. | §12 |
+| `LP-07` | `lean-prover` | No declaration the in-tab kernel refuses is accepted, and no proof comes from a refused elaborator run. | §12 |
+| `LP-08` | `lean-prover` | The gate attestation names the engine, library, LexLean and corpus labels, and passes only when WASM equals native on every corpus declaration. | §12 |
+| `LP-09` | `lean-prover` | Every entrypoint module appears in prove's verdict. | §12 |
+| `LP-10` | `lean-prover` | prove reports each declaration's observed axioms. | §12 |
+| `LP-11` | `lean-prover` | Blob collection keeps exactly the blobs a pinned manifest names. | §12 |

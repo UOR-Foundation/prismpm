@@ -11,16 +11,26 @@ Proving a model used to need either a hosted prover or the multi-gigabyte SDK im
 ```js
 import { open } from "@prism-code/lean-prover";
 
-const prover = await open({ manifest, read });     // read(label) -> the stored blob's bytes
+const prover = await open({
+  manifest,   // the manifest's bytes
+  pin,        // the BLAKE3 label prism-code pins for them
+  read,       // read(label) -> the stored blob's bytes
+  gate,       // the corpus gate attestation the manifest names
+  official,   // { "lib/lean/Init/...": label } of the official Lean release
+});
 const result = await prover.prove({ project });     // project: Map of path -> bytes
 await prover.close();
 ```
+
+`open` refuses a manifest that is not the pinned one, an engine its gate did not admit, and a library whose Init files are not the official release's. Every refusal carries one of the registered `lean-prover.*` codes (`model/sdk-diagnostics.toml`, guarantees `LP-01` to `LP-11`).
 
 `prove` does four things:
 1. It runs LexLean's WASI build to check the project and render its Lean modules (`lexlean lean-modules`).
 2. It elaborates each module with Lean's own frontend.
 3. It replays every declaration through a second, fresh kernel environment.
-4. It applies the axiom audit exactly as `lexlean verify` does (LLV7005): for each declaration, the observed axioms must match its declared policy. Prism also refuses any axiom outside `propext`, `Quot.sound` and `Classical.choice`.
+4. It applies the axiom audit as `lexlean verify` does (LLV7005): for each declaration, the observed axioms must match its declared policy. Prism also refuses any axiom outside `propext`, `Quot.sound` and `Classical.choice`.
+
+The declared policies come from LexLean's render. Until LexLean emits that table, `prove` admits nothing: it reports every declaration's observed axioms and refuses with `lean-prover.axiom-policy`.
 
 The answer is `{ accepted, modules: [{ module, accepted, declarations: [{ name, kind, accepted, axioms }] }], policies, evidence }`. A refusal carries `refusal: { code, diagnostics }`.
 

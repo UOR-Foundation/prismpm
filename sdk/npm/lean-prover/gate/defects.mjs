@@ -1,6 +1,6 @@
 // The gate's planted defects. Each must be refused, or the gate admits nothing (gate/attest.mjs).
 //   node gate/defects.mjs --manifest DIR --native native.jsonl --wasm wasm.jsonl --elab NATIVE_ELAB
-//        --module Module=path --work DIR --out defects.json
+//        --module Module=path --official official-init.json --work DIR --out defects.json
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -8,6 +8,7 @@ import { gzipSync } from "node:zlib";
 import { auditPolicies, nonstandard } from "../src/axioms.mjs";
 import { readAdmitted } from "../src/blob.mjs";
 import { gateAdmits } from "../src/gate.mjs";
+import { unofficialInit } from "../src/library.mjs";
 import { openEngine } from "../src/prover.mjs";
 import { agree, load } from "./agree.mjs";
 import { attest, gateLabel } from "./attest.mjs";
@@ -32,7 +33,7 @@ await plant("changed-olean-byte", async () => {
   bytes[bytes.length >> 1] ^= 1;
   const tampered = gzipSync(bytes);
   try { await readAdmitted(() => tampered, entry, entry.path); return { refused: false }; }
-  catch (e) { return { refused: e.code === "lean-prover.blob", detail: e.message }; }
+  catch (e) { return { refused: e.code === "lean-prover.blob-kappa", detail: e.message }; }
 });
 
 // A declaration the engine reports differently from native: the agreement refuses.
@@ -63,6 +64,17 @@ await plant("ungated-engine", async () => {
   other.gate = gateLabel(attestation);
   const v = gateAdmits(other, attestation);
   return { refused: !v.admitted, detail: v.why };
+});
+
+// An Init file that is not the official release's: the library is refused (official: the toolchain's own files).
+await plant("unofficial-init", async () => {
+  const official = JSON.parse(readFileSync(a.official, "utf8"));
+  if (unofficialInit(manifest, official).length) throw new Error("the gate's own library is not official");
+  const other = structuredClone(manifest);
+  const init = other.library.find((e) => e.path.startsWith("/lean/lib/lean/Init"));
+  init.kappa = `blake3:${"3".repeat(64)}`;
+  const off = unofficialInit(other, official);
+  return { refused: off.length === 1, detail: off[0] };
 });
 
 // A broken proof, live: a corpus module cut short inside its first theorem. Both Lean and the engine refuse it.

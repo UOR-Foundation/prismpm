@@ -1,7 +1,7 @@
 // Whether a manifest is admitted by its corpus gate: the manifest names the gate attestation by its BLAKE3 label,
-// and that attestation admitted this very engine and library. A manifest without a gate is never a default.
+// and that attestation admitted this very engine, library and LexLean. A manifest without a gate is never a default.
 import { blake3Label } from "./blob.mjs";
-import { libraryLabel } from "./prover.mjs";
+import { libraryLabel } from "./library.mjs";
 
 const enc = new TextEncoder();
 

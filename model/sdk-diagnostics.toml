@@ -422,6 +422,66 @@ capability = "OC-11"
 statement = "The inspect selector is malformed; it is a dotted path such as sections[0].digest.sha256."
 
 [[error]]
+code = "lean-prover.axiom-policy"
+capability = "LP-01"
+statement = "A declaration's observed axioms differ from its declared policy."
+
+[[error]]
+code = "lean-prover.blob-kappa"
+capability = "LP-02"
+statement = "A blob decodes to bytes whose BLAKE3 label is not its manifest label."
+
+[[error]]
+code = "lean-prover.blob-missing"
+capability = "LP-02"
+statement = "A blob is not in the store and could not be fetched."
+
+[[error]]
+code = "lean-prover.blob-undecodable"
+capability = "LP-02"
+statement = "A blob's bytes do not decode as its manifest encoding."
+
+[[error]]
+code = "lean-prover.elaboration-error"
+capability = "LP-01"
+statement = "Lean reported an error while elaborating a module."
+
+[[error]]
+code = "lean-prover.engine-trap"
+capability = "LP-06"
+statement = "The engine called a missing extern or waited on a task nothing can complete."
+
+[[error]]
+code = "lean-prover.engine-ungated"
+capability = "LP-04"
+statement = "The manifest's gate attestation does not name this engine's label."
+
+[[error]]
+code = "lean-prover.entrypoint-uncovered"
+capability = "LP-09"
+statement = "An entrypoint module is missing from prove's verdict."
+
+[[error]]
+code = "lean-prover.front-end-refused"
+capability = "LP-01"
+statement = "LexLean's check or render refused the project; the diagnostic carries LexLean's own code."
+
+[[error]]
+code = "lean-prover.kernel-refused"
+capability = "LP-01"
+statement = "The kernel replay refused a declaration."
+
+[[error]]
+code = "lean-prover.library-unofficial"
+capability = "LP-05"
+statement = "An Init file's BLAKE3 label differs from the official Lean release."
+
+[[error]]
+code = "lean-prover.manifest-unpinned"
+capability = "LP-02"
+statement = "The manifest's BLAKE3 label is not the one prism-code pins."
+
+[[error]]
 code = "load.fetch"
 capability = "DK-41"
 statement = "The URL a holo was loaded from answered with an HTTP error."

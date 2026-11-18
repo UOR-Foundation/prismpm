@@ -16,47 +16,50 @@ export class ProverError extends Error {
   }
 }
 
-/** The entry's shape, or a `lean-prover.manifest` refusal. */
+/** The entry's shape, or a `lean-prover.manifest-unpinned` refusal: a malformed manifest is never the pinned one. */
 export function checkEntry(entry, where) {
-  if (!entry || typeof entry !== "object") throw new ProverError("lean-prover.manifest", `${where} is not an entry`);
-  if (typeof entry.kappa !== "string" || !LABEL.test(entry.kappa)) {
-    throw new ProverError("lean-prover.manifest", `${where} has no BLAKE3 label`);
-  }
-  if (!Number.isSafeInteger(entry.bytes) || entry.bytes < 0) throw new ProverError("lean-prover.manifest", `${where} has no byte length`);
-  if (entry.encoding !== "gzip" && entry.encoding !== "identity") {
-    throw new ProverError("lean-prover.manifest", `${where} has encoding ${entry.encoding}, not gzip or identity`);
-  }
+  const fail = (why) => { throw new ProverError("lean-prover.manifest-unpinned", why); };
+  if (!entry || typeof entry !== "object") fail(`${where} is not an entry`);
+  if (typeof entry.kappa !== "string" || !LABEL.test(entry.kappa)) fail(`${where} has no BLAKE3 label`);
+  if (!Number.isSafeInteger(entry.bytes) || entry.bytes < 0) fail(`${where} has no byte length`);
+  if (entry.encoding !== "gzip" && entry.encoding !== "identity") fail(`${where} has encoding ${entry.encoding}, not gzip or identity`);
   return entry;
 }
 
-/** The decoded bytes when the blob is admitted, otherwise null (a miss). Never throws on bad bytes. */
-export function admit(entry, encoded) {
-  if (!(encoded instanceof Uint8Array)) return null;
+const toBytes = (value) => (value instanceof Uint8Array ? value : value instanceof ArrayBuffer ? new Uint8Array(value) : null);
+
+/**
+ * { bytes } when the blob is admitted, otherwise { code } naming the miss: `lean-prover.blob-missing` (no bytes),
+ * `lean-prover.blob-undecodable` (they do not decode as the manifest's encoding) or `lean-prover.blob-kappa` (the
+ * decoded bytes do not have the manifest's label). Never throws.
+ */
+export function examine(entry, stored) {
+  const encoded = toBytes(stored);
+  if (!encoded) return { code: "lean-prover.blob-missing" };
   let bytes;
   try {
     bytes = entry.encoding === "gzip" ? new Uint8Array(gunzipSync(encoded)) : encoded.slice();
   } catch {
-    return null;
+    return { code: "lean-prover.blob-undecodable" };
   }
-  if (bytes.length !== entry.bytes) return null;
-  return blake3Label(bytes) === entry.kappa ? bytes : null;
+  if (bytes.length !== entry.bytes || blake3Label(bytes) !== entry.kappa) return { code: "lean-prover.blob-kappa" };
+  return { bytes };
 }
+
+/** The decoded bytes when the blob is admitted, otherwise null (a miss). */
+export const admit = (entry, stored) => examine(entry, stored).bytes ?? null;
 
 /**
  * Reads one entry through `read(label, { refetch })`. A miss is read once more with `refetch: true`; a second miss
- * is the refusal `lean-prover.blob`. The prover uses only bytes admitted here.
+ * is refused with the code that names it. The prover uses only bytes admitted here.
  */
 export async function readAdmitted(read, entry, where) {
   checkEntry(entry, where);
+  let seen;
   for (const refetch of [false, true]) {
-    const bytes = admit(entry, toBytes(await read(entry.kappa, { refetch })));
-    if (bytes) return bytes;
+    seen = examine(entry, await read(entry.kappa, { refetch }));
+    if (seen.bytes) return seen.bytes;
   }
-  throw new ProverError("lean-prover.blob", `${where} (${entry.kappa}) does not decode to bytes with its BLAKE3 label`);
-}
-
-function toBytes(value) {
-  if (value instanceof Uint8Array) return value;
-  if (value instanceof ArrayBuffer) return new Uint8Array(value);
-  return null;
+  const why = { "lean-prover.blob-missing": "is not in the store and could not be fetched", "lean-prover.blob-undecodable": `does not decode as ${entry.encoding}`, "lean-prover.blob-kappa": "decodes to bytes without its BLAKE3 label" }[seen.code];
+  throw new ProverError(seen.code, `${where} (${entry.kappa}) ${why}`);
 }

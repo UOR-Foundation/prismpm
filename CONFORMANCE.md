@@ -167,6 +167,22 @@ The three honesty levels:
 | `HO-45` | `build` | prism-code runs a session-world guest as sessions: one instance per session with an empty first state, steps in order returning zero or more responses through dispatch and stream, every failure ending the session, session.closed for a later step, session.busy for a concurrent step, session.required for dispatch on the application and session.unsupported for open on a stateless one; acceptance sessions are compared step by step; prism/history/2 records sessions as steps and the failure that ended them, and replay re-executes each on a fresh session, reporting every divergence as a DeterminismViolationError and refusing a history of the other world with replay.history. |
 | `HO-46` | `build` | Definitions of one application that share a last name component build: prod-export names a requested root by its last component and any other definition of the closure by its last component while no other definition has it, and otherwise by a reserved prefix followed by the length and text of each component of its qualified name, so distinct definitions have distinct names and calls reach the definition they name; an application with no shared last component exports the same bytes as before, and two requested roots that share a last component are refused by name with PP5004. |
 
+## lean-prover
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `LP-01` | `build` | prove admits a module only when LexLean's check and render accept it, Lean elaborates it without error, the kernel replay accepts every declaration, and each declaration's observed axioms equal its declared policy. |
+| `LP-02` | `build` | A blob is admitted only when it decodes and the BLAKE3 label of the decoded bytes equals its manifest label; any other blob is refetched, and prove refuses a manifest whose label is not the pinned one. |
+| `LP-03` | `build` | The encoding changes neither which blobs are admitted nor the bytes the prover reads. |
+| `LP-04` | `build` | prove refuses an engine whose label the manifest's gate attestation does not name. |
+| `LP-05` | `build` | prove refuses a library any of whose Init files differs by label from the official Lean release. |
+| `LP-06` | `build` | A missed extern or a wait nothing can answer refuses the run; it never hangs or passes. |
+| `LP-07` | `build` | No declaration the in-tab kernel refuses is accepted, and no proof comes from a refused elaborator run. |
+| `LP-08` | `build` | The gate attestation names the engine, library, LexLean and corpus labels, and passes only when WASM equals native on every corpus declaration. |
+| `LP-09` | `build` | Every entrypoint module appears in prove's verdict. |
+| `LP-10` | `build` | prove reports each declaration's observed axioms. |
+| `LP-11` | `build` | Blob collection keeps exactly the blobs a pinned manifest names. |
+
 ## lifecycle
 
 | ID | Level | Statement |

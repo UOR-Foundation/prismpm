@@ -16,7 +16,7 @@ test("a blob is admitted only when it decodes to bytes with the manifest's BLAKE
   assert.equal(admit(e, null), null);
 });
 
-test("a miss is read again once, then refused with lean-prover.blob", async () => {
+test("a miss is read again once, then refused with the code that names it", async () => {
   const bytes = enc.encode("library file");
   const e = entry(bytes);
   const asked = [];
@@ -24,11 +24,7 @@ test("a miss is read again once, then refused with lean-prover.blob", async () =
   const out = await readAdmitted((label, o) => { asked.push(o.refetch); return o.refetch ? good : bad; }, e, "x");
   assert.deepEqual(out, bytes);
   assert.deepEqual(asked, [false, true]);
-  await assert.rejects(readAdmitted(() => bad, e, "x"), (err) => err.code === "lean-prover.blob");
-});
-
-test("the encoding never changes admission or the bytes the prover reads", () => {
-  const bytes = enc.encode("same bytes, two encodings");
-  const e = entry(bytes);
-  assert.deepEqual(admit(e, gzipSync(bytes, { level: 1 })), admit({ ...e, encoding: "identity" }, bytes));
+  await assert.rejects(readAdmitted(() => bad, e, "x"), (err) => err.code === "lean-prover.blob-kappa");
+  await assert.rejects(readAdmitted(() => null, e, "x"), (err) => err.code === "lean-prover.blob-missing");
+  await assert.rejects(readAdmitted(() => bytes, e, "x"), (err) => err.code === "lean-prover.blob-undecodable");
 });

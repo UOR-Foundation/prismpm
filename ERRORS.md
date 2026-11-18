@@ -1001,6 +1001,18 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `init.template` |  | `DK-41` | init was asked for a template it does not have, or the template already holds a generated file. |
 | `inspect.kind` |  | `OC-11` | inspect was given a directory or a closure, which has no section table; it reads a .holo archive. |
 | `inspect.selector` |  | `OC-11` | The inspect selector is malformed; it is a dotted path such as sections[0].digest.sha256. |
+| `lean-prover.axiom-policy` |  | `LP-01` | A declaration's observed axioms differ from its declared policy. |
+| `lean-prover.blob-kappa` |  | `LP-02` | A blob decodes to bytes whose BLAKE3 label is not its manifest label. |
+| `lean-prover.blob-missing` |  | `LP-02` | A blob is not in the store and could not be fetched. |
+| `lean-prover.blob-undecodable` |  | `LP-02` | A blob's bytes do not decode as its manifest encoding. |
+| `lean-prover.elaboration-error` |  | `LP-01` | Lean reported an error while elaborating a module. |
+| `lean-prover.engine-trap` |  | `LP-06` | The engine called a missing extern or waited on a task nothing can complete. |
+| `lean-prover.engine-ungated` |  | `LP-04` | The manifest's gate attestation does not name this engine's label. |
+| `lean-prover.entrypoint-uncovered` |  | `LP-09` | An entrypoint module is missing from prove's verdict. |
+| `lean-prover.front-end-refused` |  | `LP-01` | LexLean's check or render refused the project; the diagnostic carries LexLean's own code. |
+| `lean-prover.kernel-refused` |  | `LP-01` | The kernel replay refused a declaration. |
+| `lean-prover.library-unofficial` |  | `LP-05` | An Init file's BLAKE3 label differs from the official Lean release. |
+| `lean-prover.manifest-unpinned` |  | `LP-02` | The manifest's BLAKE3 label is not the one prism-code pins. |
 | `lexlean.wasm-failed` |  | `DK-47` | LexLean as WebAssembly gave no command result. |
 | `lexlean.wasm-mismatch` |  | `DK-47` | The bytes of LexLean as WebAssembly, kept, fetched or named by PRISM_LEXLEAN_WASM, are not the pinned ones. |
 | `lexlean.wasm-unavailable` |  | `DK-47` | LexLean as WebAssembly is not on this machine and no public copy is pinned to fetch it from. |
