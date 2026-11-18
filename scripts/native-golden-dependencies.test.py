@@ -218,6 +218,14 @@ class SupplementTest(unittest.TestCase):
         self.install()
         self.assertEqual(len(list((self.owner / f'registry/cache/{deps.REGISTRY}').iterdir())), 4)
 
+    def test_sparse_index_entries_framed_by_either_cargo_validator(self):
+        entry = json.dumps({'name': 'fixture', 'vers': '1.0.0', 'cksum': 'c' * 64}).encode()
+        rows = [{'name': 'fixture', 'version': '1.0.0', 'checksum': 'c' * 64}]
+        for header in (b'etag: "fixture"', b'last-modified: Tue, 18 Nov 2026 12:00:00 GMT'):
+            deps.validate_index(b'\x03\x02\0\0\0' + header + b'\0' + b'1.0.0\0' + entry + b'\0', rows)
+        with self.assertRaisesRegex(ValueError, 'invalid sparse index framing'):
+            deps.validate_index(b'\x03\x02\0\0\0' + b'x-other: 1' + b'\0' + b'1.0.0\0' + entry + b'\0', rows)
+
     def test_each_independent_lock_drift_refused_before_owner_write(self):
         self.prepare()
         for relative in deps.MANIFESTS[1:]:
@@ -259,8 +267,8 @@ class SupplementTest(unittest.TestCase):
 
 if __name__ == "__main__":
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(SupplementTest)
-    deps.require(suite.countTestCases() == 22, "complete dependency test inventory required")
+    deps.require(suite.countTestCases() == 23, "complete dependency test inventory required")
     result = unittest.TextTestRunner().run(suite)
-    deps.require(result.wasSuccessful() and result.testsRun == 22 and not result.skipped,
+    deps.require(result.wasSuccessful() and result.testsRun == 23 and not result.skipped,
                  "complete dependency tests must pass without skips")
     print(json.dumps({"tests": result.testsRun, "status": "passed"}))

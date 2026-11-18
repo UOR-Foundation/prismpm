@@ -185,7 +185,8 @@ def validate_index(data, rows):
     require(data[:5] == b"\x03\x02\x00\x00\x00" and data.endswith(b"\0"),
             "unsupported pinned Cargo sparse index encoding")
     parts = data[5:].split(b"\0")
-    require(parts[0].startswith(b"etag:") and len(parts) % 2 == 0,
+    # Cargo records the validator the registry answered with: an ETag, or Last-Modified when it sent none.
+    require(parts[0].startswith((b"etag:", b"last-modified:")) and len(parts) % 2 == 0,
             "invalid sparse index framing")
     versions = {}
     for version, raw in zip(parts[1:-1:2], parts[2:-1:2]):
