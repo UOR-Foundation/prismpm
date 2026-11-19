@@ -21,7 +21,7 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -100,7 +100,7 @@ jobs:
     needs: [plan, establish]
     if: ${{ always() && needs.plan.result == 'success' && needs.establish.result != 'skipped' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -185,7 +185,7 @@ jobs:
     needs: [plan, establish, plan-2, establish-2]
     if: ${{ always() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
       statuses: write
@@ -207,7 +207,7 @@ jobs:
     needs: [report]
     if: ${{ always() && needs.report.result != 'skipped' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
