@@ -82,11 +82,29 @@ for i in $(seq 0 $((n - 1))); do
   name=$(lock corpus "$i" name)
   dest=$WORK/corpus/$name
   rm -rf "$dest" && mkdir -p "$dest"
-  if python3 -c 'import json,sys; sys.exit(0 if "repository" in json.load(open(sys.argv[1]))["corpus"][int(sys.argv[2])] else 1)' "$pkg/engine.lock.json" "$i"; then
+  if python3 -c 'import json,sys; sys.exit(0 if "lean_module" in json.load(open(sys.argv[1]))["corpus"][int(sys.argv[2])] else 1)' "$pkg/engine.lock.json" "$i"; then
+    # A Lean module, not a LexLean project: fetched and admitted by its BLAKE3 label.
+    module=$(lock corpus "$i" lean_module)
+    file=$dest/$(echo "$module" | tr . /).lean
+    mkdir -p "$(dirname "$file")"
+    curl -fsSL "https://raw.githubusercontent.com/$(lock corpus "$i" repository)/$(lock corpus "$i" commit)/$(lock corpus "$i" file)" -o "$file"
+    node --input-type=module -e '
+      import { readFileSync } from "node:fs"; import { kappa } from "'"$pkg"'/src/vendor/blake3.mjs";
+      const [f, want] = process.argv.slice(1); const got = kappa(readFileSync(f));
+      if (got !== want) { console.error(`${f} is ${got}, not ${want}`); process.exit(1); }' "$file" "$(lock corpus "$i" kappa)"
+    corpus_dirs+=("$dest")
+    continue
+  elif python3 -c 'import json,sys; sys.exit(0 if "repository" in json.load(open(sys.argv[1]))["corpus"][int(sys.argv[2])] else 1)' "$pkg/engine.lock.json" "$i"; then
     git -C "$src" archive HEAD "$(lock corpus "$i" path)" | tar -x -C "$dest" --strip-components=$(lock corpus "$i" path | awk -F/ '{print NF}')
   else
     cp -r "$pkg/$(lock corpus "$i" path)/." "$dest/"
     rm -rf "$dest/.lexlean" "$dest/.lake"
+    if python3 -c 'import json,sys; sys.exit(0 if "relock" in json.load(open(sys.argv[1]))["corpus"][int(sys.argv[2])] else 1)' "$pkg/engine.lock.json" "$i"; then
+      toolchain=$(lock corpus "$i" relock)
+      sed -i "s|^lean_toolchain = .*|lean_toolchain = \"$toolchain\"|" "$dest/lexlean.toml"
+      echo "$toolchain" > "$dest/lean-toolchain"
+      rm -f "$dest/lexlean.lock"
+    fi
   fi
   corpus_dirs+=("$(render "$dest")/modules")
 done
@@ -96,7 +114,8 @@ echo "corpus: $(wc -l < "$out/corpus.txt") modules"
 # Native: the driver built from the same pinned source, in resident mode, the way the engine serves.
 ELAB=$WORK/driver/.lake/build/bin/elab
 mapfile -t specs < "$out/corpus.txt"
-"$ELAB" --resident "$out/native-out" "${specs[@]}" > "$out/native.jsonl"
+# Timed by GNU time: wall seconds and peak resident kilobytes.
+/usr/bin/time -f '%e %M' -o "$out/time-native.txt" "$ELAB" --resident "$out/native-out" "${specs[@]}" > "$out/native.jsonl"
 
 # The browser corpus: each module's rendered Lean as <Module>.lean, their order, and native Lean's answers.
 mkdir -p "$out/browser-corpus"
@@ -115,7 +134,12 @@ node --input-type=module -e '
     if (/^lib\/lean\/Init(\.|\/)/.test(rel) && statSync(p).isFile()) listing[rel] = kappa(readFileSync(p));
   }
   writeFileSync(out, JSON.stringify(listing));' "$LEAN_SYSROOT" "$out/official-init.json"
-node "$here/run-wasm.mjs" "$out/manifest" "${specs[@]}" > "$out/wasm.jsonl"
+# Cold: an empty module store, every module elaborated. Warm: the store the cold run filled, every module checked
+# again by the kernel instead of elaborated. Both must agree with native Lean.
+rm -rf "$out/store"
+node "$here/run-wasm.mjs" "$out/manifest" --store "$out/store" --timings "$out/timing-wasm-cold.json" "${specs[@]}" > "$out/wasm.jsonl"
+node "$here/run-wasm.mjs" "$out/manifest" --store "$out/store" --timings "$out/timing-wasm-warm.json" "${specs[@]}" > "$out/wasm-warm.jsonl"
+node "$here/agree.mjs" "$out/native.jsonl" "$out/wasm-warm.jsonl" | tee "$out/agree-warm.txt"
 
 node "$here/agree.mjs" "$out/native.jsonl" "$out/wasm.jsonl" | tee "$out/agree.txt"
 node "$here/defects.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" --wasm "$out/wasm.jsonl" \
@@ -123,3 +147,4 @@ node "$here/defects.mjs" --manifest "$out/manifest" --native "$out/native.jsonl"
 node "$here/attest.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" --wasm "$out/wasm.jsonl" \
   --corpus "$out/corpus.txt" --lexlean-sha256 "$(lock lexlean binaries linux_x86_64_sha256)" \
   --defects "$out/defects.json" --out "$out/gate.json" | tee "$out/gate-label.txt"
+node "$here/speed.mjs" "$out/speed.json" native="$out/time-native.txt" wasm-cold="$out/timing-wasm-cold.json" wasm-warm="$out/timing-wasm-warm.json"

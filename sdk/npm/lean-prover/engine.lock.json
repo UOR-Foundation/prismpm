@@ -69,6 +69,15 @@
   ],
   "corpus": [
     {
+      "name": "tactics",
+      "note": "foundry's Spike.Tactics, handwritten Lean: fetched by CI and admitted by its BLAKE3 label, never committed here",
+      "lean_module": "Spike.Tactics",
+      "repository": "UOR-Foundation/foundry",
+      "commit": "43b66b26d38b",
+      "file": "v2/in-tab-kernel/elab/inputs/Tactics.lean",
+      "kappa": "blake3:603dfc83d099befb9db576d70e92ecc705ed6527a36408485e481c8a58aed9ee"
+    },
+    {
       "name": "leap",
       "path": "gate/corpus/leap"
     },
@@ -81,6 +90,12 @@
       "repository": "UOR-Foundation/LexLean",
       "commit": "fa271080652887976ae25d0aef84edc7472b0276",
       "path": "examples/fold-laws"
+    },
+    {
+      "name": "prism-rule-app",
+      "path": "../prism-code/model/rule-app",
+      "relock": "leanprover/lean4:v4.32.2",
+      "note": "prism-code's rule app, locked here at Lean 4.32.1: the gate relocks a copy at 4.32.2"
     }
   ]
 }

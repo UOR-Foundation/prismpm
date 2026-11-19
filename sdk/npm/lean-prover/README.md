@@ -102,7 +102,16 @@ The gate runs these steps:
    - a broken proof.
 4. It writes `gate.json`, which names the engine, library, LexLean and corpus by BLAKE3 label.
 
-The corpus is three LexLean projects:
-- `gate/corpus/leap`;
-- this package's `spec`;
+The corpus is fixed in `engine.lock.json`:
+- foundry's `Spike.Tactics` (`simp`, `omega`, `decide`, `split`, `induction`). It is handwritten Lean, so CI fetches it and admits it by its BLAKE3 label; it is never committed here.
+- `gate/corpus/leap`.
+- This package's `spec`, including `InTabKernel`.
 - LexLean's `examples/fold-laws` at the release commit.
+- prism-code's rule app, `model/rule-app`, relocked to Lean 4.32.2 in a work copy.
+
+The engine runs the corpus three ways, and each run must agree with native Lean on every declaration:
+- **cold:** an empty module store, under Node 24;
+- **warm:** the store the cold run filled, so each module is checked again by the kernel instead of elaborated;
+- **cold under Node 22.**
+
+`speed.json` records total, open and per-module time and peak memory for native Lean and each engine run. Times are recorded, never compared.
