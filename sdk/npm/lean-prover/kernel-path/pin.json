@@ -1,0 +1,61 @@
+{
+ "schema": "lexlean/pin/1",
+ "lean": {
+  "version": "4.32.2",
+  "commit": "f3b06c705e6c85f5314019d5d3baab0fec5b580c"
+ },
+ "kernel": {
+  "source": "leanprover/lean4@f3b06c705e6c85f5314019d5d3baab0fec5b580c, src/kernel unchanged",
+  "sha256": "sha256:49cdfae03dad56ad4deab5845890152bdbcae44fc8e96964f5c049134611dcb6"
+ },
+ "bootstrap": {
+  "hologram/hologram_store_bg.wasm": "sha256:4d71123f3576c3ceac50a97d426eefcddd74a5e58d461734c5eed5464b815407",
+  "hologram/hologram_store.js": "sha256:3581ed55a298a74abb2f9428dc58905521c3a2dd4ca4ee440eb338c372e6b708"
+ },
+ "assets": {
+  "hologram/hologram_store_bg.wasm": {
+   "kappa": "blake3:d3c298d54ddcfac34fd93d1a13e4b341cddbd2af9e4da3803147e734e74e9816",
+   "bytes": 186513
+  },
+  "hologram/hologram_store.js": {
+   "kappa": "blake3:071c6d4bb24833cf3cae1d2bcc61a9bc03b746a4c2d29afc9d5860278bb6f07d",
+   "bytes": 35030
+  },
+  "kernel/lean-kernel.wasm": {
+   "kappa": "blake3:2f254140590074724ca1a8033080e0ae0834a018e06481ad7ccf7de9b80f175a",
+   "bytes": 2235146,
+   "file": "kernel/lean-kernel.wasm.gz",
+   "encoding": "gzip"
+  },
+  "kernel/lean-kernel.mjs": {
+   "kappa": "blake3:ec13d669b62c9a0223a937e04c3df18235fa67878ca53ba926f75904fe9c4610",
+   "bytes": 62389
+  },
+  "library/library.ndjson": {
+   "kappa": "blake3:f2f47e7880331a839b592ea2a6c3eab18bc53fa58c7ccc9f403cfd15a62588fc",
+   "bytes": 7666489,
+   "file": "library/library.ndjson.gz",
+   "encoding": "gzip"
+  },
+  "src/emit.mjs": {
+   "kappa": "blake3:4bbec77d590bbaccedcad064622e82bab0eb7717cc27499985fe95112226f7f4",
+   "bytes": 56366
+  },
+  "src/store.mjs": {
+   "kappa": "blake3:f0ac5293141ef20523abeeb37197a2de21d4d2e33486be715cad02f5f4586115",
+   "bytes": 4382
+  },
+  "src/prover.mjs": {
+   "kappa": "blake3:2b5c27793d08d4252987f4709c74e1d7fed7a1baf477775c55da1b966aed04a0",
+   "bytes": 10201
+  },
+  "src/worker.mjs": {
+   "kappa": "blake3:d818125b9b41d32834c98a3faf5a08cb3ee929fa18f2315ef89aae81564949d1",
+   "bytes": 5592
+  },
+  "web/app.mjs": {
+   "kappa": "blake3:cead4f28b47f807c832a6c076605658ada4e0171e630364c4717c272fc12fa55",
+   "bytes": 7729
+  }
+ }
+}

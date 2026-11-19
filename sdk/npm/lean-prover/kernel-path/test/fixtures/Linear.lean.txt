@@ -1,0 +1,27 @@
+namespace Linear
+
+theorem transitive (x : Int) (y : Int) (z : Int) : ((x <= y) -> ((y <= z) -> (x <= z))) := by
+  linear_arithmetic
+
+theorem bounded (x : Int) (y : Int) : ((x + (2 : Int) * y <= (10 : Int)) -> (((3 : Int) <= y) -> (x <= (4 : Int)))) := by
+  linear_arithmetic
+
+theorem strict (x : Int) (y : Int) (z : Int) : ((x < y) -> ((y < z) -> (x + (2 : Int) <= z))) := by
+  linear_arithmetic
+
+theorem average (x : Int) (y : Int) : ((x <= y) -> ((2 : Int) * x <= x + y)) := by
+  linear_arithmetic
+
+theorem halve (x : Int) (y : Int) : (((2 : Int) * x <= (2 : Int) * y) -> (x <= y)) := by
+  linear_arithmetic
+
+theorem difference (x : Int) (y : Int) (z : Int) : ((x - y <= z) -> ((z <= (0 : Int)) -> (x <= y))) := by
+  linear_arithmetic
+
+theorem chain10 (x0 : Int) (x1 : Int) (x2 : Int) (x3 : Int) (x4 : Int) (x5 : Int) (x6 : Int) (x7 : Int) (x8 : Int) (x9 : Int) (x10 : Int) : ((x0 <= x1) -> ((x1 <= x2) -> ((x2 <= x3) -> ((x3 <= x4) -> ((x4 <= x5) -> ((x5 <= x6) -> ((x6 <= x7) -> ((x7 <= x8) -> ((x8 <= x9) -> ((x9 <= x10) -> (x0 <= x10))))))))))) := by
+  linear_arithmetic
+
+theorem chain40 (x0 : Int) (x1 : Int) (x2 : Int) (x3 : Int) (x4 : Int) (x5 : Int) (x6 : Int) (x7 : Int) (x8 : Int) (x9 : Int) (x10 : Int) (x11 : Int) (x12 : Int) (x13 : Int) (x14 : Int) (x15 : Int) (x16 : Int) (x17 : Int) (x18 : Int) (x19 : Int) (x20 : Int) (x21 : Int) (x22 : Int) (x23 : Int) (x24 : Int) (x25 : Int) (x26 : Int) (x27 : Int) (x28 : Int) (x29 : Int) (x30 : Int) (x31 : Int) (x32 : Int) (x33 : Int) (x34 : Int) (x35 : Int) (x36 : Int) (x37 : Int) (x38 : Int) (x39 : Int) (x40 : Int) : ((x0 <= x1) -> ((x1 <= x2) -> ((x2 <= x3) -> ((x3 <= x4) -> ((x4 <= x5) -> ((x5 <= x6) -> ((x6 <= x7) -> ((x7 <= x8) -> ((x8 <= x9) -> ((x9 <= x10) -> ((x10 <= x11) -> ((x11 <= x12) -> ((x12 <= x13) -> ((x13 <= x14) -> ((x14 <= x15) -> ((x15 <= x16) -> ((x16 <= x17) -> ((x17 <= x18) -> ((x18 <= x19) -> ((x19 <= x20) -> ((x20 <= x21) -> ((x21 <= x22) -> ((x22 <= x23) -> ((x23 <= x24) -> ((x24 <= x25) -> ((x25 <= x26) -> ((x26 <= x27) -> ((x27 <= x28) -> ((x28 <= x29) -> ((x29 <= x30) -> ((x30 <= x31) -> ((x31 <= x32) -> ((x32 <= x33) -> ((x33 <= x34) -> ((x34 <= x35) -> ((x35 <= x36) -> ((x36 <= x37) -> ((x37 <= x38) -> ((x38 <= x39) -> ((x39 <= x40) -> (x0 <= x40))))))))))))))))))))))))))))))))))))))))) := by
+  linear_arithmetic
+
+end Linear

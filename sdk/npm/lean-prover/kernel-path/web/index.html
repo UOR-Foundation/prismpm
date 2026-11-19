@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexLean prover</title>
+<style>
+  :root { --bg: #fff; --fg: #15171a; --dim: #5d6672; --line: #d9dee5; --ok: #0a7a3d; --bad: #b3261e; --accent: #1f4fd6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111417; --fg: #e8eaed; --dim: #9aa3ad; --line: #2a3038; --ok: #4cc38a; --bad: #ff8a80; --accent: #8ab4f8; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .dim { color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+  select, button, textarea { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 8px; }
+  select, button { padding: 8px 12px; min-height: 40px; }
+  button { background: var(--accent); color: var(--bg); border-color: var(--accent); cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  textarea { width: 100%; min-height: 160px; padding: 10px; font: 12px/1.45 ui-monospace, Consolas, monospace; }
+  #verdict { font-size: 18px; margin: 16px 0 4px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  ul { padding-left: 18px; margin: 6px 0; } li { overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Consolas, monospace; color: var(--dim); margin: 16px 0 0; }
+</style>
+<main>
+  <h1>LexLean prover</h1>
+  <div class="dim" id="pin">starting…</div>
+  <div id="app"></div>
+  <pre id="log"></pre>
+</main>
+<script type="module">
+// The boot. This is the only code that runs unverified, and all it does is verify:
+//   1. the pin is fetched; its κ-label is the environment (give ?pin=<label> to require a particular one)
+//   2. the hashing code is checked with the browser's own SHA-256, then loaded
+//   3. every other file is checked against its BLAKE3 κ-label in the pin
+//   4. modules and workers are built from those checked bytes only, never from a URL on the server
+const started = performance.now(), dec = new TextDecoder(), q = new URLSearchParams(location.search);
+const log = document.getElementById("log"), results = window.__results = { lines: [], done: false };
+const say = (s) => { results.lines.push(s); log.textContent += s + "\n"; };
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+const get = async (p, gzip) => { const r = await fetch(new URL("../" + p, location.href), { cache: "no-store" }); if (!r.ok) throw new Error(`${p}: ${r.status}`); return new Uint8Array(await (gzip ? new Response(r.body.pipeThrough(new DecompressionStream("gzip"))) : r).arrayBuffer()); };
+try {
+  const pinBytes = await get("pin.json"), pin = JSON.parse(dec.decode(pinBytes)), files = new Map(), urls = new Map();
+  for (const [p, label] of Object.entries(pin.bootstrap)) {
+    const b = await get(p);
+    if ("sha256:" + hex(await crypto.subtle.digest("SHA-256", b)) !== label) throw new Error(`refused ${p}: it does not match the pin`);
+    files.set(p, b);
+  }
+  const resolve = (dir, rel) => { const out = dir.split("/").filter(Boolean); for (const part of rel.split("/")) { if (part === "..") out.pop(); else if (part !== ".") out.push(part); } return out.join("/"); };
+  const link = (path) => {
+    if (urls.has(path)) return urls.get(path);
+    if (!files.has(path)) throw new Error(`${path} is not in the pin`);
+    const dir = path.slice(0, path.lastIndexOf("/") + 1);
+    const src = dec.decode(files.get(path)).replace(/(\bfrom\s*|\bimport\s*)(["'])(\.{1,2}\/[^"']+)\2/g, (m, kw, quote, rel) => kw + quote + link(resolve(dir, rel)) + quote);
+    const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" })); urls.set(path, url); return url;
+  };
+  const holo = await import(link("hologram/hologram_store.js"));
+  await holo.default({ module_or_path: files.get("hologram/hologram_store_bg.wasm") });
+  const root = holo.address(pinBytes);
+  if (q.get("pin") && q.get("pin") !== root) throw new Error(`refused: the pin served is ${root}, not the one asked for`);
+  let bytes = pinBytes.length;
+  for (const [p, a] of Object.entries(pin.assets)) {
+    const b = files.get(p) || (a.encoding === "gzip" ? await get(a.file, true) : await get(p)); // labelled by the decoded bytes
+    if (holo.address(b) !== a.kappa) throw new Error(`refused ${p}: it does not match the pin`);
+    files.set(p, b); bytes += b.length;
+  }
+  const bootMs = performance.now() - started;
+  document.getElementById("pin").textContent = `Lean ${pin.lean.version} kernel · environment ${root}`;
+  say(`${files.size} files, ${(bytes / 1048576).toFixed(2)} MB, fetched and verified in ${bootMs.toFixed(0)} ms`);
+  const app = await import(link("web/app.mjs"));
+  await app.main({ pin, root, files, link, holo, say, bootMs });
+} catch (e) { document.getElementById("pin").textContent = "Refused to start."; say("FAILED: " + (e && e.stack || e)); }
+results.done = true;
+try { await fetch("/report", { method: "POST", body: JSON.stringify({ url: location.search, agent: navigator.userAgent, lines: results.lines }) }); } catch {}
+</script>
+</html>

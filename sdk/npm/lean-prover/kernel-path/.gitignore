@@ -1,0 +1,5 @@
+node_modules/
+test/reports.ndjson
+# kept gzipped; the raw files are rebuilt by lean/export.sh
+library/library.ndjson
+kernel/lean-kernel.wasm
