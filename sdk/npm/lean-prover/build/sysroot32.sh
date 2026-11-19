@@ -15,4 +15,6 @@ ulimit -s unlimited 2> /dev/null || ulimit -s 1048576
 exec node --stack-size=262144 "$work/lean32/lean32.cjs" "\$@"
 EOF
 chmod +x "$work/sys32/bin/lean"
-"$work/sys32/bin/lean" --version
+# On failure Node first echoes lean32.cjs's one minified line, longer than a CI log line holds, so only each line's
+# start and the end of the output are printed: the thrown error and its stack.
+"$work/sys32/bin/lean" --version 2> "$work/lean32-stderr.txt" || { cut -c1-300 "$work/lean32-stderr.txt" | tail -c 6000; exit 1; }
