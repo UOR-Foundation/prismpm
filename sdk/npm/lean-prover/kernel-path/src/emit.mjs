@@ -27,6 +27,7 @@ const E = {
   lam: (name, type, body, bi = "default") => mk({ k: "lam", name, type, body, bi, key: `L${name};${bi};${type.uid};${body.uid}` }),
   pi: (name, type, body, bi = "default") => mk({ k: "pi", name, type, body, bi, key: `P${name};${bi};${type.uid};${body.uid}` }),
   nat: (n) => mk({ k: "nat", n: String(n), key: `N${n}` }),
+  str: (s) => mk({ k: "str", s, key: "Z" + JSON.stringify(s) }),
   fvar: (name, type) => { const id = ++fresh; return mk({ k: "fvar", name, type, id, key: `F${id}` }); },
   mvar: (type) => { const id = ++fresh; return mk({ k: "mvar", type, id, key: `?${id}` }); },
   let: (name, type, value, body) => mk({ k: "let", name, type, value, body, key: `T${name};${type.uid};${value.uid};${body.uid}` }),
@@ -68,6 +69,7 @@ export function loadLibrary(text) {
       else if ("lam" in o) e = E.lam(lib.names[o.lam.name], g(o.lam.type), g(o.lam.body), o.lam.binderInfo);
       else if ("forallE" in o) e = E.pi(lib.names[o.forallE.name], g(o.forallE.type), g(o.forallE.body), o.forallE.binderInfo);
       else if ("natVal" in o) e = E.nat(o.natVal);
+      else if ("strVal" in o) e = E.str(o.strVal);
       else if ("proj" in o) e = E.proj(lib.names[o.proj.typeName], o.proj.idx, g(o.proj.struct));
       else if ("letE" in o) e = E.let(lib.names[o.letE.name], g(o.letE.type), g(o.letE.value), g(o.letE.body));
       else e = E.opaque(o.ie); // letE, proj, strVal, mdata: carried, never rebuilt
@@ -131,6 +133,7 @@ export function emitter(lib) {
       case "fvar": case "mvar": return e.type;
       case "sort": return E.sort(L.succ(e.l));
       case "nat": return E.const("Nat", []);
+      case "str": return E.const("String", []);
       case "lam": { const x = E.fvar(e.name, e.type); return E.pi(e.name, e.type, abstract(infer(instantiate(e.body, x)), x), e.bi); }
       default: return fail(`unsupported: infer ${e.k}`);
     }
@@ -869,6 +872,8 @@ export function emitter(lib) {
       case "lam": o = { lam: { name: nameIx(e.name), type: exprIx(e.type), body: exprIx(e.body), binderInfo: e.bi } }; break;
       case "pi": o = { forallE: { name: nameIx(e.name), type: exprIx(e.type), body: exprIx(e.body), binderInfo: e.bi } }; break;
       case "nat": o = { natVal: String(e.n) }; break;
+      case "str": o = { strVal: e.s }; break;
+      case "let": o = { letE: { name: nameIx(e.name), type: exprIx(e.type), value: exprIx(e.value), body: exprIx(e.body), nondep: false } }; break;
       case "proj": o = { proj: { typeName: nameIx(e.typeName), idx: e.idx, struct: exprIx(e.struct) } }; break;
       default: fail(`cannot write ${e.k}: an unsolved goal or a local escaped`);
     }
@@ -877,6 +882,21 @@ export function emitter(lib) {
   function write(t) {
     const name = nameIx(t.name), type = exprIx(t.type), value = exprIx(t.value);
     out.push(JSON.stringify({ thm: { all: [name], levelParams: [], name, type, value } }));
+  }
+  // A definition, for declarations lowered from a LexLean model (src/lower.mjs). Hints only steer the kernel's
+  // unfolding; they never decide what it accepts.
+  function writeDef(t) {
+    const name = nameIx(t.name), type = exprIx(t.type), value = exprIx(t.value);
+    out.push(JSON.stringify({ def: { all: [name], hints: t.hints ?? "abbrev", levelParams: [], name, safety: "safe", type, value } }));
+    lib.decls.set(t.name, { levelParams: [], type: t.type, value: t.value });
+  }
+  // An inductive type and its constructors, with no recursor: the kernel builds `T.rec` itself when it adds the type.
+  function writeInductive(t) {
+    const name = nameIx(t.name);
+    const ctors = t.ctors.map((c, i) => ({ cidx: i, induct: name, isUnsafe: false, levelParams: [], name: nameIx(c.name), numFields: c.numFields, numParams: t.numParams, type: exprIx(c.type) }));
+    out.push(JSON.stringify({ inductive: { ctors, recs: [], types: [{ all: [name], ctors: ctors.map((c) => c.name), isRec: !!t.isRec, isReflexive: false, isUnsafe: false, levelParams: [], name, numIndices: 0, numNested: 0, numParams: t.numParams, type: exprIx(t.type) }] } }));
+    lib.decls.set(t.name, { levelParams: [], type: t.type });
+    for (const c of t.ctors) lib.decls.set(c.name, { levelParams: [], type: c.type });
   }
   // A declaration's content, independent of its name, of binder names, and of where it sits in a file:
   // library terms by their index (fixed by the library's address), everything else by local number.
@@ -894,6 +914,9 @@ export function emitter(lib) {
         case "lam": r = ["l", e.bi, go(e.type), go(e.body)]; break;
         case "pi": r = ["p", e.bi, go(e.type), go(e.body)]; break;
         case "nat": r = ["n", e.n]; break;
+        case "str": r = ["z", e.s]; break;
+        case "proj": r = ["j", e.typeName, e.idx, go(e.struct)]; break;
+        case "let": r = ["t", go(e.type), go(e.value), go(e.body)]; break;
         default: fail("cannot address " + e.k);
       }
       nodes.push(r); local.set(e, nodes.length - 1); return nodes.length - 1;
@@ -908,7 +931,7 @@ export function emitter(lib) {
     if (!lib.decls.has("LexStmt." + name)) fail(`no statement is known for ${name}`);
     return { name: "LexBind." + name, type: E.const("LexStmt." + name, []), value: E.const(name, []) };
   }
-  return { theorem, write, canon, bind, lines: () => out.join("\n") + "\n" };
+  return { theorem, write, writeDef, writeInductive, canon, bind, lib, lines: () => out.join("\n") + "\n" };
 }
 
 // ---------- reading the generated Lean ----------
@@ -944,4 +967,5 @@ export function readModule(text) {
 }
 
 /** A theorem record that crossed a thread boundary lost its lazy `type`; this puts it back. */
+export { E, L, apps, abstract, instantiate };
 export function revive(th) { return Object.defineProperty(th, "type", { get() { return term(th.raw); }, configurable: true }); }

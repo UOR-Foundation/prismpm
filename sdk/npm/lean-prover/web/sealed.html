@@ -18,14 +18,14 @@
 <p id="seal">Checking the seal…</p>
 <p id="status"></p>
 <div id="verdict" role="status"></div>
-<table><thead><tr><th>Module</th><th>Declaration</th><th>Kind</th><th>Axioms</th><th>Result</th></tr></thead><tbody id="rows"></tbody></table>
+<table><thead><tr><th>Module</th><th>Theorem</th><th>Proof</th><th>Axioms</th><th>Result</th></tr></thead><tbody id="rows"></tbody></table>
 <script type="module">
 // The only code that runs unchecked. It:
 //   1. reads seal.json, and checks the BLAKE3 hasher's two files by the SHA-256 the seal gives (the browser's own
 //      crypto.subtle), since BLAKE3 cannot check itself;
 //   2. computes the seal's own BLAKE3 label and, when the address pins one (?seal=), refuses any other;
 //   3. checks every code file by its BLAKE3 label in the seal, and builds modules only from those checked bytes.
-// The engine, the library and LexLean are then checked by the worker against the labels the seal fixes.
+// The kernel, its base library and LexLean are then checked by the worker against the labels the seal fixes.
 const sealEl = document.getElementById("seal"), status = document.getElementById("status");
 const say = (s) => { status.textContent = s; (window.sealLog ??= []).push(s); };
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -33,7 +33,7 @@ const get = async (url) => { const r = await fetch(url, { cache: "no-store" }); 
 const q = new URLSearchParams(location.search), t0 = performance.now();
 try {
   const sealBytes = await get(q.get("sealUrl") ?? "./seal.json"), seal = JSON.parse(new TextDecoder().decode(sealBytes));
-  if (seal.schema !== "lean-prover-seal/1") throw new Error("not a lean-prover-seal/1");
+  if (seal.schema !== "lean-prover-seal/2") throw new Error("not a lean-prover-seal/2");
   const files = new Map(), urls = new Map();
   for (const [path, e] of Object.entries(seal.bootstrap)) {
     const b = await get(e.url);

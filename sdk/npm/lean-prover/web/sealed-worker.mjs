@@ -1,59 +1,67 @@
-// The sealed engine worker: Lean 4.32.2's elaborator and kernel, LexLean's front end, and nothing else.
+// The sealed prover's worker: LexLean's front end, the lowering, the proof finder, and Lean 4.32.2's kernel. No
+// elaborator: LexLean's semantic model is lowered straight to kernel declarations (kernel-path/src/lower.mjs), each
+// theorem's proof is found here (kernel-path/src/emit.mjs), and Lean's own kernel judges every declaration and proof.
 //
-// Every byte it runs or reads is named by a BLAKE3 label the seal fixes (web/seal.json, checked by sealed.html):
-// the manifest by the seal, then the engine, the library and LexLean by the manifest or the seal. Labels are
-// computed with Hologram's BLAKE3 (WebAssembly, about 40 times faster than JavaScript here); a byte whose label
-// does not match is never used.
+// Every byte it runs or reads is named by a BLAKE3 label the seal fixes (web/seal.json, checked by sealed.html).
+// Labels are computed with Hologram's BLAKE3 (WebAssembly); a byte whose label does not match is never used. Admitted
+// assets are kept, decoded, in the origin's private file system under their labels, and re-hashed on every read.
 //
-// Lean is started only when the app first asks for it. Library files are kept, decoded, in the origin's private
-// file system under their labels, so a later visit reads and re-hashes them but neither downloads nor decompresses.
-//
-//   { op: "init", hologramJs, hologramWasm, seal }            -> { ok }
-//   { op: "open" }                                            -> { ok, timings, files, mb, heapMB } | { ok: false, refusal }
-//   { op: "render", files }                                   -> { ok, rendered } | { ok: false, diagnostics }
-//   { op: "write", path, bytes }                              -> { ok }
-//   { op: "request", request }                                -> { answer, ms, heapMB, printed }
-//   { op: "opened" }                                          -> { opened }
+//   { op: "init", hologramJs, hologramWasm, seal } -> { ok, evidence }
+//   { op: "prove", files }                         -> { ok, theorems, declarations, timings, heapMB } | { ok: false, stage, diagnostics }
+//   { op: "read", name } -> { bytes }    { op: "write", name, bytes } -> { ok }   (the verdict store)
 import { run as runWasi } from "../src/wasi.mjs";
+import { loadLibrary, emitter } from "../kernel-path/src/emit.mjs";
+import { lower } from "../kernel-path/src/lower.mjs";
 
 const now = () => performance.now();
-Error.stackTraceLimit = 100000; // so an overflow reports its whole depth
-let holo = null, seal = null, manifest = null, lean = null, memory = null, lexlean = null; // lean: the current instance
-const log = [], opened = new Set();
-const heapMB = () => (memory ? Math.round(Number(memory.buffer.byteLength) / 1048576) : null);
-const spent = { fetchMs: 0, decodeMs: 0, hashMs: 0, storeHits: 0, fetched: 0 };
+let holo = null, seal = null, store = null, lexlean = null, kernel = null, baseText = null;
 
-let store = null;
-async function openStore() {
-  try { store = await (await navigator.storage.getDirectory()).getDirectoryHandle("lean-sealed", { create: true }); } catch { store = null; }
+// Two stores, each a map from name to bytes: "lean-sealed" (admitted assets) and "lean-verdicts". The origin's private
+// file system where it works; IndexedDB where it does not (some WebKit builds). Either way nothing read is trusted:
+// every byte is re-hashed against the label it is filed under.
+let verdicts = null;
+async function opfsDir(name) {
+  const root = await navigator.storage.getDirectory(), dir = await root.getDirectoryHandle(name, { create: true });
+  const d = {
+    kind: "opfs",
+    get: async (k) => { try { return new Uint8Array(await (await (await dir.getFileHandle(k)).getFile()).arrayBuffer()); } catch { return null; } },
+    put: async (k, bytes) => {
+      const f = await dir.getFileHandle(k, { create: true });
+      if (f.createWritable) { const w = await f.createWritable(); await w.write(bytes); await w.close(); return; }
+      const s = await f.createSyncAccessHandle(); try { s.truncate(0); s.write(bytes, { at: 0 }); s.flush(); } finally { s.close(); }
+    },
+  };
+  // Used only if a write reads back: some builds open the file system and then lose what is written.
+  const probe = new Uint8Array([108, 101, 97, 110]);
+  await d.put(".probe", probe);
+  const back = await d.get(".probe");
+  if (!back || back.length !== probe.length || back.some((x, i) => x !== probe[i])) throw new Error("the file system does not keep what is written");
+  return d;
 }
-const fromStore = async (hex) => { try { return new Uint8Array(await (await (await store.getFileHandle(hex)).getFile()).arrayBuffer()); } catch { return null; } };
-const toStore = async (hex, bytes) => { try { const w = await (await store.getFileHandle(hex, { create: true })).createWritable(); await w.write(bytes); await w.close(); } catch {} };
-
+async function idbDir(name) {
+  const db = await new Promise((ok, no) => { const r = indexedDB.open("lean-prover-" + name, 1); r.onupgradeneeded = () => r.result.createObjectStore("b"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+  const tx = (mode, f) => new Promise((ok, no) => { const t = db.transaction("b", mode), r = f(t.objectStore("b")); t.oncomplete = () => ok(r.result); t.onerror = () => no(t.error); });
+  return { kind: "indexeddb", get: async (k) => { const v = await tx("readonly", (s) => s.get(k)); return v ? new Uint8Array(v) : null; }, put: (k, bytes) => tx("readwrite", (s) => s.put(bytes, k)) };
+}
+const openDir = async (name) => { try { return await opfsDir(name); } catch { try { return await idbDir(name); } catch { return null; } } };
+async function openStore() { store = await openDir("lean-sealed"); verdicts = await openDir("lean-verdicts"); }
+const readIn = async (dir, name) => { try { return await dir.get(name); } catch { return null; } };
+const writeIn = async (dir, name, bytes) => { try { await dir.put(name, bytes); } catch {} };
+const fromStore = (hex) => readIn(store, hex);
+const toStore = (hex, bytes) => writeIn(store, hex, bytes);
 const decode = async (encoded, encoding) => (encoding !== "gzip" ? encoded
   : new Uint8Array(await new Response(new Blob([encoded]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()));
 
-/** The decoded bytes of `url`, admitted only when their BLAKE3 label is `label`. Stored decoded, re-hashed on every read. */
-async function admitted(label, url, encoding) {
+/** The decoded bytes of a sealed asset, admitted only when their BLAKE3 label is the one the seal gives. */
+async function admitted({ kappa: label, url, encoding }) {
   const hex = label.slice(7);
-  let t = now(), bytes = store ? await fromStore(hex) : null;
-  spent.fetchMs += now() - t;
-  if (bytes) {
-    t = now(); const ok = holo.address(bytes) === label; spent.hashMs += now() - t;
-    if (ok) { spent.storeHits++; return bytes; }
-    try { await store.removeEntry(hex); } catch {}
-  }
-  t = now();
+  let bytes = store ? await fromStore(hex) : null;
+  if (bytes && holo.address(bytes) === label) return bytes;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
-  const encoded = new Uint8Array(await res.arrayBuffer());
-  spent.fetchMs += now() - t; t = now();
-  bytes = await decode(encoded, encoding);
-  spent.decodeMs += now() - t; t = now();
+  bytes = await decode(new Uint8Array(await res.arrayBuffer()), encoding);
   const got = holo.address(bytes);
-  spent.hashMs += now() - t;
   if (got !== label) throw new Error(`refused ${url}: its bytes are ${got}, not ${label}`);
-  spent.fetched++;
   if (store) await toStore(hex, bytes);
   return bytes;
 }
@@ -63,140 +71,83 @@ async function init({ hologramJs, hologramWasm, seal: s }) {
   holo.initSync({ module: hologramWasm });
   seal = s;
   await openStore();
-  // The manifest is admitted by the seal's label for it; everything it names is admitted by its own labels.
-  const bytes = await admitted(seal.manifest.kappa, seal.manifest.url);
-  manifest = JSON.parse(new TextDecoder().decode(bytes));
-  if (manifest.schema !== "lean-wasm-prover/1") throw new Error("the manifest is not lean-wasm-prover/1");
-  return { ok: true, semantics: manifest.lexlean?.semantics_id ?? null, evidence: { manifest: seal.manifest.kappa, engine: manifest.engine.wasm.kappa, loader: manifest.engine.loader.kappa, lexlean: seal.lexlean.kappa, gate: manifest.gate ?? null } };
+  return { ok: true, store: verdicts?.kind ?? null, evidence: { kernel: seal.kernel.wasm.kappa, loader: seal.kernel.loader.kappa, base: seal.base.kappa, lexlean: seal.lexlean.kappa } };
 }
 
-async function open() {
-  const timings = {};
-  let t = now();
-  const base = seal.manifest.url.slice(0, seal.manifest.url.lastIndexOf("/"));
-  const blob = (e) => admitted(e.kappa, `${base}/blobs/${e.kappa.slice(7)}`, e.encoding);
-  const [glue, wasm] = await Promise.all([blob(manifest.engine.loader), blob(manifest.engine.wasm)]);
-  timings.engineMs = Math.round(now() - t);
-  t = now();
-  const files = [], queue = [...manifest.library];
-  let mb = 0;
-  await Promise.all(Array.from({ length: 16 }, async () => {
-    for (let e; (e = queue.shift()); ) { files.push([e.path, await blob(e)]); mb += e.bytes / 1048576; }
-  }));
-  timings.libraryMs = Math.round(now() - t);
-  Object.assign(timings, { fetchMs: Math.round(spent.fetchMs), decodeMs: Math.round(spent.decodeMs), hashMs: Math.round(spent.hashMs), storeHits: spent.storeHits, fetched: spent.fetched });
-  t = now();
+// Lean's kernel with the base library loaded: started once, kept for every later proof. It holds no app: each
+// project's declarations are judged as a suffix on top of the base and leave nothing behind.
+async function openKernel() {
+  if (kernel) return { kernel, startMs: 0 };
+  const t = now();
+  const [glue, wasm, base] = await Promise.all([admitted(seal.kernel.loader), admitted(seal.kernel.wasm), admitted(seal.base)]);
   const url = URL.createObjectURL(new Blob([glue], { type: "text/javascript" }));
+  let factory;
   try { factory = (await import(url)).default; } finally { URL.revokeObjectURL(url); }
-  compiled = await WebAssembly.compile(wasm);
-  library = files;
-  const r = await boot([]);
-  if (!r.ok) return r;
-  return { ok: true, timings: { ...timings, ...r.timings }, files: manifest.library.length, mb: Math.round(mb), heapMB: heapMB() };
+  const lines = [];
+  const m = await factory({ instantiateWasm: (imports, ok) => { WebAssembly.instantiate(wasm, imports).then((r) => ok(r.instance, r.module)); return {}; }, print: (x) => lines.push(x), printErr: (x) => lines.push(x) });
+  if (m.ccall("checker_ready", "number", [], []) !== 0) throw new Error("Lean's kernel did not start");
+  const call = (entry, text) => { m.FS.writeFile("/f.ndjson", text); lines.length = 0; const t0 = now(); const exit = m.ccall(entry, "number", ["string"], ["/f.ndjson"]); return { exit, ms: now() - t0, out: [...lines] }; };
+  baseText = new TextDecoder().decode(base);
+  const loaded = call("load_library", baseText);
+  if (loaded.exit !== 0) throw new Error("the base library was refused: " + loaded.out.slice(-2).join(" "));
+  kernel = { call, heapMB: () => Math.round(m.HEAPU8.length / 1048576) };
+  return { kernel, startMs: Math.round(now() - t) };
 }
 
-// A fresh Lean instance over the admitted library: WebAssembly memory never shrinks, and Lean keeps one copy of the
-// library per import set, so the only way to give memory back is a new instance. The old one is dropped whole.
-// `out` is what earlier modules wrote under /out, which later modules import.
-let factory = null, compiled = null, library = null;
-async function boot(out) {
+// LexLean's proof kinds the finder covers, by the name the finder knows them by.
+const KINDS = { linear_arithmetic: "linear_arithmetic", decide: "decide", reflexivity: "rfl" };
+
+async function prove(files) {
   const timings = {};
+  // 1. LexLean checks the project and gives its semantic model.
   let t = now();
-  lean = null; memory = null;
-  const next = await factory({
-    instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; raw = instance.exports; done(instance, compiled); }); return {}; },
-    print: (s) => log.push(s), printErr: (s) => log.push(s),
-  });
-  // The file system owns each admitted array instead of copying it: one copy of the library outside Lean's heap,
-  // shared by every instance.
-  for (const [path, bytes] of [...library, ...out]) {
-    next.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
-    next.FS.writeFile(path, bytes, { canOwn: true });
-  }
-  const fsOpen = next.FS.open;
-  next.FS.open = (path, ...rest) => { if (typeof path === "string") opened.add(path); return fsOpen.call(next.FS, path, ...rest); };
-  next.ENV.LEAN_SYSROOT = "/lean";
-  next.ENV.LEAN_PATH = "/rt";
-  next.FS.mkdirTree("/src"); next.FS.mkdirTree("/out");
-  timings.instantiateMs = Math.round(now() - t);
+  lexlean ??= await WebAssembly.compile(await admitted(seal.lexlean));
+  const { exit, stdout, stderr } = runWasi(lexlean, { args: ["lexlean", "snapshot", "--all"], files: new Map(files) });
+  if (exit !== 0) return { ok: false, stage: "lexlean", diagnostics: stderr || stdout };
+  const snap = JSON.parse(stdout);
+  timings.lexleanMs = Math.round(now() - t);
+  // 2. The kernel, started on the first proof.
+  const { kernel: k, startMs } = await openKernel();
+  timings.kernelStartMs = startMs;
+  // 3. The model as kernel declarations. A construct the lowering does not cover is refused by name.
   t = now();
-  if (next.ccall("elab_ready", "number", [], []) !== 0) return { ok: false, refusal: "Lean did not initialize: " + log.join(" ") };
-  timings.initializeMs = Math.round(now() - t);
-  lean = next;
-  return { ok: true, timings };
+  const em = emitter(loadLibrary(baseText));
+  let lowered;
+  try { lowered = lower(snap, em); } catch (e) { return { ok: false, stage: "lower", diagnostics: e.message }; }
+  timings.lowerMs = Math.round(now() - t);
+  // 4. A proof for each theorem, found here.
+  t = now();
+  const theorems = lowered.theorems.map((th) => ({ name: th.name, declared: [...th.axioms].sort(), proof: th.proof, found: false, why: null, axioms: null }));
+  lowered.theorems.forEach((th, i) => {
+    const kind = KINDS[th.proof];
+    if (!kind) { theorems[i].why = `proof kind ${th.proof} is not covered by the kernel path yet`; return; }
+    try { em.write(em.theorem({ name: th.name, ns: th.name.slice(0, th.name.lastIndexOf(".")), script: [{ kind }], binders: [], raw: "", text: "" })); theorems[i].found = true; }
+    catch (e) { theorems[i].why = e.message; }
+  });
+  timings.findMs = Math.round(now() - t);
+  // 5. Lean's kernel judges every lowered declaration, statement and proof, and reports each theorem's axioms.
+  t = now();
+  const v = k.call("check_suffix", em.lines());
+  timings.judgeMs = Math.round(now() - t);
+  if (v.exit !== 0) return { ok: false, stage: "kernel", diagnostics: v.out.slice(-3).join(" | "), timings };
+  const got = new Map(v.out.map((l) => /^axioms (\S+): (.*)$/.exec(l)).filter(Boolean).map((x) => [x[1], x[2].split(", ").filter(Boolean).sort()]));
+  for (const th of theorems) if (th.found) th.axioms = got.get(th.name) ?? null;
+  return { ok: true, theorems, declarations: lowered.declared.length, recursive: lowered.recursive.length, timings, heapMB: k.heapMB() };
 }
 
-// One driver request. Lean's elaborator recurses deeply, and a browser gives a worker's own call stack little room
-// (Chromium about 10,000 frames of a small test function, Firefox about 3,000). A call made through
-// WebAssembly.promising (JSPI) runs on a separate stack the engine sizes itself, and measured deeper in every
-// browser tried: Chromium 2x, Firefox 4.3x, WebKit 9.7x. So every request goes that way where JSPI exists, and
-// directly elsewhere. The request and the answer cross as UTF-8 in Lean's memory, exactly as ccall passes them.
-import { probe } from "./stack-probe.mjs";
-let raw = null, stacks = null;
-const enc = new TextEncoder(), dec = new TextDecoder();
-// eslint-disable-next-line no-unused-vars
-async function request(json) {
-  stacks ??= await probe();
-  if (!(stacks.promising > stacks.direct)) return { text: lean.ccall("elab_request", "string", ["string"], [json]), jspi: false };
-  const bytes = enc.encode(json);
-  const ptr = raw.malloc(BigInt(bytes.length + 1));
-  new Uint8Array(memory.buffer, Number(ptr), bytes.length + 1).set([...bytes, 0]);
-  let out;
-  try { out = await WebAssembly.promising(raw.elab_request)(ptr); } finally { raw.free(ptr); }
-  const heap = new Uint8Array(memory.buffer), start = Number(out);
-  let end = start; while (heap[end] !== 0) end++;
-  return { text: dec.decode(heap.subarray(start, end)), jspi: true };
-}
-
-const EXTS = [".olean", ".olean.server", ".olean.private", ".ir"];
-const outPath = (module, ext) => `/out/${module.replaceAll(".", "/")}${ext}`;
-
-// The same handler serves a worker and, as a fallback, the page itself (see sealed-app.mjs).
 export async function handle(data) {
   const reply = (r) => ({ id: data.id, ...r });
   try {
     if (data.op === "init") return reply(await init(data));
     if (!holo) return reply({ error: "the worker is not initialized" });
-    if (data.op === "open") return reply(lean ? { ok: true, already: true, heapMB: heapMB() } : await open());
-    if (data.op === "render") {
-      lexlean ??= await WebAssembly.compile(await admitted(seal.lexlean.kappa, seal.lexlean.url));
-      const { exit, stdout, stderr } = runWasi(lexlean, { args: ["lexlean", "lean-modules", "--all"], files: new Map(data.files) });
-      return reply(exit !== 0 ? { ok: false, diagnostics: stderr || stdout } : { ok: true, rendered: JSON.parse(stdout) });
-    }
-    if (data.op === "runtime") return reply({ bytes: seal.runtime ? await admitted(seal.runtime.kappa, seal.runtime.url) : null });
-    if (!lean) return reply({ error: "Lean is not open" });
-    if (data.op === "write") {
-      lean.FS.mkdirTree(data.path.slice(0, data.path.lastIndexOf("/")));
-      lean.FS.writeFile(data.path, data.bytes);
-      return reply({ ok: true });
-    }
-    if (data.op === "stacks") return reply({ stacks: stacks ??= await probe() });
-    if (data.op === "opened") return reply({ opened: [...opened] });
-    // A module's four build files, as Lean wrote them under /out, or null if any is missing.
-    if (data.op === "artifacts") {
-      const files = [];
-      for (const ext of EXTS) { try { files.push([outPath(data.module, ext), lean.FS.readFile(outPath(data.module, ext))]); } catch { return reply({ files: null }); } }
-      return reply({ files });
-    }
-    // A fresh instance, with `files` (earlier modules' build files) written under /out.
-    if (data.op === "reset") { const t = now(), r = await boot(data.files ?? []); return reply({ ...r, ms: Math.round(now() - t), heapMB: heapMB() }); }
-    // Build files remembered from an earlier session, so later modules can import them.
-    if (data.op === "place") {
-      for (const [path, bytes] of data.files) { lean.FS.mkdirTree(path.slice(0, path.lastIndexOf("/"))); lean.FS.writeFile(path, bytes); }
-      return reply({ ok: true });
-    }
-    if (data.op === "request") {
-      const t = now(), from = log.length;
-      const r = await request(JSON.stringify(data.request)), answer = JSON.parse(r.text);
-      return reply({ answer, jspi: r.jspi, ms: Math.round(now() - t), heapMB: heapMB(), printed: log.slice(from).join(" | ").slice(-4000) });
-    }
+    if (data.op === "prove") return reply(await prove(data.files));
+    // The verdict store, kept here so every browser can write it: names are labels' hex, read back as bytes the page
+    // re-hashes before it uses them.
+    if (data.op === "read") return reply({ bytes: verdicts ? await readIn(verdicts, data.name) : null });
+    if (data.op === "write") { if (verdicts) await writeIn(verdicts, data.name, data.bytes); return reply({ ok: true }); }
     return reply({ error: `unknown op ${data.op}` });
   } catch (e) {
-    // A stack overflow says where it happened: the most frequent frames of the trace, for diagnosis.
-    let frames = null;
-    const lines = e?.stack ? String(e.stack).split(/\r?\n/) : [];
-    if (e instanceof RangeError && lines.length) { const counts = {}; for (const l of lines.slice(1)) { const k = l.trim().replace(/:0x[0-9a-f]+\)?$/, ""); counts[k] = (counts[k] ?? 0) + 1; } frames = Object.entries(counts).sort((x, y) => y[1] - x[1]).slice(0, 12); }
-    return reply({ error: "the worker failed: " + (e && e.message ? e.message : String(e)), overflow: e instanceof RangeError || /too much recursion|call stack/i.test(String(e?.message)), frames, depth: lines.length ? lines.length - 1 : null });
+    return reply({ error: "the worker failed: " + (e && e.message ? e.message : String(e)) });
   }
 }
 if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) self.onmessage = async ({ data }) => self.postMessage(await handle(data));

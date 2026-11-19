@@ -1,9 +1,7 @@
-// Development: serves the elaborator page on localhost, as a static host would. No COOP or COEP header, so the page
-// is not cross-origin isolated. `/lib/` is the manifest folder (the lean-prover-library artifact), `/corpus/` the
-// gate's browser corpus (the lean-prover-browser-corpus artifact: <Module>.lean, modules.json and native.jsonl), and
-// `/blake3.mjs` the BLAKE3 this package carries.
-// `/src/` is this package's src folder (the WASI host and the verdict, which run in the tab as they do in Node), and
-// `/project/` a LexLean project to prove in the tab (project.html), with `/project/index.json` listing its files.
+// Development: serves the sealed prover page (sealed.html) on localhost, as a static host would. No COOP or COEP
+// header: the page needs no cross-origin isolation. `/corpus/` holds LexLean's WASI build, `/src/` and
+// `/kernel-path/` this package's code, kernel and base library, and `/project/` the LexLean project to prove, with
+// `/project/index.json` listing its files. LIBDIR is served at `/lib/` for older seals.
 //   node web/serve.mjs LIBDIR CORPUSDIR [port] [PROJECTDIR]
 import { createServer } from "node:http";
 import { readFile, readdir } from "node:fs/promises";
@@ -20,9 +18,10 @@ createServer(async (req, res) => {
   const url = decodeURIComponent(new URL(req.url, "http://x").pathname);
   const path = url === "/blake3.mjs" ? blake3
     : url.startsWith("/src/") ? under(join(here, "../src"), url.slice(5))
+    : url.startsWith("/kernel-path/") ? under(join(here, "../kernel-path"), url.slice(13))
     : url.startsWith("/project/") && project ? under(project, url.slice(9))
     : url.startsWith("/lib/") ? under(lib, url.slice(5)) : url.startsWith("/corpus/") ? under(corpus, url.slice(8))
-    : under(here, url === "/" ? "index.html" : url.slice(1));
+    : under(here, url === "/" ? "sealed.html" : url.slice(1));
   if (!path) { res.writeHead(403).end(); return; }
   if (url === "/project/index.json" && project) { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }).end(JSON.stringify(await listing(project))); return; }
   try {
