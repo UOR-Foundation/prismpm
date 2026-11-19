@@ -13,9 +13,12 @@ import { compare, kernelAddress } from '../src/webgpu.mjs';
 
 const file = (path) => new URL(`../${path}`, import.meta.url);
 const WGSL = readFileSync(file('test/fixtures/webgpu/q4-group-sums.wgsl'), 'utf8');
-// LexLean's first render of kernel 1 (q4GroupSums, units 2, rowCodes 64, zero 8), from a port of its WGSL printer:
-// not canonical yet, so its address is derived here and pinned nowhere.
+// LexLean's canonical render of kernels 1 and 2 (q4GroupSums with units 2, rowCodes 64, zero 8; exp2Neg). Their
+// addresses are provisional until prism-hologram-ai's acceptance gate pins the guest's bytes, so each is derived here
+// and pinned nowhere.
 const RENDERED = readFileSync(file('test/fixtures/webgpu/q4-group-sums.rendered.wgsl'), 'utf8');
+const EXP2 = readFileSync(file('test/fixtures/webgpu/exp2-neg.rendered.wgsl'), 'utf8');
+const EXP2_CASE = JSON.parse(readFileSync(file('test/fixtures/webgpu/exp2-neg.json'), 'utf8'));
 const FIXTURE = JSON.parse(readFileSync(file('test/fixtures/webgpu/q4-group-sums.json'), 'utf8'));
 const SERVED = { '/webgpu.mjs': 'src/webgpu.mjs', '/blake3.mjs': 'src/blake3.mjs', '/errors.mjs': 'src/errors.mjs' };
 
@@ -147,7 +150,8 @@ const runInPage = (plans) => async (evaluate) =>
     for (const plan of ${JSON.stringify(plans)}) {
       try {
         const { outputs, adapter } = await runPlan(plan);
-        out.push({ words: [...outputs.get(3)], adapter });
+        // Each kernel here writes one buffer, its last binding.
+        out.push({ words: [...[...outputs.values()].at(-1)], adapter });
       } catch (error) {
         out.push({ code: error.code ?? String(error) });
       }
@@ -164,7 +168,7 @@ async function runOnWebGpu(plans) {
   return withChrome(['--use-webgpu-adapter=swiftshader', ...linux], runInPage(plans));
 }
 
-test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, and a broken plan or kernel never agrees', { skip: CHROME ? false : 'no Chrome or Chromium: set PRISM_CHROME' }, async (t) => {
+test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, as do LexLean\'s rendered kernels 1 and 2, and a broken plan or kernel never agrees', { skip: CHROME ? false : 'no Chrome or Chromium: set PRISM_CHROME' }, async (t) => {
   const fixture = fixtureCase();
   const generated = generatedCase();
   // Planted defects: the WGSL changed after its address was named, and a kernel whose zero point is 7, not 8.
@@ -173,7 +177,8 @@ test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, 
   // The rendered kernel on the same input, with two spare output words: its `invocations` override, set by the bridge,
   // keeps the padding invocations of the workgroup from writing them.
   const rendered = { ...fixture.plan, wgsl: RENDERED, kernel: kernelAddress(RENDERED), buffers: [...fixture.plan.buffers.slice(0, 3), [0, 0, 0, 0]] };
-  const [onFixture, onGenerated, onAltered, onMisnamed, onRendered] = await runOnWebGpu([fixture.plan, generated.plan, altered.plan, misnamed, rendered]);
+  const exp2 = { wgsl: EXP2, kernel: kernelAddress(EXP2), invocations: EXP2_CASE.inputs.length, buffers: [EXP2_CASE.inputs, EXP2_CASE.table, EXP2_CASE.inputs.map(() => 0)] };
+  const [onFixture, onGenerated, onAltered, onMisnamed, onRendered, onExp2] = await runOnWebGpu([fixture.plan, generated.plan, altered.plan, misnamed, rendered, exp2]);
   t.diagnostic(`adapter ${JSON.stringify(onFixture.adapter)}`);
 
   // The CPU reference is the exact engine's: Lean checked these two sums for this input.
@@ -187,6 +192,9 @@ test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, 
   assert.equal(onGenerated.words.length, 1200);
   assert.ok(onRendered.words, JSON.stringify(onRendered));
   assert.deepEqual(onRendered.words, [...fixture.cpu, 0, 0]);
+  // exp2Neg on every branch (shift 0, 1 to 31, 32 and past), against the words Lean checked on the model.
+  assert.ok(onExp2.words, JSON.stringify(onExp2));
+  assert.equal(compare({ ran: true, planOk: true, readbackOk: true, cpu: EXP2_CASE.expected, gpu: onExp2.words }).verdict, 'agree');
 
   // WGSL that is not the text its address names is refused before anything is dispatched.
   assert.equal(onAltered.code, 'webgpu.plan-refused');
