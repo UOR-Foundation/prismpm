@@ -131,6 +131,6 @@ The corpus is fixed in `engine.lock.json`:
 The engine runs the corpus three ways, and each run must agree with native Lean on every declaration:
 - **cold:** an empty module store, under Node 24;
 - **warm:** the store the cold run filled, so each module is checked again by the kernel instead of elaborated;
-- **cold under Node 22, inside a 4 GiB memory cap:** a cgroup on the CI runner, the cloud-sandbox profile.
+- **cold inside a 4 GiB memory cap:** a cgroup on the CI runner, the cloud-sandbox profile, under Node 24. The engine restarts at 1.5 GiB there. Node 22 cannot instantiate the 64-bit engine.
 
 `speed.json` records total, open and per-module time and peak memory for native Lean and each engine run. Times are recorded, never compared.
