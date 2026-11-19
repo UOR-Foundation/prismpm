@@ -43,8 +43,8 @@ case of that table and should be replaced by it.
    browser backend.
 4. **The kernel build.** Build it in CI from `engine.lock.json`, under a label, like the engine. The copy here was
    built by hand ([kernel/BUILD.md](kernel/BUILD.md)).
-5. **The library and the lemmas.** The lemma library (`LexReflect.lean`, about 700 lines of handwritten Lean) is not in this folder, because this repository carries no handwritten Lean. It belongs in LexLean, as a source package verified by its own
-   pipeline, with the export a release asset found by label (UOR-Foundation/lexlean#580).
+5. **The library and the lemmas.** The lemma library is a LexLean source package (`reflect-library`, UOR-Foundation/lexlean#587): one native core module that `lexlean verify` accepts. The library in this folder is exported from that verified build. The package is not yet registered in LexLean, and the export script is not in this repository, so the library here cannot yet be rebuilt from this repository alone.
+   The export should become a release asset found by label (UOR-Foundation/lexlean#580).
 6. **Registration.** No `LP-` row, scenario, spec or diagnostic code exists for any of this. Nothing here has been
    through this repository's gates.
 

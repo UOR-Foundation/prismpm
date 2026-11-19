@@ -3,8 +3,8 @@
  "packs": [
   {
    "file": "proofs.ndjson",
-   "kappa": "blake3:369b18d6f44799d6b8f26194dc5c22aa4dc59bd52331ba56dbdf067374ff35c3",
-   "bytes": 245132,
+   "kappa": "blake3:466367a5b68df3996c76197ae8c5c6a1609ea50c1520353422722a940cc9f92c",
+   "bytes": 245133,
    "theorems": [
     "FoldLaws.Main.statistics_one_pass",
     "FoldLaws.Main.requantized_total"

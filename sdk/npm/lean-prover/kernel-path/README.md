@@ -56,7 +56,7 @@ node test/browsers.mjs firefox webkit iphone     # needs Playwright and its brow
 ```
 
 Rebuilding the library, the published proofs and the pin is the only step that runs Lean
-and is not in this folder: the lemma library is handwritten Lean, which this repository does not carry. It belongs with LexLean (see [INTEGRATION.md](INTEGRATION.md)).
+and is not in this folder. The lemma library is a LexLean source package (`reflect-library`, UOR-Foundation/lexlean#587), verified by `lexlean verify`; the library here is exported from that verified build (see [INTEGRATION.md](INTEGRATION.md)).
 
 ## Measured
 
