@@ -96,6 +96,18 @@ test_case!(conformance_al_05, "AL-05");
 test_case!(conformance_al_06, "AL-06");
 test_case!(conformance_al_07, "AL-07");
 
+test_case!(conformance_lp_01, "LP-01");
+test_case!(conformance_lp_02, "LP-02");
+test_case!(conformance_lp_03, "LP-03");
+test_case!(conformance_lp_04, "LP-04");
+test_case!(conformance_lp_05, "LP-05");
+test_case!(conformance_lp_06, "LP-06");
+test_case!(conformance_lp_07, "LP-07");
+test_case!(conformance_lp_08, "LP-08");
+test_case!(conformance_lp_09, "LP-09");
+test_case!(conformance_lp_10, "LP-10");
+test_case!(conformance_lp_11, "LP-11");
+
 test_case!(conformance_ct_01, "CT-01");
 test_case!(conformance_ct_02, "CT-02");
 test_case!(conformance_ct_03, "CT-03");

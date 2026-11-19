@@ -1,0 +1,65 @@
+{
+ "schema": "lexlean/pin/1",
+ "lean": {
+  "version": "4.32.2",
+  "commit": "f3b06c705e6c85f5314019d5d3baab0fec5b580c"
+ },
+ "kernel": {
+  "source": "leanprover/lean4@f3b06c705e6c85f5314019d5d3baab0fec5b580c, src/kernel unchanged",
+  "sha256": "sha256:49cdfae03dad56ad4deab5845890152bdbcae44fc8e96964f5c049134611dcb6"
+ },
+ "bootstrap": {
+  "hologram/hologram_store_bg.wasm": "sha256:4d71123f3576c3ceac50a97d426eefcddd74a5e58d461734c5eed5464b815407",
+  "hologram/hologram_store.js": "sha256:3581ed55a298a74abb2f9428dc58905521c3a2dd4ca4ee440eb338c372e6b708"
+ },
+ "assets": {
+  "hologram/hologram_store_bg.wasm": {
+   "kappa": "blake3:d3c298d54ddcfac34fd93d1a13e4b341cddbd2af9e4da3803147e734e74e9816",
+   "bytes": 186513
+  },
+  "hologram/hologram_store.js": {
+   "kappa": "blake3:071c6d4bb24833cf3cae1d2bcc61a9bc03b746a4c2d29afc9d5860278bb6f07d",
+   "bytes": 35030
+  },
+  "kernel/lean-kernel.wasm": {
+   "kappa": "blake3:2f254140590074724ca1a8033080e0ae0834a018e06481ad7ccf7de9b80f175a",
+   "bytes": 2235146,
+   "file": "kernel/lean-kernel.wasm.gz",
+   "encoding": "gzip"
+  },
+  "kernel/lean-kernel.mjs": {
+   "kappa": "blake3:ec13d669b62c9a0223a937e04c3df18235fa67878ca53ba926f75904fe9c4610",
+   "bytes": 62389
+  },
+  "library/library.ndjson": {
+   "kappa": "blake3:0051b2367c634a30c6bd4e84956b2c5827550fe5107b669fe4bb6c33c00519fd",
+   "bytes": 7651174,
+   "file": "library/library.ndjson.gz",
+   "encoding": "gzip"
+  },
+  "src/emit.mjs": {
+   "kappa": "blake3:4bbec77d590bbaccedcad064622e82bab0eb7717cc27499985fe95112226f7f4",
+   "bytes": 56366
+  },
+  "src/store.mjs": {
+   "kappa": "blake3:f0ac5293141ef20523abeeb37197a2de21d4d2e33486be715cad02f5f4586115",
+   "bytes": 4382
+  },
+  "src/prover.mjs": {
+   "kappa": "blake3:31c3f19824136f50cfd4cb92aa4f58f8f6d922a7c5d53352fe3f7419a6aea0d0",
+   "bytes": 11521
+  },
+  "src/shared.mjs": {
+   "kappa": "blake3:10f0a537730ff8cedd7bcbb8f0cbb2670eac8490727f61d06b6719a1c35a5f57",
+   "bytes": 4425
+  },
+  "src/worker.mjs": {
+   "kappa": "blake3:d818125b9b41d32834c98a3faf5a08cb3ee929fa18f2315ef89aae81564949d1",
+   "bytes": 5592
+  },
+  "web/app.mjs": {
+   "kappa": "blake3:fc59aa396e0bc0a03ac6dd90de58c9fdec8641679634cd8103aed9fae6f4a2d9",
+   "bytes": 8748
+  }
+ }
+}

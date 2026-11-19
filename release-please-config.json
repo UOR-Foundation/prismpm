@@ -40,6 +40,7 @@
     "sdk/npm/verify": { "release-type": "node", "component": "prism-code-verify" },
     "sdk/npm/create-prism-code": { "release-type": "node", "component": "create-prism-code" },
     "sdk/npm/conformance": { "release-type": "node", "component": "prism-code-conformance" },
-    "sdk/npm/testing": { "release-type": "node", "component": "prism-code-testing" }
+    "sdk/npm/testing": { "release-type": "node", "component": "prism-code-testing" },
+    "sdk/npm/lean-prover": { "release-type": "node", "component": "prism-code-lean-prover" }
   }
 }

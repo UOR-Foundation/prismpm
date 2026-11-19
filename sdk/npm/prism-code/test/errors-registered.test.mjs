@@ -1,4 +1,4 @@
-// Every code raised in sdk/npm/prism-code/src and crates/prismpm/src against ERRORS.md and model/errors.toml (#448).
+// Every code raised in sdk/npm/prism-code/src, sdk/npm/lean-prover/src and crates/prismpm/src against ERRORS.md and model/errors.toml (#448).
 // `xtask validate` gates the Rust side on every change. This also runs when the JavaScript side changes, and fails on any code model/sdk-diagnostics.toml does not register.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -47,6 +47,11 @@ function raisedCodes() {
     const text = withoutComments(readFileSync(file, 'utf8'));
     const patterns = [/\bfail\(\s*(['"`])([^'"`]+)\1/g, /new PrismCodeError\(\s*(['"`])([^'"`]+)\1/g, /new [A-Z]\w*Error\([^;]{0,300}?\bcode: (')([^']+)'/g];
     for (const pattern of patterns) for (const match of text.matchAll(pattern)) raised.add(match[2].replace(/\$\{[^}]+\}/g, '*'));
+  }
+  // @prism-code/lean-prover raises its own lean-prover.* codes, each written as a literal in its src.
+  for (const file of filesUnder(repo('sdk/npm/lean-prover/src'), ['.mjs'])) {
+    if (/[\\/]vendor[\\/]/.test(file)) continue;
+    for (const match of withoutComments(readFileSync(file, 'utf8')).matchAll(/["'`](lean-prover\.[a-z][a-z-]*)["'`]/g)) raised.add(match[1]);
   }
   // A decision table generated from a LexLean model (src/image-store-rules.json) names the code it refuses with.
   for (const file of filesUnder(dir, ['.json'])) {

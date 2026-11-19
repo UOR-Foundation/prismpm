@@ -1,0 +1,7 @@
+{
+ "name": "lexlean-prover",
+ "version": "0.1.0",
+ "private": true,
+ "type": "module",
+ "scripts": { "test": "node test/test.mjs", "serve": "node serve.mjs", "pin": "node publish.mjs pin" }
+}

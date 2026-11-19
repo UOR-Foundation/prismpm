@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sealed Lean prover</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --ok: #1a7f37; --bad: #c62828; --line: #e3e3e3; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #e8e8e8; --muted: #9a9a9a; --ok: #4cc06a; --bad: #ff6b6b; --line: #2c2c2c; } }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 860px; padding: 24px 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; } p { color: var(--muted); margin: 0 0 12px; } code { font-size: 13px; overflow-wrap: anywhere; }
+  table { border-collapse: collapse; width: 100%; } td, th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } #verdict { font-size: 17px; margin: 12px 0; }
+</style>
+</head>
+<body>
+<h1>Lean, sealed, in this tab</h1>
+<p id="seal">Checking the seal…</p>
+<p id="status"></p>
+<div id="verdict" role="status"></div>
+<table><thead><tr><th>Module</th><th>Declaration</th><th>Kind</th><th>Axioms</th><th>Result</th></tr></thead><tbody id="rows"></tbody></table>
+<script type="module">
+// The only code that runs unchecked. It:
+//   1. reads seal.json, and checks the BLAKE3 hasher's two files by the SHA-256 the seal gives (the browser's own
+//      crypto.subtle), since BLAKE3 cannot check itself;
+//   2. computes the seal's own BLAKE3 label and, when the address pins one (?seal=), refuses any other;
+//   3. checks every code file by its BLAKE3 label in the seal, and builds modules only from those checked bytes.
+// The engine, the library and LexLean are then checked by the worker against the labels the seal fixes.
+const sealEl = document.getElementById("seal"), status = document.getElementById("status");
+const say = (s) => { status.textContent = s; (window.sealLog ??= []).push(s); };
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+const get = async (url) => { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) throw new Error(`${url}: ${r.status}`); return new Uint8Array(await r.arrayBuffer()); };
+const q = new URLSearchParams(location.search), t0 = performance.now();
+try {
+  const sealBytes = await get(q.get("sealUrl") ?? "./seal.json"), seal = JSON.parse(new TextDecoder().decode(sealBytes));
+  if (seal.schema !== "lean-prover-seal/1") throw new Error("not a lean-prover-seal/1");
+  const files = new Map(), urls = new Map();
+  for (const [path, e] of Object.entries(seal.bootstrap)) {
+    const b = await get(e.url);
+    if ("sha256:" + hex(await crypto.subtle.digest("SHA-256", b)) !== e.sha256) throw new Error(`refused ${path}: it is not the sealed bytes`);
+    files.set(path, b);
+  }
+  const resolve = (dir, rel) => { const out = dir.split("/").filter(Boolean); for (const part of rel.split("/")) { if (part === "..") out.pop(); else if (part !== ".") out.push(part); } return out.join("/"); };
+  const link = (path) => {
+    if (urls.has(path)) return urls.get(path);
+    if (!files.has(path)) throw new Error(`${path} is not sealed`);
+    const dir = path.slice(0, path.lastIndexOf("/") + 1);
+    const src = new TextDecoder().decode(files.get(path)).replace(/(\bfrom\s*|\bimport\s*)(["'])(\.{1,2}\/[^"']+)\2/g, (m, kw, quote, rel) => kw + quote + link(resolve(dir, rel)) + quote);
+    const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" })); urls.set(path, url); return url;
+  };
+  const holo = await import(link("hologram/hologram_store.js"));
+  holo.initSync({ module: files.get("hologram/hologram_store_bg.wasm") });
+  const sealLabel = holo.address(sealBytes);
+  const pinned = q.get("seal");
+  if (pinned && pinned !== sealLabel) throw new Error(`refused: the seal served is ${sealLabel}, not the pinned ${pinned}`);
+  for (const [path, e] of Object.entries(seal.code)) {
+    const b = await get(e.url);
+    if (holo.address(b) !== e.kappa) throw new Error(`refused ${path}: it is not the sealed bytes`);
+    files.set(path, b);
+  }
+  sealEl.innerHTML = `Seal <code>${sealLabel}</code>${pinned ? ", pinned by the address" : ", <b>not pinned</b> by the address"}. Every byte below is checked against it.`;
+  say(`Seal and ${Object.keys(seal.code).length + 2} code files checked in ${Math.round(performance.now() - t0)} ms.`);
+  window.sealed = { label: sealLabel, pinned: !!pinned };
+  const app = await import(link(seal.entry));
+  await app.main({ seal, sealLabel, link, files, holo, say });
+} catch (e) {
+  sealEl.textContent = "Refused to start: " + (e.message ?? e); sealEl.className = "bad";
+  window.result = { done: true, error: String(e.message ?? e) };
+}
+</script>
+</body>
+</html>

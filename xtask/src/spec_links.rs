@@ -95,7 +95,7 @@ pub fn validate(root: &Path) -> Result<(), Fail> {
             "security" => "§9",
             "authorities" => "§10",
             "system" => "§11",
-            "sdk" => "§12",
+            "sdk" | "lean-prover" => "§12",
             "oci" => "§13",
             "lifecycle" => "§14",
             "deployment" => "§15",

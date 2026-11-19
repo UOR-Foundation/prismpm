@@ -1,0 +1,135 @@
+{
+ "schema": "lexlean/published-proofs/1",
+ "packs": [
+  {
+   "file": "proofs.ndjson",
+   "kappa": "blake3:466367a5b68df3996c76197ae8c5c6a1609ea50c1520353422722a940cc9f92c",
+   "bytes": 245133,
+   "theorems": [
+    "FoldLaws.Main.statistics_one_pass",
+    "FoldLaws.Main.requantized_total"
+   ]
+  }
+ ],
+ "axioms": {
+  "FoldLaws.Kernels.requantize_monotone": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.requantize_runtime_monotone": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.requantize_low": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.requantize_high": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.truncating_division": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.truncating_division_negative": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.truncation_toward_zero": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.division_by_zero": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.halving_shrinks": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.byte_order": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.byte_ceiling": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.byte_literal": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.signed_byte_order": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.signed_byte_floor": [
+   "Classical.choice",
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.byte_equality": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Kernels.requantize_closed": [
+   "propext"
+  ],
+  "FoldLaws.Folds.doubled_total": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.count_is_length": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.weighted_total": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.total_append_commutes": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.total_reversed": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.balance_credit": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.set_doubled": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.map_split": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Folds.doubled_total_closed": [],
+  "FoldLaws.Main.statistics_one_pass": [],
+  "FoldLaws.Main.parity_step": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Main.parity_fused": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Main.parity_of_total": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Main.count_append": [
+   "Quot.sound",
+   "propext"
+  ],
+  "FoldLaws.Main.requantized_total": [
+   "Classical.choice",
+   "Quot.sound",
+   "propext"
+  ]
+ }
+}
