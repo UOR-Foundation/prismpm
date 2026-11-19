@@ -94,8 +94,6 @@ export function compare(facts) {
   return { verdict: VERDICT[verdict(c)], facts: c };
 }
 
-const refused = (code, message, details) => new PrismCodeError(code, message, details);
-
 /**
  * Run an admitted plan on WebGPU and read back every `read_write` buffer.
  *
@@ -108,11 +106,11 @@ const refused = (code, message, details) => new PrismCodeError(code, message, de
  */
 export async function runPlan(plan, { gpu = globalThis.navigator?.gpu } = {}) {
   const adapter = gpu ? await gpu.requestAdapter() : null;
-  if (!adapter) throw refused('webgpu.unavailable', 'This host has no WebGPU adapter, so the kernel did not run; the CPU result stands alone.', { facts: planFacts(plan, { adapter: false }) });
+  if (!adapter) throw new PrismCodeError('webgpu.unavailable', 'This host has no WebGPU adapter, so the kernel did not run; the CPU result stands alone.', { facts: planFacts(plan, { adapter: false }) });
   const device = await adapter.requestDevice();
   try {
     const facts = planFacts(plan, { adapter: true, limits: device.limits });
-    if (!planAdmitted(facts)) throw refused('webgpu.plan-refused', `The plan for kernel ${plan.kernel} breaks a rule of model/webgpu-bridge, so nothing was dispatched.`, { facts });
+    if (!planAdmitted(facts)) throw new PrismCodeError('webgpu.plan-refused', `The plan for kernel ${plan.kernel} breaks a rule of model/webgpu-bridge, so nothing was dispatched.`, { facts });
     const { bindings } = kernelShape(plan.wgsl);
     const words = plan.buffers.map((b) => Uint32Array.from(b));
     const S = globalThis.GPUBufferUsage;
@@ -138,14 +136,14 @@ export async function runPlan(plan, { gpu = globalThis.navigator?.gpu } = {}) {
     outputs.forEach((b, i) => encoder.copyBufferToBuffer(storage[b.binding], 0, staging[i], 0, words[b.binding].byteLength));
     device.queue.submit([encoder.finish()]);
     const invalid = await device.popErrorScope();
-    if (invalid) throw refused('webgpu.plan-refused', `WebGPU refused kernel ${plan.kernel}: ${invalid.message}`, { facts });
+    if (invalid) throw new PrismCodeError('webgpu.plan-refused', `WebGPU refused kernel ${plan.kernel}: ${invalid.message}`, { facts });
     const read = new Map();
     for (const [i, b] of outputs.entries()) {
       await staging[i].mapAsync(globalThis.GPUMapMode.READ);
       const bytes = staging[i].getMappedRange().slice(0);
       staging[i].unmap();
       const r = readbackFacts(words[b.binding].length, bytes);
-      if (!readbackAdmitted(r)) throw refused('webgpu.readback-refused', `Binding ${b.binding} came back as ${bytes.byteLength} bytes, not ${words[b.binding].length} whole words.`, { facts: r });
+      if (!readbackAdmitted(r)) throw new PrismCodeError('webgpu.readback-refused', `Binding ${b.binding} came back as ${bytes.byteLength} bytes, not ${words[b.binding].length} whole words.`, { facts: r });
       read.set(b.binding, new Uint32Array(bytes));
     }
     const info = adapter.info ?? {};

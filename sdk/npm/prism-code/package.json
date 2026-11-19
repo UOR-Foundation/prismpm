@@ -35,13 +35,13 @@
     "./init": {
       "import": "./src/init-cli.mjs"
     },
-    "./webgpu": {
-      "types": "./types/webgpu.d.ts",
-      "import": "./src/webgpu.mjs"
-    },
     "./canonical": {
       "types": "./src/canonical/index.d.ts",
       "import": "./src/canonical/index.js"
+    },
+    "./webgpu": {
+      "types": "./types/webgpu.d.ts",
+      "import": "./src/webgpu.mjs"
     },
     "./package.json": "./package.json"
   },
