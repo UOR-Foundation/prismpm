@@ -6,25 +6,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const BIN = fileURLToPath(new URL('../../bin/prism-code.mjs', import.meta.url));
-const FAKE_DOCKER = fileURLToPath(new URL('./fake-docker.mjs', import.meta.url));
 
 /** A new, empty project folder. */
 export const project = () => mkdtempSync(join(tmpdir(), 'prism-stress-'));
 
-/** The environment that puts the stand-in where Docker would be, with a plan for it (see fake-docker.mjs). */
 /** Lean's kernel as the pinned bytes kept beside the tests, so a server that takes the kernel route fetches nothing. */
 const KERNEL_FIXTURES = fileURLToPath(new URL('../fixtures/kernel/', import.meta.url));
-
-export function fakeDocker(cwd, plan = {}) {
-  mkdirSync(join(cwd, 'prism'), { recursive: true });
-  return {
-    PRISM_DOCKER: `"${process.execPath}" "${FAKE_DOCKER}"`,
-    PRISM_DOCKER_MOUNT: 'native',
-    // These plans are of the SDK image's route. A rule app would otherwise be checked by the kernel in this process (#692).
-    PRISM_CODE_TIER: 'local',
-    FAKE_DOCKER_PLAN: JSON.stringify({ app: join(cwd, 'prism'), log: join(cwd, 'docker.log'), ...plan }),
-  };
-}
 
 /**
  * Start a server in `cwd`. `call(name, args)` resolves `{ data, text, isError, error, ms }`:

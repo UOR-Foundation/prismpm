@@ -95,21 +95,24 @@ guarantees are first tried for a counterexample among the values its
 conditions tell apart, then judged by Lean's kernel. Guarantees are proved;
 the reading of requests and the examples are tested.
 
-**What runs without Docker.** LexLean's front end runs as WebAssembly on this
-machine once its pinned copy is here ([Phase 3](../../../docs/proposals/canonical-serverless-build.md)),
+**What runs without Docker.** Every step of the guided build runs with no Docker
+and no image. LexLean's front end runs as WebAssembly on this machine once its
+pinned copy is here ([Phase 3](../../../docs/proposals/canonical-serverless-build.md)),
 on a read-only WASI host held in memory: it checks every app and takes its
 semantic snapshot in under a second, and a rule app is then proved by Lean's
-kernel in this process and built, with no Docker and no server. Its pinned copy is
-fetched once, about 4 MB, and used only when it has its κ-label (BLAKE3);
+kernel in this process and built, with no server. Its pinned copy is fetched
+once, about 4 MB, and used only when it has its κ-label (BLAKE3);
 `PRISM_LEXLEAN_FETCH=0` fetches nothing. It and Lean's kernel are kept once per machine in
 `$PRISM_HOME/kappa`. `setup` and the first check after an upgrade remove what this
 version no longer pins; `prism-code system df` shows what that frees, and
-`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Proving any other app's theorems needs Lean: the SDK image on this
-machine (Docker), or the hosted verifier, which only you choose, by setting
-`PRISM_CODE_TIER=hosted`, until in-process proof producers land (Phase 4). With
-nothing to run a step on, it fails with `build.frontend-unavailable`. Publishing to GitHub from `prism_build` waits for
-the template's ID rows, scenarios and tests to be written from the snapshot
-(`build.publish-unavailable`).
+`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Any other app's theorems are proved by
+the hosted verifier, which stores the model unlisted, not privately, until
+in-process proof producers land (Phase 4). `PRISM_CODE_TIER=offline` sends
+nothing anywhere. Such an app is not yet built into a holo by the guided build,
+which needs Lean's export, Rust and WebAssembly; that, and a step with nothing
+to run on, fails with `build.frontend-unavailable`. Publishing to GitHub from
+`prism_build` waits for the template's ID rows, scenarios and tests to be
+written from the snapshot (`build.publish-unavailable`).
 
 The tools are `prism_start`, `prism_check`, `prism_prove`, `prism_build`,
 `prism_try` and `prism_status`. Proving and building run as jobs, so a call
