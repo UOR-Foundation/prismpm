@@ -122,7 +122,17 @@ function beta(e) { // head beta only
 }
 const fail = (m) => { throw new Error(m); };
 
-export function emitter(lib) {
+// The constants an emitter knows: the parsed library's, read-only and shared by every emitter, under this emitter's
+// own. So a library is parsed once per process, however many models are written over it.
+class Layered {
+  constructor(base) { this.base = base; this.own = new Map(); }
+  get(k) { return this.own.has(k) ? this.own.get(k) : this.base.get(k); }
+  has(k) { return this.own.has(k) || this.base.has(k); }
+  set(k, v) { this.own.set(k, v); return this; }
+}
+
+export function emitter(base) {
+  const lib = { ...base, decls: new Layered(base.decls) };
   const decl = (name) => lib.decls.get(name) || fail(`unknown constant ${name}`);
   const constant = (name) => { const d = decl(name); const us = d.levelParams.map(() => lmvar()); return [E.const(name, us), substLevels(d.type, new Map(d.levelParams.map((p, i) => [p, us[i]])))]; };
 
@@ -931,7 +941,17 @@ export function emitter(lib) {
     if (!lib.decls.has("LexStmt." + name)) fail(`no statement is known for ${name}`);
     return { name: "LexBind." + name, type: E.const("LexStmt." + name, []), value: E.const(name, []) };
   }
-  return { theorem, write, writeDef, writeInductive, canon, bind, lib, lines: () => out.join("\n") + "\n" };
+  // A point to come back to, and the lines written since it. With these, each theorem is written as its own file over
+  // the same declarations: checkpoint after the declarations, write a theorem, take its lines, roll back.
+  function checkpoint() { return { out: out.length, nIn, nIl, nIe, own: new Set(lib.decls.own.keys()) }; }
+  function since(c) { return out.slice(c.out); }
+  function rollback(c) {
+    out.length = c.out;
+    for (const [m, top] of [[newName, c.nIn], [newLevel, c.nIl], [newExpr, c.nIe]]) for (const [k, ix] of m) if (ix > top) m.delete(k);
+    nIn = c.nIn; nIl = c.nIl; nIe = c.nIe;
+    for (const k of [...lib.decls.own.keys()]) if (!c.own.has(k)) lib.decls.own.delete(k);
+  }
+  return { theorem, write, writeDef, writeInductive, canon, bind, lib, checkpoint, since, rollback, lines: () => out.join("\n") + "\n" };
 }
 
 // ---------- reading the generated Lean ----------

@@ -10,14 +10,19 @@
 //
 // Only what the theorems' statements reach is lowered: that is what a proof needs.
 //
-//   lower(snapshot, emitter) -> { theorems: [{ name, statement, axioms, proof }], declared: [names], recursive: [names] }
+//   lower(snapshot, emitter, { hash }) -> { theorems: [{ name, statement, axioms, proof, key }], declared: [names], recursive: [names] }
+//
+// With `hash` (a string to its BLAKE3 label), each theorem carries a Merkle key: the label of its own declaration and of
+// the labels of everything it reaches, each declaration's label being that of its content and its dependencies' labels.
+// Two theorems with one key are the same statement over the same definitions, so one verdict serves both: an edit
+// changes the keys of the theorems that reach what was edited, and no other.
 import { E, L, apps, abstract } from "./emit.mjs";
 
 const z = L.zero, one = L.succ(L.zero);
 const c0 = (n) => E.const(n, []);
 const fail = (m) => { throw new Error("lower: " + m); };
 
-export function lower(snap, em) {
+export function lower(snap, em, { hash = null } = {}) {
   if (snap.spec !== "lexlean/semantic-snapshot/2") fail(`not a lexlean/semantic-snapshot/2: ${snap.spec}`);
   const mods = new Map(snap.modules.map((m) => [m.name, m]));
   const full = (mod, name) => `${mods.get(mod).lean_module}.${name}`;
@@ -324,13 +329,28 @@ export function lower(snap, em) {
     declared.push(n);
   };
   for (const n of order) if (needed.has(n)) emit(n);
+  // Merkle labels, by declaration.
+  const labels = new Map(), labelling = new Set();
+  const labelOf = (n) => {
+    if (labels.has(n)) return labels.get(n);
+    if (labelling.has(n)) fail(`${n}: mutual recursion is not covered yet`);
+    labelling.add(n);
+    const { mod, d } = declOf(n);
+    const l = hash(JSON.stringify(["lexlean-kernel-path/declaration/1", n, mod, d, [...depsOf(n)].sort().map((m) => [m, labelOf(m)])]));
+    labelling.delete(n); labels.set(n, l);
+    return l;
+  };
   const theorems = [];
   for (const n of order) {
     const { mod, d } = byName.get(n);
     if (d.kind !== "theorem") continue;
     const statement = withParams(mod, d.parameters ?? [], (ctx, lam, pi) => pi(term(mod, ctx, d.statement)));
     em.writeDef({ name: "LexStmt." + n, type: E.sort(z), value: statement });
-    theorems.push({ name: n, statement, axioms: d.axioms ?? [], proof: d.proof?.kind ?? null, parameters: (d.parameters ?? []).map((p) => p.name) });
+    const key = hash ? hash(JSON.stringify(["lexlean-kernel-path/theorem/1", n, mod, d, [...depsOf(n)].sort().map((m) => [m, labelOf(m)])])) : null;
+    // How much it reaches: a stand-in for how long the kernel takes, until a judged time is known.
+    const seen = new Set(), stack = [...depsOf(n)];
+    while (stack.length) { const m = stack.pop(); if (!seen.has(m)) { seen.add(m); stack.push(...depsOf(m)); } }
+    theorems.push({ name: n, statement, axioms: d.axioms ?? [], proof: d.proof?.kind ?? null, parameters: (d.parameters ?? []).map((p) => p.name), key, weight: seen.size });
   }
   return { theorems, declared, recursive: recursiveNames };
 }

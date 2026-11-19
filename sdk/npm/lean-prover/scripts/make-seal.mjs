@@ -21,9 +21,9 @@ const gz = (path, url) => ({ url, encoding: "gzip", kappa: kappa(gunzipSync(at(p
 
 // Package path -> URL under web/serve.mjs.
 const CODE = {
-  "web/sealed-app.mjs": "/sealed-app.mjs", "web/sealed-worker.mjs": "/sealed-worker.mjs",
+  "web/sealed-app.mjs": "/sealed-app.mjs", "web/sealed-worker.mjs": "/sealed-worker.mjs", "web/judge-worker.mjs": "/judge-worker.mjs", "web/lexlean-worker.mjs": "/lexlean-worker.mjs", "web/sealed-store.mjs": "/sealed-store.mjs",
   "src/wasi.mjs": "/src/wasi.mjs", "src/axioms.mjs": "/src/axioms.mjs",
-  "kernel-path/src/emit.mjs": "/kernel-path/src/emit.mjs", "kernel-path/src/lower.mjs": "/kernel-path/src/lower.mjs",
+  "kernel-path/src/emit.mjs": "/kernel-path/src/emit.mjs", "kernel-path/src/lower.mjs": "/kernel-path/src/lower.mjs", "kernel-path/src/plan.mjs": "/kernel-path/src/plan.mjs",
 };
 const BOOT = { "hologram/hologram_store.js": "/hologram/hologram_store.js", "hologram/hologram_store_bg.wasm": "/hologram/hologram_store_bg.wasm" };
 
