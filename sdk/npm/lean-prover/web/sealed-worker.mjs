@@ -17,6 +17,7 @@
 import { run as runWasi } from "../src/wasi.mjs";
 
 const now = () => performance.now();
+Error.stackTraceLimit = 100000; // so an overflow reports its whole depth
 let holo = null, seal = null, manifest = null, lean = null, memory = null, lexlean = null; // lean: the current instance
 const log = [], opened = new Set();
 const heapMB = () => (memory ? Math.round(Number(memory.buffer.byteLength) / 1048576) : null);
@@ -103,7 +104,7 @@ async function boot(out) {
   let t = now();
   lean = null; memory = null;
   const next = await factory({
-    instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; done(instance, compiled); }); return {}; },
+    instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; raw = instance.exports; done(instance, compiled); }); return {}; },
     print: (s) => log.push(s), printErr: (s) => log.push(s),
   });
   // The file system owns each admitted array instead of copying it: one copy of the library outside Lean's heap,
@@ -125,11 +126,34 @@ async function boot(out) {
   return { ok: true, timings };
 }
 
+// One driver request. Lean's elaborator recurses deeply, and a browser gives a worker's own call stack little room
+// (Chromium about 10,000 frames of a small test function, Firefox about 3,000). A call made through
+// WebAssembly.promising (JSPI) runs on a separate stack the engine sizes itself, and measured deeper in every
+// browser tried: Chromium 2x, Firefox 4.3x, WebKit 9.7x. So every request goes that way where JSPI exists, and
+// directly elsewhere. The request and the answer cross as UTF-8 in Lean's memory, exactly as ccall passes them.
+import { probe } from "./stack-probe.mjs";
+let raw = null, stacks = null;
+const enc = new TextEncoder(), dec = new TextDecoder();
+// eslint-disable-next-line no-unused-vars
+async function request(json) {
+  stacks ??= await probe();
+  if (!(stacks.promising > stacks.direct)) return { text: lean.ccall("elab_request", "string", ["string"], [json]), jspi: false };
+  const bytes = enc.encode(json);
+  const ptr = raw.malloc(BigInt(bytes.length + 1));
+  new Uint8Array(memory.buffer, Number(ptr), bytes.length + 1).set([...bytes, 0]);
+  let out;
+  try { out = await WebAssembly.promising(raw.elab_request)(ptr); } finally { raw.free(ptr); }
+  const heap = new Uint8Array(memory.buffer), start = Number(out);
+  let end = start; while (heap[end] !== 0) end++;
+  return { text: dec.decode(heap.subarray(start, end)), jspi: true };
+}
+
 const EXTS = [".olean", ".olean.server", ".olean.private", ".ir"];
 const outPath = (module, ext) => `/out/${module.replaceAll(".", "/")}${ext}`;
 
-self.onmessage = async ({ data }) => {
-  const reply = (r) => self.postMessage({ id: data.id, ...r });
+// The same handler serves a worker and, as a fallback, the page itself (see sealed-app.mjs).
+export async function handle(data) {
+  const reply = (r) => ({ id: data.id, ...r });
   try {
     if (data.op === "init") return reply(await init(data));
     if (!holo) return reply({ error: "the worker is not initialized" });
@@ -146,6 +170,7 @@ self.onmessage = async ({ data }) => {
       lean.FS.writeFile(data.path, data.bytes);
       return reply({ ok: true });
     }
+    if (data.op === "stacks") return reply({ stacks: stacks ??= await probe() });
     if (data.op === "opened") return reply({ opened: [...opened] });
     // A module's four build files, as Lean wrote them under /out, or null if any is missing.
     if (data.op === "artifacts") {
@@ -162,11 +187,16 @@ self.onmessage = async ({ data }) => {
     }
     if (data.op === "request") {
       const t = now(), from = log.length;
-      const answer = JSON.parse(lean.ccall("elab_request", "string", ["string"], [JSON.stringify(data.request)]));
-      return reply({ answer, ms: Math.round(now() - t), heapMB: heapMB(), printed: log.slice(from).join(" | ").slice(-4000) });
+      const r = await request(JSON.stringify(data.request)), answer = JSON.parse(r.text);
+      return reply({ answer, jspi: r.jspi, ms: Math.round(now() - t), heapMB: heapMB(), printed: log.slice(from).join(" | ").slice(-4000) });
     }
-    reply({ error: `unknown op ${data.op}` });
+    return reply({ error: `unknown op ${data.op}` });
   } catch (e) {
-    reply({ error: "the worker failed: " + (e && e.message ? e.message : String(e)) });
+    // A stack overflow says where it happened: the most frequent frames of the trace, for diagnosis.
+    let frames = null;
+    const lines = e?.stack ? String(e.stack).split(/\r?\n/) : [];
+    if (e instanceof RangeError && lines.length) { const counts = {}; for (const l of lines.slice(1)) { const k = l.trim().replace(/:0x[0-9a-f]+\)?$/, ""); counts[k] = (counts[k] ?? 0) + 1; } frames = Object.entries(counts).sort((x, y) => y[1] - x[1]).slice(0, 12); }
+    return reply({ error: "the worker failed: " + (e && e.message ? e.message : String(e)), overflow: e instanceof RangeError || /too much recursion|call stack/i.test(String(e?.message)), frames, depth: lines.length ? lines.length - 1 : null });
   }
-};
+}
+if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) self.onmessage = async ({ data }) => self.postMessage(await handle(data));

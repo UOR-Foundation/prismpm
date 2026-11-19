@@ -17,7 +17,7 @@ const sha = (b) => "sha256:" + createHash("sha256").update(b).digest("hex");
 const at = (path) => readFileSync(join(pkg, path));
 
 // Package path -> URL under web/serve.mjs.
-const CODE = { "web/sealed-app.mjs": "/sealed-app.mjs", "web/sealed-worker.mjs": "/sealed-worker.mjs", "src/verdict.mjs": "/src/verdict.mjs", "src/axioms.mjs": "/src/axioms.mjs", "src/wasi.mjs": "/src/wasi.mjs" };
+const CODE = { "web/sealed-app.mjs": "/sealed-app.mjs", "web/sealed-worker.mjs": "/sealed-worker.mjs", "web/stack-probe.mjs": "/stack-probe.mjs", "src/verdict.mjs": "/src/verdict.mjs", "src/axioms.mjs": "/src/axioms.mjs", "src/wasi.mjs": "/src/wasi.mjs" };
 const BOOT = { "hologram/hologram_store.js": "/hologram/hologram_store.js", "hologram/hologram_store_bg.wasm": "/hologram/hologram_store_bg.wasm" };
 
 const manifestBytes = readFileSync(join(a.manifest, "manifest.json"));

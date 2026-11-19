@@ -11,18 +11,27 @@ const enc = new TextEncoder(), dec = new TextDecoder();
 
 export function prover({ seal, sealLabel, link, files, holo, say = () => {} }) {
   const label = (bytes) => holo.address(bytes);
-  let worker = null, nextId = 0, ready = null;
+  // Lean runs in a worker. A browser may give a worker too little call stack for a deeply recursive module (Firefox
+  // gives the least); then the prover moves Lean to this page, whose stack is deeper, and carries on. The page then
+  // does not respond while Lean works, but the proof completes.
+  let worker = null, nextId = 0, ready = null, onPage = null;
+  let thread = new URLSearchParams(location.search).get("thread") === "page" ? "page" : "worker";
   const waiting = new Map();
+  const settle = (r, resolve, reject) => (r.error ? reject(Object.assign(new Error(r.error), { frames: r.frames, depth: r.depth, overflow: r.overflow })) : resolve(r));
   const ask = (msg, transfer = []) => new Promise((resolve, reject) => {
     const id = nextId++;
-    waiting.set(id, (r) => (r.error ? reject(new Error(r.error)) : resolve(r)));
+    if (thread === "page") { onPage({ id, ...msg }).then((r) => settle(r, resolve, reject), reject); return; }
+    waiting.set(id, (r) => settle(r, resolve, reject));
     worker.postMessage({ id, ...msg }, transfer);
   });
   // The worker, started on the first miss only.
   const start = () => (ready ??= (async () => {
-    worker = new Worker(link("web/sealed-worker.mjs"), { type: "module" });
-    worker.onmessage = ({ data }) => { waiting.get(data.id)?.(data); waiting.delete(data.id); };
-    worker.onerror = (e) => { for (const done of waiting.values()) done({ error: "the engine's worker failed: " + (e.message ?? e) }); waiting.clear(); };
+    if (thread === "page") onPage = (await import(link("web/sealed-worker.mjs"))).handle;
+    else {
+      worker = new Worker(link("web/sealed-worker.mjs"), { type: "module" });
+      worker.onmessage = ({ data }) => { waiting.get(data.id)?.(data); waiting.delete(data.id); };
+      worker.onerror = (e) => { for (const done of waiting.values()) done({ error: "the engine's worker failed: " + (e.message ?? e) }); waiting.clear(); };
+    }
     // A worker built from checked bytes has a blob: base, so it gets the seal with absolute URLs.
     const abs = (e) => e && { ...e, url: new URL(e.url, location.href).href };
     const forWorker = { ...seal, manifest: abs(seal.manifest), lexlean: abs(seal.lexlean), runtime: abs(seal.runtime) };
@@ -92,7 +101,7 @@ export function prover({ seal, sealLabel, link, files, holo, say = () => {} }) {
     if (rendered.compiler?.semantics_id !== semantics) throw new Error(`the project was rendered for compiler semantics ${rendered.compiler?.semantics_id}; the seal accepts ${semantics}`);
 
     const answers = new Map(), timing = [];
-    let heapMB = null, openMs = null, opened = null, restarts = 0;
+    let heapMB = null, openMs = null, opened = null, restarts = 0, moved = false;
     // Lean is opened only when a module must be elaborated.
     const lean = async () => {
       if (opened) return opened;
@@ -147,7 +156,20 @@ export function prover({ seal, sealLabel, link, files, holo, say = () => {} }) {
       say(`Elaborating ${row.lean_module}…`);
       const path = `/src/${row.lean_module.replaceAll(".", "/")}.lean`;
       await ask({ op: "write", path, bytes: enc.encode(row.text) });
-      const x = await ask({ op: "request", request: { op: "elaborate", outDir: "/out", module: row.lean_module, path } });
+      let x;
+      try {
+        x = await ask({ op: "request", request: { op: "elaborate", outDir: "/out", module: row.lean_module, path } });
+      } catch (e) {
+        if (!e.overflow || thread === "page") throw e;
+        // Too deep for this worker's stack: Lean moves to the page, with every earlier module's build files.
+        say(`${row.lean_module} needs a deeper stack than this browser gives a worker; continuing on the page…`);
+        worker.terminate(); worker = null; thread = "page"; ready = null; opened = null; moved = true;
+        await start(); await lean();
+        await ask({ op: "place", files: [...built.values()].flat() });
+        placed.clear(); for (const m of built.keys()) placed.add(m);
+        await ask({ op: "write", path, bytes: enc.encode(row.text) });
+        x = await ask({ op: "request", request: { op: "elaborate", outDir: "/out", module: row.lean_module, path } });
+      }
       if (x.answer?.error) throw new Error(`${row.lean_module}: ${x.answer.error} — Lean printed: ${x.printed}`);
       answers.set(row.lean_module, x.answer);
       timing.push({ module: row.lean_module, ms: x.ms, elabMs: x.answer.elabMs, replayMs: x.answer.replayMs, heapMB: x.heapMB });
@@ -165,7 +187,7 @@ export function prover({ seal, sealLabel, link, files, holo, say = () => {} }) {
       evidence: { seal: sealLabel, ...init.evidence, runtime: seal.runtime?.kappa ?? null, source_id: rendered.source_id, semantic_id: rendered.semantic_id, build_id: rendered.build_id },
     };
     const verdictLabel = await remember(key, verdict);
-    return { ...verdict, remembered: false, key, verdictLabel, renderMs, openMs, open: opened?.timings ?? null, timing, heapMB, restarts, modulesReused: reused, modulesElaborated: timing.length, totalMs: Math.round(performance.now() - t0) };
+    return { ...verdict, remembered: false, key, verdictLabel, renderMs, openMs, open: opened?.timings ?? null, timing, heapMB, restarts, movedToPage: moved, thread, modulesReused: reused, modulesElaborated: timing.length, totalMs: Math.round(performance.now() - t0) };
   }
   return { prove, close: () => worker?.terminate(), opened: () => (worker ? ask({ op: "opened" }) : { opened: [] }) };
 }
@@ -196,6 +218,6 @@ export async function main(ctx) {
     window.result = { done: true, ...r, modules: r.modules.map((m) => ({ module: m.module, kind: m.kind, accepted: m.accepted, declarations: m.declarations.length })) };
   } catch (e) {
     verdictEl.className = "bad"; verdictEl.textContent = "Could not prove: " + (e.message ?? e);
-    window.result = { done: true, error: String(e.message ?? e) };
+    window.result = { done: true, error: String(e.message ?? e), frames: e.frames ?? null, depth: e.depth ?? null };
   }
 }
