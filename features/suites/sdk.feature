@@ -300,6 +300,13 @@ Feature: sdk
     When the front end is chosen, the module is read, kept or fetched, and the rule app is checked, read from its snapshot and proved
     Then mismatched bytes are refused, nothing is fetched with no pin, the instance sees only the sources, and the rule app is proved by Lean's kernel with no Docker and no server
 
+  @DK-48 @build
+  Scenario: The WebGPU bridge of prism-code (step S5d) follows model/webgpu-bridge, which Lean proves: a host runs the plan a guest answers, WGSL emitted by LexLean's Kernel module with its BLAKE3 address, its invocation count and one buffer of u32 words per binding, only on an adapter, only when the address recomputes from the text, every group-0 binding has one non-empty buffer and one at least is read_write, only within the device's buffer and workgroup limits, and dispatching every invocation and no whole spare workgroup; any other plan is refused with webgpu.plan-refused before anything reaches the device, and a host with no adapter with webgpu.unavailable; each read_write buffer is read back as whole u32 words or refused with webgpu.readback-refused; and the CPU's and the GPU's words agree only when an admitted plan ran, was read back whole and every word is equal, so a kernel that did not run is never agreement.
+    Given model/webgpu-bridge verified by Lean, a 4-bit group-sum kernel in the layout LexLean's WGSL backend emits, its CPU reference checked by Lean on one input, and headless Chrome with a WebGPU adapter
+    When the rules are evaluated beside the model's text on generated inputs, and the kernel runs on WebGPU over that input and 1,200 generated invocations
+    Then the JavaScript agrees with the model on every input, and the GPU's words equal the CPU's bit for bit
+    And WGSL altered after its address was named is refused before anything reaches the device, a host with no adapter is told so, and a kernel with another zero point differs
+
   @DK-44 @build
   Scenario: The prism-code system and auth command groups are the CLI of prism.system and prism.auth: system info and version name the package, the holo format, the runtime and the toolchain and builder image the project's prismpm.lock pins, events replays and follows create, start, die and destroy from the container store with since, until and filters, df counts every record and prune removes exited containers only and asks first unless forced; auth login checks the credential with the registry before storing it where Docker would, refuses a password on the command line, and no password reaches stdout, stderr or an error in any spelling, and logout names an ambient token it cannot clear.
     Given a PRISM_HOME with containers, a project with a prismpm.lock, a Docker config folder and an in-process registry

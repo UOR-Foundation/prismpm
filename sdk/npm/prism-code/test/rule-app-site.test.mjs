@@ -17,7 +17,8 @@ process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
 process.env.PRISM_LEXLEAN_FETCH = '0';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
-const HOSTED = { PRISM_CODE_TIER: 'hosted' };
+// The env a step is given is the whole environment it sees: it names this test's home, never the user's.
+const HOSTED = { PRISM_CODE_TIER: 'hosted', PRISM_HOME: process.env.PRISM_HOME };
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
 test('the files a page needs are the ones a browser can run: nothing that needs Node itself', () => {

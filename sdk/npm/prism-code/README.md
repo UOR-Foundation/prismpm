@@ -101,7 +101,10 @@ on a read-only WASI host held in memory: it checks every app and takes its
 semantic snapshot in under a second, and a rule app is then proved by Lean's
 kernel in this process and built, with no Docker and no server. Its pinned copy is
 fetched once, about 4 MB, and used only when it has its κ-label (BLAKE3);
-`PRISM_LEXLEAN_FETCH=0` fetches nothing. Proving any other app's theorems needs Lean: the SDK image on this
+`PRISM_LEXLEAN_FETCH=0` fetches nothing. It and Lean's kernel are kept once per machine in
+`$PRISM_HOME/kappa`. `setup` and the first check after an upgrade remove what this
+version no longer pins; `prism-code system df` shows what that frees, and
+`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Proving any other app's theorems needs Lean: the SDK image on this
 machine (Docker), or the hosted verifier, which only you choose, by setting
 `PRISM_CODE_TIER=hosted`, until in-process proof producers land (Phase 4). With
 nothing to run a step on, it fails with `build.frontend-unavailable`. Publishing to GitHub from `prism_build` waits for
@@ -590,6 +593,27 @@ HOLOVIEW mounting needs an intent service worker and is not in this release.
 `prism-code`, `/browser`, `/canonical` import no `node:` modules and work on
 browsers/edge hosts. The `browser` field excludes `/node` for bundlers;
 browser `load` fetches paths as URLs.
+
+## WebGPU bridge (experimental)
+
+A guest never calls the GPU; it answers a plan, and the host runs it.
+`prism-code/webgpu` runs WGSL emitted by LexLean's `Kernel` module on WebGPU
+and reads back its u32 buffers, so CPU and GPU integers can be compared word
+for word. The rules it admits a plan, a readback and a verdict by are
+`model/webgpu-bridge`, which Lean proves (DK-48).
+
+```js
+import { runPlan, compare, kernelAddress } from 'prism-code/webgpu';
+const plan = { wgsl, kernel: kernelAddress(wgsl), invocations, buffers }; // one u32 array per @binding
+const { outputs } = await runPlan(plan); // Map: read_write binding -> Uint32Array
+compare({ ran: true, planOk: true, readbackOk: true, cpu, gpu: outputs.get(3) }).verdict; // 'agree'
+```
+
+Layout: every buffer is `array<u32>` at `@group(0) @binding(i)`, entry `main`,
+`@workgroup_size(n)` along x, invocation index `global_invocation_id.x`, stores
+guarded by `arrayLength`; a kernel that declares `override invocations: u32;`
+has it set to the plan's count, so padding invocations write nothing. Refusals: `webgpu.plan-refused` (nothing dispatched),
+`webgpu.readback-refused`, `webgpu.unavailable`.
 
 ## Plugins and providers (experimental)
 

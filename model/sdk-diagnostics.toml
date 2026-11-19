@@ -1055,6 +1055,21 @@ capability = "OC-11"
 statement = "The HOLOVIEW bundle has a version other than the one this version reads."
 
 [[error]]
+code = "webgpu.plan-refused"
+capability = "DK-48"
+statement = "A WebGPU plan breaks a rule of model/webgpu-bridge: its WGSL is not the text its BLAKE3 address names, a binding has no buffer or an empty one, no binding is read_write, a buffer or the workgroup count is past the device's limits, or WebGPU refused the kernel. Nothing was dispatched."
+
+[[error]]
+code = "webgpu.readback-refused"
+capability = "DK-48"
+statement = "A read_write buffer came back from the GPU as other than its own number of whole u32 words, so its words are not compared."
+
+[[error]]
+code = "webgpu.unavailable"
+capability = "DK-48"
+statement = "This host has no WebGPU or no adapter, so the kernel did not run; the CPU result stands alone and is never reported as agreement."
+
+[[error]]
 code = "world_mismatch"
 class = "WorldMismatchError"
 capability = "CT-12"

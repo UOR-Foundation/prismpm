@@ -24,11 +24,14 @@ export const help = `  prism-code system info [--project <dir>] [--json]
                                                     container create, start, die and destroy events, read from the
                                                     container store; follows it until --until or interrupted. A time
                                                     is ISO 8601, Unix seconds or a duration ago such as 10m
-  prism-code system df [--verbose] [--json]         what the container records and the local image store take
+  prism-code system df [--verbose] [--json]         what the container records, the local image store and the
+                                                    Prism store in $PRISM_HOME/kappa take; the store's reclaimable
+                                                    bytes are what prune would free there
   prism-code system prune [-a|--all] [--filter until=<time>] [--force] [--json]
                                                     remove exited containers, then untagged images no container
-                                                    references (--all: every image none references); asks first
-                                                    unless --force
+                                                    references (--all: every image none references), then what this
+                                                    prism-code no longer pins from the Prism store, and its proof cache
+                                                    past PRISM_KAPPA_CACHE_MB (default 64); asks first unless --force
 `;
 
 /** How often a following `events` reads the store, in milliseconds. */
@@ -43,6 +46,8 @@ export function context(io = {}) {
     stdin: io.stdin ?? process.stdin,
     cwd: io.cwd ?? process.cwd(),
     env,
+    // The Prism store of the client's own environment; none for a client a caller hands in without one.
+    storeEnv: io.prism !== undefined && io.env === undefined ? null : env,
     pollMs: io.pollMs ?? EVENTS_POLL_MS,
     signal: io.signal ?? null,
     prism: io.prism ?? Prism.fromEnv({ env, warn: () => {} }),
@@ -189,9 +194,12 @@ async function df(argv, io) {
   const { positional, options } = readArgs(argv, { flags: ['json', 'verbose'], short: { v: 'verbose' } });
   if (positional.length > 0) throw new UsageError('system df takes no arguments');
   const report = await io.prism.system.df();
-  if (options.json) return io.stdout.write(json(report)), 0;
+  // The Prism store: what a collection would free, measured without removing anything (store-gc.mjs).
+  const { collectStore } = await import('../journey/store-gc.mjs');
+  const store = io.storeEnv ? collectStore({ env: io.storeEnv, dryRun: true }) : null;
+  if (options.json) return io.stdout.write(json(store ? { ...report, store } : report)), 0;
   const c = report.containers;
-  const lines = ['TYPE         TOTAL   ACTIVE   SIZE       RECLAIMABLE', `Containers   ${String(c.total).padEnd(8)}${String(c.active).padEnd(9)}${bytes(c.size).padEnd(11)}${bytes(c.reclaimable)}`, imagesLine(report.images)];
+  const lines = ['TYPE         TOTAL   ACTIVE   SIZE       RECLAIMABLE', `Containers   ${String(c.total).padEnd(8)}${String(c.active).padEnd(9)}${bytes(c.size).padEnd(11)}${bytes(c.reclaimable)}`, imagesLine(report.images), ...(store ? [`Prism store  ${String(store.roots).padEnd(8)}${String(store.roots).padEnd(9)}${bytes(store.before).padEnd(11)}${bytes(store.freed)}`] : [])];
   if (options.verbose && report.images?.rows.length > 0) {
     lines.push('', 'IMAGE ID       TAGS                                      SIZE     CONTAINERS');
     for (const row of report.images.rows) lines.push(`${row.digest.slice('blake3:'.length, 'blake3:'.length + 12).padEnd(15)}${(row.tags.join(', ') || '<none>').padEnd(42)}${bytes(row.size).padEnd(9)}${row.containers}`);
@@ -223,12 +231,16 @@ async function prune(argv, io) {
   if ((wanted.until?.size ?? 0) > 1) throw new UsageError('--filter until= is given once');
   const until = wanted.until ? parseTime('filter until', [...wanted.until][0]) : undefined;
   if (!options.force) {
-    const yes = await confirm(io, `This removes every exited container record, then ${options.all ? 'every image' : 'every untagged image'} no remaining container references. Continue?`);
+    const yes = await confirm(io, `This removes every exited container record, then ${options.all ? 'every image' : 'every untagged image'} no remaining container references, then what this prism-code no longer pins from the Prism store. Continue?`);
     if (yes === null) throw new UsageError('system prune asks before removing anything; pass --force where there is no terminal to ask on');
     if (!yes) return 0;
   }
-  const result = await io.prism.system.prune({ ...(until === undefined ? {} : { until }), ...(options.all ? { all: true } : {}) });
+  const pruned = await io.prism.system.prune({ ...(until === undefined ? {} : { until }), ...(options.all ? { all: true } : {}) });
+  const { collectStore } = await import('../journey/store-gc.mjs');
+  const store = io.storeEnv ? collectStore({ env: io.storeEnv }) : null;
+  const result = store ? { ...pruned, store, spaceReclaimed: pruned.spaceReclaimed + store.freed } : pruned;
   if (options.json) return io.stdout.write(json(result)), 0;
+  if (store?.busy) io.stderr.write('A check, prove or build holds the Prism store, so nothing was removed from it.\n');
   const ids = result.containersDeleted.map((id) => `${id}\n`).join('');
   const images = (result.imagesDeleted ?? []).map((digest) => `${digest}\n`).join('');
   io.stdout.write(`${ids ? `Deleted containers:\n${ids}\n` : ''}${images ? `Deleted images:\n${images}\n` : ''}Total reclaimed space: ${bytes(result.spaceReclaimed)}\n`);

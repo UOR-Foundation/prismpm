@@ -1126,4 +1126,7 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `view.magic` |  | `OC-11` | The bytes are not a HOLOVIEW bundle. |
 | `view.order` |  | `OC-11` | The files of the HOLOVIEW bundle are not in strict lexical order, or one appears twice. |
 | `view.version` |  | `OC-11` | The HOLOVIEW bundle has a version other than the one this version reads. |
+| `webgpu.plan-refused` |  | `DK-48` | A WebGPU plan breaks a rule of model/webgpu-bridge: its WGSL is not the text its BLAKE3 address names, a binding has no buffer or an empty one, no binding is read_write, a buffer or the workgroup count is past the device's limits, or WebGPU refused the kernel. Nothing was dispatched. |
+| `webgpu.readback-refused` |  | `DK-48` | A read_write buffer came back from the GPU as other than its own number of whole u32 words, so its words are not compared. |
+| `webgpu.unavailable` |  | `DK-48` | This host has no WebGPU or no adapter, so the kernel did not run; the CPU result stands alone and is never reported as agreement. |
 | `world_mismatch` | `WorldMismatchError` | `CT-12` | The guest does not have the interface of the WIT world it declares, or the world is not the one the caller pinned. |

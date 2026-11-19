@@ -252,7 +252,7 @@ test('on first use it adds only check.mjs, attest.mjs and verify-closure.mjs, wh
 
 test('adding the namespace leaves the package export map as it was: it is reachable only through #441', () => {
   const { exports: map } = JSON.parse(readFileSync(here('../package.json'), 'utf8'));
-  assert.deepEqual(Object.keys(map), ['.', './node', './browser', './init', './canonical', './package.json']);
+  assert.deepEqual(Object.keys(map), ['.', './node', './browser', './init', './canonical', './webgpu', './package.json']);
 });
 
 test('pullClosure is the verdict pull gets: it refuses claims that do not hold, and passes a closure that does', async () => {

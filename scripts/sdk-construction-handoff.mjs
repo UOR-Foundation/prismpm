@@ -24,10 +24,12 @@ const workflowProfiles=new Map([
  ['sha256:bbfbd47a2ec3131cb00912c496f8c627e48f6e067937b9042f241764beb38a15',7],
  ['sha256:ed952dbab6305ff49d8d1a3c19376049567455b73b6e673a01d72c43904d1f96',7],
  ['sha256:ee1932251f72659c7e43adf2bddbe9409c3e3f5206781071dbb067da1033163b',9],
- // Current source-reviewed candidate workflow: the nine jobs above, with a
- // first build step that frees runner disk. Keep historical profiles above
- // immutable; a new workflow is admitted only by this exact digest.
+ // The nine jobs above, with a first build step that frees runner disk.
  ['sha256:c3a7bbea1e3cce7e9e221fde00137ba05c11b7016e5ff500778b4efc50f02cff',9],
+ // Current source-reviewed candidate workflow: the same nine jobs, its unpublished construction labelled with the
+ // repository's name since its rename (UOR-Foundation/prismpm). Keep historical profiles above immutable; a new
+ // workflow is admitted only by this exact digest.
+ ['sha256:cee7604f89129ea2f2b2205a56914119aa605a1c3465c2bc2487b73f5aaef645',9],
  ['sha256:38c670e9eac9245ce6f0b95d0dee1ced113e8258efa46849c70fc29c2b767b09',9],
  // main after the v0.4.0 merge, with the image labelled by the workspace version.
  ['sha256:8982ec85be0c4eefff573d1937031386b23429b4fe710f2669523fa0716ca07c',9]
