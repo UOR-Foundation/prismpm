@@ -64,12 +64,12 @@ Module results can be kept in a store keyed by BLAKE3 label (`prove({ project, s
 ## From npm
 
 An agent's sandbox often reaches only the npm registry, so the same blobs also ship as npm packages (`src/npm.mjs`, specified in `spec/src/NpmShard.lex.tex`):
-- **Shard packages**, `@prism-code/lean-shard-<hex>@1.0.0`. Each holds blobs as `b/<hex>`, the decoded bytes named by their BLAKE3 label. The package itself is named by the label of its listing.
+- **Shard packages**, `@prism-code/lean-shard-<hex>@1.0.0`. Each holds blobs as `b/<hex>.gz`: gzip-encoded, as in the manifest folder and the host store, and named by the BLAKE3 label of the decoded bytes. The package itself is named by the label of its listing, and its `package.json` (`prismLeanShard`) lists every blob's file, label and sizes.
 - **One library package**, `@prism-code/lean-library-<hex>@1.0.0`. `<hex>` is the BLAKE3 label of the `manifest.json` it carries. It also carries the gate's attestation and the official Init listing, and depends on every shard at exactly `1.0.0`.
 
 Because each name is a label, a package never changes. npm checks each tarball's integrity, and the prover still re-derives each blob's label on read. Shards are capped at 64 MiB packed: npm publishes no tarball limit, and this stays well under the per-file limits other registries document.
 
-A host pins one label, the manifest's, and opens the prover with it:
+A host can fetch the registry tarballs itself: `shardsFor(manifest)` gives each shard's name, version and blobs, and `open({ manifest, pin, read, gate, official })` then reads from the host's own store. prism-code does this. Or a host can let npm install the library package and open the prover from one pinned label:
 
 ```js
 import { openInstalled } from "@prism-code/lean-prover/npm";

@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { libraryName, npmRead } from "./npm.mjs";
+
+export { checkNpmSection, libraryName, npmRead, shardName, shardsFor } from "./npm.mjs";
 import { open, pinnedManifest } from "./prover.mjs";
 
 /** `from`: a file in the project where the library package is installed (its package.json, say). */

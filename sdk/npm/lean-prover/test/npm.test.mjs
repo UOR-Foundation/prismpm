@@ -4,12 +4,13 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { load } from "../gate/agree.mjs";
 import { attest } from "../gate/attest.mjs";
 import { readAdmitted } from "../src/blob.mjs";
 import { openInstalled } from "../src/installed.mjs";
-import { checkNpmSection, entriesOf, libraryName, npmRead, planShards, SHARD_SCOPE } from "../src/npm.mjs";
+import { checkNpmSection, entriesOf, libraryName, npmRead, planShards, SHARD_SCOPE, shardsFor } from "../src/npm.mjs";
 import { kappa } from "../src/vendor/blake3.mjs";
 import { fixture } from "./helpers.mjs";
 
@@ -43,15 +44,22 @@ test("every blob is read from an npm shard and admitted by the BLAKE3 label of i
     const shardPkg = JSON.parse(readFileSync(resolve(`${s.name}/package.json`), "utf8"));
     assert.equal(shardPkg.prismLeanShard.label, s.label, "a shard's package.json names its label");
     assert.deepEqual(shardPkg.prismLeanShard.blobs.map((b) => b.kappa), s.blobs, "and each blob's label, sorted");
+    for (const b of shardPkg.prismLeanShard.blobs) {
+      const gz = readFileSync(resolve(`${s.name}/${b.file}`));
+      assert.equal(kappa(gunzipSync(gz)), b.kappa, "each blob is gzip, labelled by its decoded bytes");
+      assert.equal(gz.length, b.encodedBytes);
+    }
   }
+  const fetched = shardsFor(carried);
+  assert.deepEqual(fetched.map((s) => [s.name, s.version, s.blobs.length]), carried.npm.shards.map((s) => [s.name, "1.0.0", s.blobs.length]));
 });
 
 test("a changed byte in an installed shard, or a missing shard, is refused", async () => {
   const { carried, resolve, modules } = installed();
   const e = carried.library[0];
   const shard = carried.npm.shards.find((s) => s.blobs.includes(e.kappa));
-  const file = join(modules, shard.name, "b", e.kappa.slice(7));
-  const bytes = readFileSync(file); bytes[0] ^= 1; writeFileSync(file, bytes);
+  const file = join(modules, shard.name, "b", `${e.kappa.slice(7)}.gz`);
+  const bytes = gunzipSync(readFileSync(file)); bytes[0] ^= 1; writeFileSync(file, gzipSync(bytes));
   await assert.rejects(readAdmitted(npmRead(carried, { resolve }), e, e.path), (err) => err.code === "lean-prover.blob-kappa");
   const none = npmRead(carried, { resolve: (spec) => join(modules, "absent", spec) });
   await assert.rejects(readAdmitted(none, carried.engine.wasm, "engine.wasm"), (err) => err.code === "lean-prover.blob-missing");

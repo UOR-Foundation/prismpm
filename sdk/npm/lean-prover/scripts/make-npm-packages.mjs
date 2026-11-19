@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { blake3Label } from "../src/blob.mjs";
 import { checkManifest } from "../src/prover.mjs";
-import { libraryName, npmSection, PACKAGE_VERSION, planShards, SHARD_CAP_BYTES } from "../src/npm.mjs";
+import { libraryName, npmSection, PACKAGE_VERSION, planShards, SHARD_CAP_BYTES, shardBlobs } from "../src/npm.mjs";
 
 const args = process.argv.slice(2);
 const option = (name) => { const i = args.indexOf(name); return i < 0 ? null : args.splice(i, 2)[1]; };
@@ -24,17 +24,18 @@ for (const shard of plan) {
   const folder = join(out, "shards", shard.label.slice(7));
   mkdirSync(join(folder, "b"), { recursive: true });
   for (const e of shard.blobs) {
-    const bytes = gunzipSync(readFileSync(join(dir, "blobs", e.kappa.slice(7))));
-    if (blake3Label(bytes) !== e.kappa) throw new Error(`blob ${e.kappa} does not have its label`);
-    writeFileSync(join(folder, "b", e.kappa.slice(7)), bytes);
+    // The blob as the manifest folder stores it, gzip-encoded; its label is over the decoded bytes, checked here.
+    const gz = readFileSync(join(dir, "blobs", e.kappa.slice(7)));
+    if (blake3Label(gunzipSync(gz)) !== e.kappa) throw new Error(`blob ${e.kappa} does not have its label`);
+    writeFileSync(join(folder, "b", `${e.kappa.slice(7)}.gz`), gz);
   }
   writeFileSync(join(folder, "package.json"), JSON.stringify({
     name: shard.name, ...common,
-    description: `Blobs of the WASM Lean prover, each named by the BLAKE3 label of its bytes; this package is named by the label of its listing.`,
+    description: `Blobs of the WASM Lean prover, each gzip-encoded as b/<hex>.gz under the BLAKE3 label of its decoded bytes; this package is named by the label of its listing.`,
     files: ["b"],
-    // What a host needs to fetch the tarball itself and check it: the shard's label, and each blob's label (over
-    // its decoded bytes, the file b/<hex>) and size.
-    prismLeanShard: { label: shard.label, blobs: shard.blobs.map((e) => ({ kappa: e.kappa, bytes: e.bytes })).sort((a, b) => (a.kappa < b.kappa ? -1 : 1)) },
+    // What a host needs to fetch the tarball itself and check it: the shard's label, and for each blob its file,
+    // the label and size of its decoded bytes, and its encoded size.
+    prismLeanShard: { label: shard.label, blobs: shardBlobs(shard) },
   }, null, 2) + "\n");
 }
 
