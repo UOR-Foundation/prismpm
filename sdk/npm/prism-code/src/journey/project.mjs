@@ -15,11 +15,10 @@
  * writes it again.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { PrismCodeError } from '../errors.mjs';
 import { templateFiles } from '../init.mjs';
-import { DEFAULT_SDK_IMAGE, IMAGE_STANDARDS_LOCK, docker, runInImage } from './sdk.mjs';
 
 export const SESSION_SCHEMA = 'prism/session/2';
 const TEMPLATE_MODULE = 'TextRequest';
@@ -142,31 +141,3 @@ export function startApp(dir, name, { root = STARTERS } = {}) {
 }
 
 export const isBound = (dir) => existsSync(join(dir, 'prismpm.lock')) && existsSync(join(dir, 'standards.lock'));
-
-/** Pin the folder to an SDK image: copy its standards.lock, then `prismpm update --toolchain`, which writes prismpm.lock. */
-export async function bind(dir, image = DEFAULT_SDK_IMAGE, { onLine } = {}) {
-  const standards = await docker(['run', '--rm', '--network', 'none', '--entrypoint', 'cat', image, IMAGE_STANDARDS_LOCK]);
-  if (standards.code !== 0) return { ok: false, output: standards.output };
-  write(dir, 'standards.lock', standards.output);
-  const update = await runInImage(dir, `lexlean lock && lexlean fmt --all && lexlean lock && prismpm update --toolchain ${image}`, { image, onLine });
-  return { ok: update.code === 0 && existsSync(join(dir, 'prismpm.lock')), output: update.output };
-}
-
-/** The newest holo the build wrote, or null. */
-export function newestHolo(dir) {
-  const root = join(dir, '.prism', 'build');
-  if (!existsSync(root)) return null;
-  let best = null;
-  const visit = (d, depth) => {
-    for (const entry of readdirSync(d, { withFileTypes: true })) {
-      const p = join(d, entry.name);
-      if (entry.isDirectory() && depth < 3) visit(p, depth + 1);
-      else if (entry.isFile() && entry.name.endsWith('.holo')) {
-        const t = statSync(p).mtimeMs;
-        if (!best || t > best.t) best = { path: p, t };
-      }
-    }
-  };
-  visit(root, 0);
-  return best?.path ?? null;
-}

@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { appDir, readSession, sourceDigest, sourceFiles, startApp, starters, writeSession } from './project.mjs';
-import { build, buildQuietFor, check, prove, tryRequest, verifiedHolo } from './engine.mjs';
+import { build, check, prove, tryRequest } from './engine.mjs';
 import { NO_DOCKER_FREE_BUILD } from './frontend.mjs';
 import { gapLedger } from '../gaps.mjs';
 
@@ -27,7 +27,7 @@ An app's one source of truth is its LexLean model in prism/src/. Start it from a
 After each edit call prism_check; fix every diagnostic at the line it names.
 Show the user the guarantees the model states before proving: Lean proves them, so the user must agree or strike.
 prism_prove and prism_build take minutes: while "running", say so and call again.
-${NO_DOCKER_FREE_BUILD} Never set PRISM_CODE_TIER=hosted yourself; only the user opts in to it.
+${NO_DOCKER_FREE_BUILD} Never set PRISM_CODE_TIER yourself; only the user chooses it.
 Say "proved" only for what Lean proved, "tested" for what acceptance vectors cover.`;
 
 const GREETING = 'Prism builds an app whose rules are proved by Lean, not just tested. Its one source is a LexLean model: I start it from a starter, write it with you, and Lean proves it.';
@@ -66,9 +66,6 @@ export const TOOLS = [
 ];
 
 const PROMPTS = [{ name: 'prism', description: 'Build a formally verified app with Prism', arguments: [] }];
-
-/** A build whose server is gone is taken as still running while it wrote this recently. */
-const ORPHAN_QUIET_SECONDS = 90;
 
 /** What is wrong with a tool call's arguments, in words that say what to send; null when they fit the tool's schema. */
 export function argumentIssue(name, args) {
@@ -144,10 +141,6 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
       return { state: 'running', elapsed, next: `A ${elsewhere.kind} another Prism server started ${elapsed} s ago is still running. Call prism_${kind} again to keep waiting.` };
     }
     if (!jobs.get(kind) && elsewhere && elsewhere.pid !== process.pid) {
-      const quiet = elsewhere.kind === 'build' ? buildQuietFor(dir) : null;
-      if (quiet !== null && quiet < ORPHAN_QUIET_SECONDS && !verifiedHolo(dir)) {
-        return { state: 'running', elapsed: Math.round((Date.now() - elsewhere.started) / 1000), next: `A build is still writing (${quiet} s ago), though the Prism server that started it has stopped. Call prism_${kind} again to keep waiting.` };
-      }
       delete session.status.job;
       save(session);
     }
@@ -192,7 +185,7 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
   const tools = {
     prism_start(args) {
       setImmediate(() => import('./kernel-prove.mjs').then((m) => m.warmKernel()).catch(() => {}));
-      // LexLean as WebAssembly is fetched once, while the user is still describing the app, unless they opted in to the hosted verifier.
+      // LexLean as WebAssembly is fetched once, while the user is still describing the app, unless they asked for the hosted verifier.
       setImmediate(() => import('./lexlean-wasm.mjs').then((m) => m.lexleanReady()).catch(() => {}));
       const all = starters();
       const list = Object.entries(all).map(([name, s]) => ({ starter: name, module: s.module, shape: s.shape }));

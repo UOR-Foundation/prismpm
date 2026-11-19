@@ -1,9 +1,9 @@
 /**
  * The serverless boundary. A build may read static files over plain HTTPS GET
  * from GitHub (the pinned kernel and template, the public proof store, the
- * user's own repository and Pages site) and nothing else. No UOR-run server is
- * on any path: `mcp.uor.foundation` is reachable only when the user opts in to
- * it by name (PRISM_CODE_TIER=hosted), and only by the hosted client.
+ * user's own repository and Pages site) and nothing else. The one UOR-run
+ * server, the hosted verifier `mcp.uor.foundation`, is reachable only by the
+ * hosted client, and not at all when the user sets PRISM_CODE_TIER=offline.
  *
  * Every network read of a build goes through `buildFetch`, which refuses any
  * other host before a byte is sent with `build.host-not-allowed`, and keeps a
@@ -16,12 +16,12 @@ import { PrismCodeError } from '../errors.mjs';
 export const STATIC_HOSTS = Object.freeze(['raw.githubusercontent.com', 'github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']);
 /** The user's own Pages site, `<owner>.github.io`. */
 const PAGES = /^[a-z0-9](?:[a-z0-9-]{0,38})\.github\.io$/;
-/** The hosted verifier: a UOR-run server, so only on the user's opt-in by name. */
+/** The hosted verifier: the one UOR-run server, which the user can refuse with PRISM_CODE_TIER=offline. */
 export const HOSTED_HOST = 'mcp.uor.foundation';
 
 /** A build asked a host outside the boundary: a `PrismCodeError` with code `build.host-not-allowed`. Nothing was sent. */
 export function hostNotAllowed(url, why) {
-  const message = `${url} is outside a Prism build's serverless boundary (${why}); nothing was sent. A build reads static files from GitHub only${why === 'hosted' ? `, and ${HOSTED_HOST} only when PRISM_CODE_TIER=hosted names it` : ''}.`;
+  const message = `${url} is outside a Prism build's serverless boundary (${why}); nothing was sent. A build reads static files from GitHub only${why === 'hosted' ? `, and ${HOSTED_HOST} not at all with PRISM_CODE_TIER=offline` : ''}.`;
   return Object.assign(new PrismCodeError('build.host-not-allowed', message), { url });
 }
 
@@ -42,8 +42,8 @@ export function refusal(url, { optIn = [] } = {}) {
   return 'not an allowed host';
 }
 
-/** The hosts the user opted in to, from the environment. Only PRISM_CODE_TIER=hosted opts in, and only to the hosted verifier. */
-export const optedIn = (env = process.env) => (env.PRISM_CODE_TIER === 'hosted' ? [HOSTED_HOST] : []);
+/** The hosts beyond GitHub a build may ask: the hosted verifier, unless the user set PRISM_CODE_TIER=offline. */
+export const optedIn = (env = process.env) => (env.PRISM_CODE_TIER === 'offline' ? [] : [HOSTED_HOST]);
 
 /** A ledger of what a build asked of the network: each host, its requests and the bytes received. */
 export function networkLedger() {
