@@ -17,7 +17,7 @@
 import { run as runWasi } from "../src/wasi.mjs";
 
 const now = () => performance.now();
-let holo = null, seal = null, manifest = null, lean = null, memory = null, lexlean = null;
+let holo = null, seal = null, manifest = null, lean = null, memory = null, lexlean = null; // lean: the current instance
 const log = [], opened = new Set();
 const heapMB = () => (memory ? Math.round(Number(memory.buffer.byteLength) / 1048576) : null);
 const spent = { fetchMs: 0, decodeMs: 0, hashMs: 0, storeHits: 0, fetched: 0 };
@@ -86,28 +86,47 @@ async function open() {
   Object.assign(timings, { fetchMs: Math.round(spent.fetchMs), decodeMs: Math.round(spent.decodeMs), hashMs: Math.round(spent.hashMs), storeHits: spent.storeHits, fetched: spent.fetched });
   t = now();
   const url = URL.createObjectURL(new Blob([glue], { type: "text/javascript" }));
-  let factory;
   try { factory = (await import(url)).default; } finally { URL.revokeObjectURL(url); }
-  lean = await factory({
-    instantiateWasm: (imports, done) => { WebAssembly.instantiate(wasm, imports).then((r) => { memory = Object.values(r.instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; done(r.instance, r.module); }); return {}; },
+  compiled = await WebAssembly.compile(wasm);
+  library = files;
+  const r = await boot([]);
+  if (!r.ok) return r;
+  return { ok: true, timings: { ...timings, ...r.timings }, files: manifest.library.length, mb: Math.round(mb), heapMB: heapMB() };
+}
+
+// A fresh Lean instance over the admitted library: WebAssembly memory never shrinks, and Lean keeps one copy of the
+// library per import set, so the only way to give memory back is a new instance. The old one is dropped whole.
+// `out` is what earlier modules wrote under /out, which later modules import.
+let factory = null, compiled = null, library = null;
+async function boot(out) {
+  const timings = {};
+  let t = now();
+  lean = null; memory = null;
+  const next = await factory({
+    instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; done(instance, compiled); }); return {}; },
     print: (s) => log.push(s), printErr: (s) => log.push(s),
   });
-  // The file system owns each admitted array instead of copying it: one copy of the library outside Lean's heap.
-  for (const [path, bytes] of files.splice(0)) {
-    lean.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
-    lean.FS.writeFile(path, bytes, { canOwn: true });
+  // The file system owns each admitted array instead of copying it: one copy of the library outside Lean's heap,
+  // shared by every instance.
+  for (const [path, bytes] of [...library, ...out]) {
+    next.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
+    next.FS.writeFile(path, bytes, { canOwn: true });
   }
-  const fsOpen = lean.FS.open;
-  lean.FS.open = (path, ...rest) => { if (typeof path === "string") opened.add(path); return fsOpen.call(lean.FS, path, ...rest); };
-  lean.ENV.LEAN_SYSROOT = "/lean";
-  lean.ENV.LEAN_PATH = "/rt";
-  lean.FS.mkdirTree("/src"); lean.FS.mkdirTree("/out");
+  const fsOpen = next.FS.open;
+  next.FS.open = (path, ...rest) => { if (typeof path === "string") opened.add(path); return fsOpen.call(next.FS, path, ...rest); };
+  next.ENV.LEAN_SYSROOT = "/lean";
+  next.ENV.LEAN_PATH = "/rt";
+  next.FS.mkdirTree("/src"); next.FS.mkdirTree("/out");
   timings.instantiateMs = Math.round(now() - t);
   t = now();
-  if (lean.ccall("elab_ready", "number", [], []) !== 0) return { ok: false, refusal: "Lean did not initialize: " + log.join(" ") };
+  if (next.ccall("elab_ready", "number", [], []) !== 0) return { ok: false, refusal: "Lean did not initialize: " + log.join(" ") };
   timings.initializeMs = Math.round(now() - t);
-  return { ok: true, timings, files: manifest.library.length, mb: Math.round(mb), heapMB: heapMB() };
+  lean = next;
+  return { ok: true, timings };
 }
+
+const EXTS = [".olean", ".olean.server", ".olean.private", ".ir"];
+const outPath = (module, ext) => `/out/${module.replaceAll(".", "/")}${ext}`;
 
 self.onmessage = async ({ data }) => {
   const reply = (r) => self.postMessage({ id: data.id, ...r });
@@ -128,6 +147,19 @@ self.onmessage = async ({ data }) => {
       return reply({ ok: true });
     }
     if (data.op === "opened") return reply({ opened: [...opened] });
+    // A module's four build files, as Lean wrote them under /out, or null if any is missing.
+    if (data.op === "artifacts") {
+      const files = [];
+      for (const ext of EXTS) { try { files.push([outPath(data.module, ext), lean.FS.readFile(outPath(data.module, ext))]); } catch { return reply({ files: null }); } }
+      return reply({ files });
+    }
+    // A fresh instance, with `files` (earlier modules' build files) written under /out.
+    if (data.op === "reset") { const t = now(), r = await boot(data.files ?? []); return reply({ ...r, ms: Math.round(now() - t), heapMB: heapMB() }); }
+    // Build files remembered from an earlier session, so later modules can import them.
+    if (data.op === "place") {
+      for (const [path, bytes] of data.files) { lean.FS.mkdirTree(path.slice(0, path.lastIndexOf("/"))); lean.FS.writeFile(path, bytes); }
+      return reply({ ok: true });
+    }
     if (data.op === "request") {
       const t = now(), from = log.length;
       const answer = JSON.parse(lean.ccall("elab_request", "string", ["string"], [JSON.stringify(data.request)]));
