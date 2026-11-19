@@ -101,6 +101,18 @@
       "path": "../prism-code/model/rule-app",
       "relock": "leanprover/lean4:v4.32.2",
       "note": "prism-code's rule app, locked here at Lean 4.32.1: the gate relocks a copy at 4.32.2"
+    },
+    {
+      "name": "prism-canonical-build",
+      "path": "../prism-code/model/canonical-build",
+      "relock": "leanprover/lean4:v4.32.2",
+      "note": "prism-code's canonical build model, locked at Lean 4.32.1: the gate relocks a copy at 4.32.2"
+    },
+    {
+      "name": "prism-rule-judge-stress",
+      "path": "../prism-code/model/rule-judge",
+      "relock": "leanprover/lean4:v4.32.2",
+      "note": "The stress module: prism-code's largest model (1.4 MB of LexLean, Regions and Kernel), elaborated after the other prism-code models in one resident session, so peak memory is measured near the largest realistic Prism app. Locked at Lean 4.32.1: the gate relocks a copy at 4.32.2"
     }
   ]
 }
