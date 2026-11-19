@@ -104,6 +104,9 @@ forge_contexts() {
 # Writes the trust and event lines, then one `signed` line for each receipt in
 # the given directories whose bundle verifies against this repository's
 # delegation workflow. Receipts that do not verify are dropped, not trusted.
+# With FORGE_IDENTITIES naming a file of identities, one per line, only a
+# receipt for one of them is verified: the receipts branch keeps every
+# identity ever established, and a receipt counts only for its own identity.
 forge_verified() {
   local out=$1; shift
   local repo=${GITHUB_REPOSITORY:?} subject="${GITHUB_REPOSITORY}/${delegation_workflow}"
@@ -117,6 +120,10 @@ forge_verified() {
     [ -d "$dir" ] || continue
     for receipt in "$dir"/*.receipt; do
       [ -e "$receipt" ] || continue
+      read -r _ kappa verdict < "$receipt"
+      if [ -n "${FORGE_IDENTITIES:-}" ] && ! grep -qxF -- "$kappa" "$FORGE_IDENTITIES"; then
+        continue
+      fi
       bundle=${receipt%.receipt}.jsonl
       [ -e "$bundle" ] || { echo "factory: $receipt has no bundle; ignored" >&2; continue; }
       if ! why=$(gh attestation verify "$receipt" --bundle "$bundle" --repo "$repo" \
@@ -124,7 +131,6 @@ forge_verified() {
         printf 'factory: %s does not verify; ignored:\n%s\n' "$receipt" "$why" >&2
         continue
       fi
-      read -r _ kappa verdict < "$receipt"
       name=$(sed -n 's/^obligation //p' "$receipt")
       echo "signed $name $kappa $verdict workflow runner $subject" >> "$out"
       # What the receipt says the obligation built is signed with it.
@@ -154,10 +160,16 @@ fetch_base() {
 # receipt of this run also marks its obligation attempted, so a later wave
 # does not establish it again whatever its verdict.
 forge_plan() {
-  local verified=target/factory/verified dir receipt
+  local verified=target/factory/verified identities=target/factory/identities dir receipt
   mkdir -p target/factory
   mapfile -t contexts < <(forge_contexts)
-  forge_verified "$verified" "$kept" "$@"
+  # An identity is a function of the tree and the contexts, not of receipts, so
+  # the root names every obligation's identity from no receipts at all.
+  forge_verified "$verified"
+  "$host" delegate "$verified" "${contexts[@]}" \
+    | sed -n 's/^obligation [a-z][a-z0-9-]* [a-z]* \([0-9a-f]\{64\}\)$/\1/p' > "$identities"
+  [ -s "$identities" ] || { echo "factory: the root named no identity" >&2; return 70; }
+  FORGE_IDENTITIES=$identities forge_verified "$verified" "$kept" "$@"
   for dir in "$@"; do
     [ -d "$dir" ] || continue
     for receipt in "$dir"/*.receipt; do

@@ -226,8 +226,11 @@ refuses drift. On every pull request and push it runs:
 1. `plan` (forge). `factory.sh forge-plan` fetches the kept receipts from the
    `prism-receipts` branch and keeps only those whose Sigstore bundle
    `gh attestation verify` accepts for this repository's delegation workflow.
-   The certified `delegate` root then decides each obligation's identity, its
-   route, and which carried obligations a lent runner establishes.
+   The branch keeps every identity ever established, and a receipt counts only
+   for its own identity, so the root first names this tree's identities from
+   no receipts and only receipts for those are verified. The certified
+   `delegate` root then decides each obligation's route, and which carried
+   obligations a lent runner establishes.
 2. `establish` (peer, one runner per obligation). `forge-prepare` materializes
    exactly the obligation's closure. The PrismPM Action's `factory` command
    runs the obligation's command in the immutable SDK image with only that
