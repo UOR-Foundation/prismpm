@@ -212,7 +212,7 @@ theorem{
   parameters: [a : Blob, b : Blob],
   statement: ((breaksSharing a b) = false),
   proof: linear_arithmetic{definitions: [breaksSharing, storedCopies]},
-  axioms: [Classical.choice, Quot.sound, propext]
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}
