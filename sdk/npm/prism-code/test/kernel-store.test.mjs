@@ -5,7 +5,9 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { KERNEL_COMMIT, KERNEL_FILES, KernelMissing, ensureKernel, hasKernel, kernelDirectory, readKernelFile } from '../src/journey/kernel-store.mjs';
+import { KERNEL_COMMIT, KERNEL_FILES, KernelMissing, ensureKernel, hasKernel, kernelFile, readKernelFile } from '../src/journey/kernel-store.mjs';
+import { kappa } from '../src/blake3.mjs';
+import { gunzipSync } from 'node:zlib';
 
 const real = (name) => readFileSync(new URL(`./fixtures/kernel/${name}`, import.meta.url));
 const home = () => ({ PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-kernel-store-')) });
@@ -22,7 +24,8 @@ function network(answer = (name) => ({ ok: true, status: 200, bytes: real(name) 
 }
 
 test('the fixtures beside the tests are the pinned bytes, and the package carries none of them', () => {
-  for (const [name, want] of Object.entries(KERNEL_FILES)) assert.equal(real(name).length, want.bytes, name);
+  // Each is named by the label of its decoded bytes, and kept as served.
+  for (const [name, want] of Object.entries(KERNEL_FILES)) assert.deepEqual([real(name).length, kappa(want.encoding === 'gzip' ? gunzipSync(real(name)) : real(name))], [want.encodedBytes ?? want.bytes, want.kappa], name);
   assert.equal(hasKernel({ env: { PRISM_KERNEL_DIR: fileURLToPath(new URL('./fixtures/kernel/', import.meta.url)) } }), true);
   assert.deepEqual(readdirSync(new URL('../src/journey/kernel/', import.meta.url)).sort(), ['NOTICE.md', 'manifest.json']);
   const shipped = JSON.parse(readFileSync(new URL('./fixtures/package-files.json', import.meta.url), 'utf8'));
@@ -37,7 +40,8 @@ test('the first use fetches four public files by commit, sends nothing else, and
   assert.throws(() => readKernelFile('kernel.holo', { env }), KernelMissing);
   assert.deepEqual(await ensureKernel({ env, fetch, log: (l) => lines.push(l) }), Object.keys(KERNEL_FILES));
   assert.equal(hasKernel({ env }), true);
-  assert.equal(kernelDirectory(env), join(env.PRISM_HOME, 'kernel', KERNEL_COMMIT));
+  // Kept once per machine in the pinned store, by the BLAKE3 label of each file's bytes.
+  for (const [name, want] of Object.entries(KERNEL_FILES)) assert.equal(kernelFile(name, env), join(env.PRISM_HOME, 'kappa', 'pinned', want.kappa.slice(7, 9), want.kappa.slice(9)));
   assert.equal(asked.length, 4);
   for (const { url, init } of asked) {
     assert.ok(url.startsWith(`https://raw.githubusercontent.com/UOR-Foundation/foundry/${KERNEL_COMMIT}/studio/shell/kernel/`), url);
@@ -48,7 +52,7 @@ test('the first use fetches four public files by commit, sends nothing else, and
     assert.ok(!url.includes('?'));
   }
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^Fetching Lean's kernel once .* checked against its SHA-256\. Nothing about the app is sent\.$/);
+  assert.match(lines[0], /^Fetching Lean's kernel once .* checked against its BLAKE3 digest\. Nothing about the app is sent\.$/);
   // The second use asks the network for nothing.
   const again = network();
   assert.deepEqual(await ensureKernel({ env, fetch: again.fetch }), []);
@@ -59,8 +63,8 @@ test('planted defects S1 to S4: bytes that are not the pinned ones are never kep
   // S1: the network answers other bytes.
   const env = home();
   const wrong = network((name) => ({ ok: true, status: 200, bytes: name === 'kernel.holo' ? real('lean-kernel.mjs.gz') : real(name) }));
-  await assert.rejects(ensureKernel({ env, fetch: wrong.fetch }), (e) => e instanceof KernelMissing && e.code === 'kernel.unavailable' && /has SHA-256 [0-9a-f]{64}, not the pinned e775324e/.test(e.message));
-  assert.equal(existsSync(join(kernelDirectory(env), 'kernel.holo')), false);
+  await assert.rejects(ensureKernel({ env, fetch: wrong.fetch }), (e) => e instanceof KernelMissing && e.code === 'kernel.unavailable' && /decodes to blake3:[0-9a-f]{64}, not the pinned blake3:9a264023/.test(e.message));
+  assert.equal(existsSync(kernelFile('kernel.holo', env)), false);
   assert.equal(hasKernel({ env }), false);
   // S2: the network is down, or answers an error. Neither is a verdict on any app.
   await assert.rejects(ensureKernel({ env: home(), fetch: network(() => ({ error: 'ENOTFOUND' })).fetch }), /did not answer: ENOTFOUND/);
@@ -68,8 +72,12 @@ test('planted defects S1 to S4: bytes that are not the pinned ones are never kep
   // S3: a kept file is altered on disk: it is refused, then fetched again.
   const kept = home();
   await ensureKernel({ env: kept, fetch: network().fetch });
-  const file = join(kernelDirectory(kept), 'library.ndjson.gz');
-  writeFileSync(file, Buffer.concat([readFileSync(file), Buffer.from([0])]));
+  const file = kernelFile('library.ndjson.gz', kept);
+  // A byte inside the compressed data: it no longer decodes, or decodes to other bytes. (Bytes after the gzip member
+  // are ignored by decoding, and are no defect: a file is admitted by what it decodes to.)
+  const altered = readFileSync(file);
+  altered[Math.floor(altered.length / 2)] ^= 0xff;
+  writeFileSync(file, altered);
   assert.throws(() => readKernelFile('library.ndjson.gz', { env: kept }), /is not the pinned library\.ndjson\.gz/);
   const repair = network();
   assert.deepEqual(await ensureKernel({ env: kept, fetch: repair.fetch }), ['library.ndjson.gz']);

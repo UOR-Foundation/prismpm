@@ -86,6 +86,7 @@
   "src/journey/rule-app.mjs",
   "src/journey/rule-table.mjs",
   "src/journey/sdk.mjs",
+  "src/journey/store-gc.mjs",
   "src/journey/wasi-memory.mjs",
   "src/manifest.mjs",
   "src/middleware.mjs",
