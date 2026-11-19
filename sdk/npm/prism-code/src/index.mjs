@@ -174,7 +174,8 @@ function sessionLimitsOf(application) {
   return {
     request: application.request_maximum,
     guestAllocation: application.request_maximum,
-    response: session.response_maximum,
+    // The binary application document (#630) keeps the response bound beside the request bound.
+    response: session.response_maximum ?? application.response_maximum,
     responseCount: session.response_count_maximum,
     state: session.state_maximum,
   };

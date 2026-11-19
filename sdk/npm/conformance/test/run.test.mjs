@@ -25,7 +25,7 @@ test('prism-code passes the whole suite, and only the replay placeholders are ex
   assert.equal(results.passed, true);
   assert.equal(results.complete, true);
   assert.equal(results.implementation.name, 'prism-code');
-  assert.deepEqual(results.revisions, ['2026-10-23']);
+  assert.deepEqual(results.revisions, ['2026-10-23', '2026-11-18']);
   const expected = results.checks.filter((check) => check.status === 'xfail').map((check) => check.id);
   assert.deepEqual(expected, allChecks(loadScenarios()).filter((check) => check.placeholder).map((check) => check.id));
   assert.ok(expected.every((id) => id.startsWith('replay.')));

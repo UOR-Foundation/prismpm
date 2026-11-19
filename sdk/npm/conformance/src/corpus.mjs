@@ -223,6 +223,107 @@ const SESSION_PROBE = here('../corpus/session-probe.wasm');
 /** A guest of the checkpoint world (HO-47): the checkpoint ABI probe of prism-code, the generated @3 shim around the same entry. */
 const CHECKPOINT_PROBE = here('../corpus/checkpoint-probe.wasm');
 
+// ---- holo v5 variants (ADR-017, HO-49) ----
+// A UORC archive is its header (magic, two zero bytes, ULEB128 object count,
+// each object's length and their total), the objects, and the
+// UORC-SHA256-CHAIN-v1 seal of everything before it.
+const UORC_MAGIC = Uint8Array.of(0x55, 0x4f, 0x52, 0x43, 0x02, 0x01);
+const UORC_TAG = enc.encode('UORC-SHA256-CHAIN-v1\0');
+const sha256Bytes = (bytes) => new Uint8Array(createHash('sha256').update(bytes).digest());
+const sha256Hex = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const kappaV5 = (bytes) => `sha256:${sha256Hex(bytes)}`;
+const ulebV5 = (n) => {
+  const out = [];
+  while (n >= 0x80) {
+    out.push((n % 0x80) | 0x80);
+    n = Math.floor(n / 0x80);
+  }
+  out.push(n);
+  return Uint8Array.from(out);
+};
+function chainV5(preimage) {
+  let c = sha256Bytes(concat([UORC_TAG, Uint8Array.of(0)]));
+  const whole = preimage.length - (preimage.length % 64);
+  for (let at = 0; at < whole; at += 64) c = sha256Bytes(concat([UORC_TAG, Uint8Array.of(1), c, preimage.subarray(at, at + 64)]));
+  const tail = preimage.subarray(whole);
+  return sha256Bytes(concat([UORC_TAG, Uint8Array.of(2), c, Uint8Array.of(tail.length), tail]));
+}
+function writeV5(objects) {
+  const header = [UORC_MAGIC, Uint8Array.of(0, 0), ulebV5(objects.length), ...objects.map((o) => ulebV5(o.length)), ulebV5(objects.reduce((n, o) => n + o.length, 0))];
+  const preimage = concat([...header, ...objects]);
+  return concat([preimage, chainV5(preimage)]);
+}
+function readV5(bytes) {
+  let at = UORC_MAGIC.length + 2;
+  const uleb = () => {
+    let value = 0;
+    let scale = 1;
+    for (;;) {
+      const byte = bytes[at++];
+      value += (byte & 0x7f) * scale;
+      scale *= 0x80;
+      if (byte < 0x80) return value;
+    }
+  };
+  const count = uleb();
+  const lengths = Array.from({ length: count }, uleb);
+  uleb();
+  return lengths.map((length) => {
+    const object = bytes.slice(at, at + length);
+    at += length;
+    return object;
+  });
+}
+const canonicalV5 = (value) =>
+  Array.isArray(value)
+    ? `[${value.map(canonicalV5).join(',')}]`
+    : value !== null && typeof value === 'object'
+      ? `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonicalV5(value[k])}`).join(',')}}`
+      : JSON.stringify(value);
+
+/**
+ * The reference holo v5 with `guest` under `contract` and `modelDocument` in
+ * place of its own, every κ, length, digest and seal recomputed, so only the
+ * guest, its contract and the document differ. The wasm layer is entered
+ * where the contract's world says: holo_step for the session worlds.
+ */
+function v5With({ guest, contract, modelDocument, entry = null }) {
+  const objects = readV5(new Uint8Array(readFileSync(REFERENCE_V5_PATH)));
+  const json = (i) => JSON.parse(new TextDecoder().decode(objects[i]));
+  const bytesOf = (value) => enc.encode(canonicalV5(value));
+  const model = bytesOf(modelDocument);
+  objects[4] = guest;
+  objects[6] = model;
+  const source = json(1);
+  source.files = source.files.map((file) => (file.kind === 'model-document' ? { ...file, sha256: sha256Hex(model) } : file));
+  objects[1] = bytesOf(source);
+  const manifest = json(0);
+  const session = contract === 'hologram:guest/core-wasm@2' || contract === 'hologram:guest/core-wasm@3';
+  manifest.layers[0] = { ...manifest.layers[0], contract, entry: entry ?? (session ? 'holo_step' : 'holo_run'), kappa: kappaV5(guest) };
+  const roles = { 'source-manifest': 1, capabilities: 3, guest: 4, view: 5, model: 6 };
+  manifest.objects = manifest.objects.map((row) => ({ ...row, kappa: kappaV5(objects[roles[row.role]]), length: objects[roles[row.role]].length }));
+  objects[0] = bytesOf(manifest);
+  const provenance = json(2);
+  Object.assign(provenance, {
+    application_kappa: kappaV5(objects[0]),
+    core_wasm_contract: contract,
+    guest_content_kappa: kappaV5(guest),
+    model_content_kappa: kappaV5(model),
+    model_id: sha256Hex(model),
+  });
+  objects[2] = bytesOf(provenance);
+  return writeV5(objects);
+}
+
+/** The checkpoint-world counter document of @prism-code/spec, the binary application profile (#630). */
+const COUNTER_CHECKPOINT = here('../../spec/test/fixtures/documents/model-document-v9/counter-checkpoint.json');
+/** That document with the bounds the checkpoint probe is generated with: request 64, state 256, response 256, four responses. */
+function probeDocument() {
+  const document = JSON.parse(readFileSync(COUNTER_CHECKPOINT, 'utf8'));
+  Object.assign(document.application, { request_maximum: 64, response_maximum: 256, session: { state_maximum: 256, response_count_maximum: 4 } });
+  return document;
+}
+
 /**
  * Every archive by name. A name is part of the suite's contract: scenarios refer
  * to it, so rename one only together with the scenarios that use it.
@@ -306,6 +407,13 @@ export const ARCHIVES = Object.freeze({
 
   // A guest of the checkpoint world hologram:guest/core-wasm@3 (HO-47), named as such like the session world above.
   'checkpoint-world': () => withGuest(new Uint8Array(readFileSync(CHECKPOINT_PROBE)), 'hologram:guest/core-wasm@3'),
+
+  // A holo v5 of revision 2026-11-18 (HO-49): the checkpoint probe as its guest, entered at holo_step, and the
+  // binary application document of a checkpoint-world counter. Wrong: the same holo entered at holo_run.
+  'checkpoint-world-v5': () =>
+    v5With({ guest: new Uint8Array(readFileSync(CHECKPOINT_PROBE)), contract: 'hologram:guest/core-wasm@3', modelDocument: probeDocument() }),
+  'checkpoint-world-v5-entered-at-run': () =>
+    v5With({ guest: new Uint8Array(readFileSync(CHECKPOINT_PROBE)), contract: 'hologram:guest/core-wasm@3', modelDocument: probeDocument(), entry: 'holo_run' }),
 
   // The attestation section.
   'unsigned-p3-claim': () => assemble([...rowsOf(reference()), attestationRow()]),

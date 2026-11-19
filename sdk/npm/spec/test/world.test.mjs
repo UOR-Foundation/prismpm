@@ -14,7 +14,7 @@ const witText = readFileSync(here(`../${world.file}`), 'utf8').replaceAll('\r\n'
 const witBytes = new Uint8Array(Buffer.from(witText, 'utf8'));
 
 test('every guest contract of a format revision has a world', () => {
-  for (const revision of Object.values(spec.FORMAT_REVISIONS)) assert.ok(spec.WORLDS[revision.coreWasmContract], revision.coreWasmContract);
+  for (const revision of Object.values(spec.FORMAT_REVISIONS)) for (const contract of revision.coreWasmContracts) assert.ok(spec.WORLDS[contract], contract);
   for (const contract of Object.keys(spec.WORLDS)) assert.match(contract, /^[a-z]+:[a-z]+\/[a-z-]+@[1-9][0-9]*$/);
 });
 
@@ -119,7 +119,7 @@ test('the @1 row is unchanged by the session world', () => {
     blake3: '0774a8ecbfa945a427712ee7d7ad406195b2d07492ceae15cca0067276c9ced8',
     sha256: 'a566c87a359cadf98f652747f1b3574aa307ff5f652a190c6d99c350db9cf369',
   });
-  assert.equal(spec.FORMAT_REVISIONS['2026-10-23'].coreWasmContract, spec.CORE_WASM.CONTRACT);
+  assert.deepEqual(spec.FORMAT_REVISIONS['2026-10-23'].coreWasmContracts, [spec.CORE_WASM.CONTRACT]);
 });
 
 // The checkpoint world (HO-47): the session world with the state made addressable; @1 and @2 are untouched.

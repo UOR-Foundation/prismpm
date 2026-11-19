@@ -768,6 +768,15 @@ pub fn project_application_with_facets(
             Application::Browser(Box::new(browser)),
         );
     }
+    if member_name(declaration) == Some("BinaryApplication") {
+        let binary = super::binary_application::project(&definitions, module, declaration)?;
+        super::binary_application::validate_roots(&binary, snapshot)?;
+        return projected_document(
+            snapshot,
+            facet_snapshot,
+            Application::Binary(Box::new(binary)),
+        );
+    }
     if member_name(declaration) == Some("ServerApplication") {
         let server = super::server_application::project(&definitions, module, declaration)?;
         super::server_application::validate_roots(&server, snapshot)?;
@@ -972,6 +981,7 @@ fn projected_document(
             Application::Text(_) => "prismpm/model-document/2",
             Application::Browser(_) => "prismpm/model-document/4",
             Application::Server(_) => "prismpm/model-document/7",
+            Application::Binary(_) => super::binary_application::SCHEMA,
         }
         .to_owned(),
         provenance: ProjectionProvenance {

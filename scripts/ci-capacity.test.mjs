@@ -304,7 +304,7 @@ const candidateJobs = {
   policy: [30, 'd8c166a9586b9ecf4e6852352218bdeec51b918562604c920fea38db8e13d499'],
   build: [180, '08a904bb01d8fa819ade3915e7df588e49a3f6848c7314d3976e91b17aa429f9'],
   publish: [60, 'eed34aecea86d7fb123167999bb1a0048f62609f6fc91d6979eeb0dcb8340128'],
-  'unpublished-construction': [180, '85b9d056adcf8710aab779f72895daec983e70ba72c157a1c178afe52bc5fbe3'],
+  'unpublished-construction': [180, '528189bf41c5747ad154ff1176dfba1b06d77a4e442ce2b418eb4a2dd402b8d4'],
   'construction-integrity': [90, '6cf032e9b0febd74a52489ce4f06439f93ddebb3e13910e503e9f68f90fc3fa7'],
   'unpublished-prerequisites': [360, '5057f713c44d33f474ffd88493498157884d36791aaf32de67e42ec356993890'],
   'unpublished-installed': [360, 'be3439a936501f81eb4ec1f7aea6fc31eabad4c6d75cb285ec18167d8fdd0a6b'],

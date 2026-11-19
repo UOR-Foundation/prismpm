@@ -384,7 +384,10 @@ function resolveArchiveV5(parsed) {
   const [capabilities, guest, view, model] = parsed.blobs;
   const wasmLayer = manifest.layers?.find((l) => l.kind === 'wasm');
   const viewLayer = manifest.layers?.find((l) => l.kind === 'view');
-  if (!wasmLayer || wasmLayer.entry !== 'holo_run') fail('archive.directory', 'the manifest has no wasm layer entered at holo_run');
+  // A session-world guest (#629, HO-47) is entered at holo_step; every other guest at holo_run.
+  // Spelled here rather than imported from session.mjs, so the archive reader stays inside the verify module's closure (proposal 440).
+  const entry = ['hologram:guest/core-wasm@2', 'hologram:guest/core-wasm@3'].includes(wasmLayer?.contract) ? 'holo_step' : 'holo_run';
+  if (!wasmLayer || wasmLayer.entry !== entry) fail('archive.directory', `the manifest has no wasm layer entered at ${entry}`);
   if (!viewLayer) fail('archive.directory', 'the manifest has no view layer');
   const applicationKappa = kappa(parsed.sections[0].body);
   const consistent =
