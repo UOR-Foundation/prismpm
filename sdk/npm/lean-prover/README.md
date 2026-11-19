@@ -92,6 +92,14 @@ CI's gate job keeps the two folders the page needs, as artifacts:
 node web/serve.mjs path/to/lean-prover-library path/to/lean-prover-browser-corpus
 ```
 
+`web/project.html` proves a whole LexLean project in the tab, the way `prove` does in Node, with the same verdict code (`src/verdict.mjs`): LexLean's WASI build checks the project and renders its modules (`lexlean lean-modules`), Lean elaborates each one, the kernel replays every declaration, and the axiom audit is applied. Nothing is sent anywhere. Give the project folder as the fourth argument:
+
+```sh
+node web/serve.mjs LIBDIR CORPUSDIR 8794 path/to/project     # then open /project.html
+```
+
+The render needs a LexLean build with `lean-modules` (LexLean pull request 578). Until a release has it, `?lexlean=URL` names an unreleased WASI build; it is not pinned, and the page reports its BLAKE3 label.
+
 ## Building the engine
 
 ```sh
@@ -131,6 +139,6 @@ The corpus is fixed in `engine.lock.json`:
 The engine runs the corpus three ways, and each run must agree with native Lean on every declaration:
 - **cold:** an empty module store, under Node 24;
 - **warm:** the store the cold run filled, so each module is checked again by the kernel instead of elaborated;
-- **cold under Node 22, inside a 4 GiB memory cap:** a cgroup on the CI runner, the cloud-sandbox profile.
+- **cold inside a 4 GiB memory cap:** a cgroup on the CI runner, the cloud-sandbox profile, under Node 24. The engine restarts before every module there. Node 22 cannot instantiate the 64-bit engine.
 
 `speed.json` records total, open and per-module time and peak memory for native Lean and each engine run. Times are recorded, never compared.

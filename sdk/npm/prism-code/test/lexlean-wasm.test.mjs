@@ -49,9 +49,23 @@ test('planted defect: a module whose bytes are not the pinned ones is refused, k
   const { gzipSync } = await import('node:zlib');
   const served = { ...pin, url: 'https://raw.githubusercontent.com/someone/somewhere/0123456789abcdef0123456789abcdef01234567/lexlean.wasm.gz' };
   await assert.rejects(ensureLexleanWasm({ env: { PRISM_HOME: dir }, pin: served, fetch: async () => new Response(gzipSync(new Uint8Array([1, 2, 3]))) }), { code: 'lexlean.wasm-mismatch' });
-  const kept = join(dir, 'lexlean', `${pin.kappa.slice(7)}.wasm`);
+  // Kept once per machine in the pinned store, by its BLAKE3 label.
+  const kept = join(dir, 'kappa', 'pinned', pin.kappa.slice(7, 9), pin.kappa.slice(9));
   assert.equal(existsSync(kept), false);
   assert.equal(await ensureLexleanWasm({ env: { PRISM_HOME: dir }, pin: served, fetch: async () => new Response(gzipSync(good)) }), kept);
+  // Kept as served, gzipped (4 MB in place of 19 for the real module), under the label of the decoded module.
+  const gz = gzipSync(good);
+  const zipped = { ...served, encoding: 'gzip', encodedBytes: gz.length };
+  const zhome = scratch();
+  const keptGz = await ensureLexleanWasm({ env: { PRISM_HOME: zhome }, pin: zipped, fetch: async () => new Response(gz) });
+  assert.equal(keptGz, join(zhome, 'kappa', 'pinned', pin.kappa.slice(7, 9), pin.kappa.slice(9)));
+  assert.deepEqual(new Uint8Array(readFileSync(keptGz)), new Uint8Array(gz));
+  assert.equal(lexleanWasmFile({ env: { PRISM_HOME: zhome }, pin: zipped }), keptGz);
+  // Planted defects: kept bytes that do not decode, or decode to other bytes, are a miss.
+  writeFileSync(keptGz, gz.subarray(0, gz.length - 4));
+  assert.throws(() => lexleanWasmFile({ env: { PRISM_HOME: zhome }, pin: zipped }), { code: 'lexlean.wasm-mismatch' });
+  writeFileSync(keptGz, gzipSync(new Uint8Array([9, 9, 9])));
+  assert.throws(() => lexleanWasmFile({ env: { PRISM_HOME: zhome }, pin: zipped }), { code: 'lexlean.wasm-mismatch' });
 });
 
 test('the project the instance sees holds its sources and none of its build outputs', () => {

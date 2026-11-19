@@ -7,9 +7,11 @@
 //   { op: "write", path, bytes }                          -> { ok }
 //   { op: "read", path }                                  -> { bytes } | { bytes: null }
 //   { op: "request", request }                            -> { answer }   the driver's JSON (`serve` in driver/Elab.lean)
+//   { op: "heap" }                                        -> { heapBytes }  the engine's memory, which never shrinks
 import { parentPort } from "node:worker_threads";
 
 let lean = null;
+let memory = null; // the instance's own memory: Emscripten does not export HEAPU8 from this build
 
 async function open({ loader, wasm, files }) {
   const url = "data:text/javascript;base64," + Buffer.from(loader).toString("base64");
@@ -17,7 +19,7 @@ async function open({ loader, wasm, files }) {
   const log = [];
   lean = await factory({
     instantiateWasm: (imports, done) => {
-      WebAssembly.instantiate(wasm, imports).then((r) => done(r.instance, r.module));
+      WebAssembly.instantiate(wasm, imports).then((r) => { memory = Object.values(r.instance.exports).find((x) => x instanceof WebAssembly.Memory); done(r.instance, r.module); });
       return {};
     },
     print: (s) => log.push(s),
@@ -50,7 +52,8 @@ parentPort.on("message", async ({ id, ...data }) => {
       reply = { bytes };
     } else if (data.op === "request") {
       reply = { answer: JSON.parse(lean.ccall("elab_request", "string", ["string"], [JSON.stringify(data.request)])) };
-    } else reply = { error: `unknown op ${data.op}` };
+    } else if (data.op === "heap") reply = { heapBytes: Number(memory.buffer.byteLength) };
+    else reply = { error: `unknown op ${data.op}` };
     parentPort.postMessage({ id, ...reply });
   } catch (e) {
     parentPort.postMessage({ id, error: "the engine failed: " + (e && e.message ? e.message : String(e)) });

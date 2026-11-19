@@ -894,6 +894,13 @@ pub fn run_at(root: &Path, id: &str) {
             &[("sdk/npm/prism-code/test/lexlean-wasm.test.mjs", 4)],
             "600000",
         ),
+        // The WebGPU bridge's proved rules (step S5d); the headless GPU run is test/webgpu-headless.test.mjs.
+        "DK-48" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/webgpu-bridge-model.test.mjs", 6)],
+            "600000",
+        ),
         // The `prism-code system` and `auth` command groups of #446 and #447.
         "DK-44" => node_suite::verify_exact(
             root,

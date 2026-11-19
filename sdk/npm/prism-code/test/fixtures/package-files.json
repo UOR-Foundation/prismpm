@@ -86,6 +86,7 @@
   "src/journey/rule-app.mjs",
   "src/journey/rule-table.mjs",
   "src/journey/sdk.mjs",
+  "src/journey/store-gc.mjs",
   "src/journey/wasi-memory.mjs",
   "src/manifest.mjs",
   "src/middleware.mjs",
@@ -129,6 +130,7 @@
   "src/version.mjs",
   "src/view.mjs",
   "src/volumes.mjs",
+  "src/webgpu.mjs",
   "templates/starters/decision-app/prism.toml",
   "templates/starters/decision-app/src/ParkingFeeTier.lex.tex",
   "templates/starters/decision-app/src/ParkingFeeTierProofs.lex.tex",
@@ -171,5 +173,6 @@
   "templates/text-request/src/TextRequest.lex.tex",
   "types/browser.d.ts",
   "types/index.d.ts",
-  "types/node.d.ts"
+  "types/node.d.ts",
+  "types/webgpu.d.ts"
 ]
