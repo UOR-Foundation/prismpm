@@ -44,18 +44,20 @@ defaults:
 
 jobs:
   unit:
-    name: unit tests
+    name: unit tests on node ${{ matrix.node }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Name the work folder
-        run: echo "WORK=$RUNNER_TEMP/lean-prover" >> "$GITHUB_ENV"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: '24'
+          node-version: ${{ matrix.node }}
       - run: npm test
 
   spec:
@@ -183,6 +185,18 @@ jobs:
         run: TOOLS=lean bash build/fetch-tools.sh
       - name: The engine agrees with native Lean on every corpus declaration; every planted defect is refused
         run: bash gate/run-gate.sh
+      # The same engine and manifest under Node 22, the oldest Node prism-code supports: Memory64, wasm exceptions,
+      # the 8 GB memory maximum and the worker's deep stack must all hold there too, declaration for declaration.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      - name: The engine agrees with native Lean under Node 22 as well
+        run: |
+          set -euo pipefail
+          node --version | tee "$WORK/gate/node22-version.txt"
+          mapfile -t specs < "$WORK/gate/corpus.txt"
+          node gate/run-wasm.mjs "$WORK/gate/manifest" "${specs[@]}" > "$WORK/gate/wasm-node22.jsonl"
+          node gate/agree.mjs "$WORK/gate/native.jsonl" "$WORK/gate/wasm-node22.jsonl" | tee "$WORK/gate/agree-node22.txt"
       - name: Keep the gate's evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
