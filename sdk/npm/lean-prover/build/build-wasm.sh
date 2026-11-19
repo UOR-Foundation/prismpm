@@ -89,6 +89,6 @@ if [ "$width" = 32 ]; then
   [ "$obj/shell.o" -nt "$src/util/shell.cpp" ] || em++ -c -std=c++20 $common -DLEAN_BUILD_TYPE=\"Release\" -Wno-everything "$src/util/shell.cpp" -o "$obj/shell.o"
   mkdir -p "$work/lean32"
   em++ $opt -fwasm-exceptions "$obj/lean-main.o" "$obj/shell.o" "$obj/symtab.o" "$obj"/cpp/*.o "$obj/libmods.a" "$uvlib" -o "$work/lean32/lean32.cjs" \
-    -lnodefs.js -sENVIRONMENT=node -sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=$maxmem -sSTACK_SIZE=67108864 -sFORCE_FILESYSTEM=1
+    -lnodefs.js -sENVIRONMENT=node -sEXIT_RUNTIME=1 -sEXPORTED_FUNCTIONS=_main,_malloc,_free -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=$maxmem -sSTACK_SIZE=67108864 -sFORCE_FILESYSTEM=1
   ls -l "$work/lean32"
 fi
