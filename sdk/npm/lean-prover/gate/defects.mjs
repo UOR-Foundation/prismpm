@@ -49,9 +49,13 @@ await plant("changed-declaration", async () => {
 await plant("wrong-axiom", async () => {
   const d = [...wasm.values()].flatMap((j) => j.decls ?? []).find((x) => x.kind === "theorem" && x.axioms.length);
   const observed = new Map([[d.name, d.axioms]]);
-  const [row] = auditPolicies([{ declaration: d.name, policy: "exact", axioms: d.axioms.slice(1) }], observed);
+  // The true policy must hold first, or a refusal of the wrong one shows nothing.
+  const [sound, row] = auditPolicies([
+    { declaration: d.name, kind: "exact", rule: "semantic", axioms: d.axioms },
+    { declaration: d.name, kind: "exact", rule: "semantic", axioms: d.axioms.slice(1) },
+  ], observed);
   const outside = nonstandard([...d.axioms, "sorryAx"]);
-  return { refused: !row.holds && outside.includes("sorryAx"), detail: `${d.name}: ${row.why}` };
+  return { refused: sound.holds && !row.holds && /^observed /.test(row.why ?? "") && outside.includes("sorryAx"), detail: `${d.name}: ${row.why}` };
 });
 
 // An engine the gate did not admit: the attestation names another engine.
@@ -81,7 +85,8 @@ await plant("unofficial-init", async () => {
 await plant("broken-proof", async () => {
   const at = a.module.indexOf("=");
   const module = a.module.slice(0, at), text = readFileSync(a.module.slice(at + 1), "utf8");
-  const thm = text.search(/^(?:@\[[^\n]*\]\s*)?(?:private\s+|protected\s+)?theorem\s/m);
+  // LexLean renders a theorem as `public theorem`.
+  const thm = text.search(/^(?:@\[[^\n]*\]\s*)?(?:(?:public|private|protected)\s+)*theorem\s/m);
   if (thm < 0) throw new Error(`${module} has no theorem`);
   const cut = text.indexOf(":=", thm);
   const broken = text.slice(0, cut + 2) + "\n";
