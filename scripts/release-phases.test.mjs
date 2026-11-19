@@ -119,7 +119,7 @@ function validateWorkflow(value) {
   // without the secret or the trusted-publishing switch (#214).
   assert.ok(cargoPublication.indexOf('return 0', cargoPublication.indexOf('if [ "$UPLOAD" != true ]; then'))
     < cargoPublication.indexOf('cargo publish --locked --manifest-path'), 'the skip must return before the upload');
-  assert.match(cargoPublication, /if \[ "\$UPLOAD" = true \]; then\n\s+wait_for_crate lexlean 0\.4\.0\n\s+fi/);
+  assert.match(cargoPublication, /if \[ "\$UPLOAD" = true \]; then\n\s+wait_for_crate lexlean 0\.4\.3\n\s+fi/);
   assert.match(cargoPublication, /release_cargo\(\) \{\n\s+name=\$1\n\s+shift\n\s+if \[ "\$UPLOAD" = true \]; then\n\s+cargo "\$@"\n\s+elif \[ "\$name" = prod-codegen \]/);
   for (const dependency of ['lexlean', 'prod-ir', 'prod-codegen', 'prism-stdlib']) {
     assert.ok(cargoPublication.includes(`--config "patch.crates-io.${dependency}.path=`), `${dependency} must resolve from the reviewed copy before upload`);
