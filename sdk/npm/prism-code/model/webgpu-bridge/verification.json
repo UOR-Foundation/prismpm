@@ -95,5 +95,17 @@
       ]
     }
   ],
-  "plantedDefects": []
+  "plantedDefects": [
+    {
+      "defect": "Two clauses removed together: in WebGpuBridge.kernelBound, ((project p kernelNamed) =? (project p kernelDerived)), so WGSL runs under an address it does not have; and in WebGpuBridge.dispatchCovers, ((project p invocations) <=? (project p dispatched)), so a plan may dispatch fewer invocations than it has.",
+      "draft": "spec/5300fc31d7f4af8f7069b96a2e084fdc73957d1f6fa4bf31c55b13a1b4e5432e",
+      "task": "task-54",
+      "diagnostic": "error[LLV7002]: Lean rejected `Spec.WebGpuBridgeProofs` (error): omega could not prove the goal (twice)",
+      "rejected": [
+        "aKernelIsDispatchedOnlyWhenItsWgslAddressRecomputes",
+        "everyInvocationOfAnAdmittedPlanIsDispatched"
+      ],
+      "restored": "verified 2 modules (task-52)"
+    }
+  ]
 }
