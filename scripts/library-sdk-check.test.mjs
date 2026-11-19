@@ -317,7 +317,7 @@ test('release job keeps both native library and browser gates mandatory for each
  const execution=wrapper.slice(wrapper.indexOf('# Execution has no network'));
  assert.ok(!execution.includes('--volume')&&!execution.includes('--mount'));
  const recipe=readFileSync(new URL('../sdk/Dockerfile',import.meta.url),'utf8');
- assert.match(recipe,/elan toolchain install leanprover\/lean4:v4\.32\.1 \\\n\s+&& chmod -R a\+rX,go-w \/usr\/local\/elan\/toolchains\/leanprover--lean4---v4\.32\.1/);
+ assert.match(recipe,/elan toolchain install leanprover\/lean4:v4\.32\.2 \\\n\s+&& chmod -R a\+rX,go-w \/usr\/local\/elan\/toolchains\/leanprover--lean4---v4\.32\.2/);
 });
 
 test('owning CLI test kills a removed process-exit guard',t=>{
