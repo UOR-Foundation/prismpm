@@ -1,0 +1,98 @@
+{
+  "architecture": {
+    "component_kinds": [],
+    "components": [],
+    "concerns": [],
+    "edge_kinds": [],
+    "edges": [],
+    "model_kinds": [],
+    "stakeholders": [],
+    "viewpoints": [],
+    "views": []
+  },
+  "provenance": {
+    "compiler_semantics_id": "49561889f77c9c3571da51e8e53233da9df5ab8f46d16165159425ba2e82dc44",
+    "emitter_semantics_id": "41a75d0968df9cd3f03b3e2c69b67efef28ec761ae20b42176ca98e5273bb6dd",
+    "facet_packages": [],
+    "semantic_id": "be75c14a6c6ae7c21e0bf6abe3c6312cf107fee86d6a01092306ba7162d4a949",
+    "snapshot_id": "34dc17084bb03c1397da9e7b8505b4173c1b4b133ed3656d403eb45bca590da8",
+    "source_id": "63611de07b58d03b3a9976b34138d903215e50c53ec2ba4ee3cdeb452b0710ad"
+  },
+  "quality": {
+    "characteristics": [],
+    "measures": [],
+    "requirements": [],
+    "subcharacteristics": []
+  },
+  "security": {
+    "activities": [],
+    "assets": [],
+    "controls": [],
+    "impacts": [],
+    "likelihoods": [],
+    "measurements": [],
+    "risks": [],
+    "threats": []
+  },
+  "standards_profile": [],
+  "schema": "prismpm/model-document/9",
+  "application": {
+    "profile": "prismpm/binary-application/1",
+    "name": "Counter",
+    "cargo_name": "counter",
+    "cargo_version": "0.1.0",
+    "cargo_description": "A counter that keeps its count across the steps of a session.",
+    "cargo_repository": "https://github.com/UOR-Foundation/PrismPM",
+    "cargo_homepage": "https://github.com/UOR-Foundation/PrismPM",
+    "library_roots": [
+      "Counter.Model"
+    ],
+    "entry_root": "Counter.Model.step",
+    "core_contract": "hologram:guest/core-wasm@2",
+    "request_maximum": 67108865,
+    "response_maximum": 16,
+    "input_count_maximum": 0,
+    "input_maximum": 0,
+    "input_total_maximum": 0,
+    "core_memory_pages": 2,
+    "core_stack_bytes": 16384,
+    "session": {
+      "state_maximum": 8,
+      "response_count_maximum": 1
+    },
+    "acceptance_vectors": [],
+    "acceptance_sessions": [
+      [
+        {
+          "request": [],
+          "inputs": [],
+          "responses": [
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ]
+        },
+        {
+          "request": [],
+          "inputs": [],
+          "responses": [
+            [
+              0,
+              0,
+              0,
+              2
+            ]
+          ]
+        }
+      ]
+    ],
+    "acceptance_inputs": [],
+    "capabilities_empty": true,
+    "fat_archive": true,
+    "primary_layer": 0,
+    "view_layer": 1
+  }
+}

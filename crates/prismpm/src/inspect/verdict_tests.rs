@@ -369,8 +369,8 @@ fn a_pinned_world_is_compared_with_the_declared_one() {
     let mut pinned = p0();
     pinned.world = Some(Some(super::WorldPin {
         contract: Some("hologram:guest/core-wasm@1".to_owned()),
-        blake3: Some(super::CORE_WASM_WORLD_BLAKE3.to_owned()),
-        sha256: Some(super::CORE_WASM_WORLD_SHA256.to_owned()),
+        blake3: Some(crate::inspect::CORE_WASM_WORLD_BLAKE3.to_owned()),
+        sha256: Some(crate::inspect::CORE_WASM_WORLD_SHA256.to_owned()),
     }));
     assert!(verify(CALCULATOR, &pinned).unwrap().passed);
     let mut none = p0();

@@ -76,6 +76,8 @@ pub enum Application {
     Browser(Box<super::browser_application::BrowserApplication>),
     /// Native server declaration whose entry root requests a closed set of host effects.
     Server(Box<super::server_application::ServerApplication>),
+    /// Binary request and response declaration of a stateless, session or checkpoint guest (#630).
+    Binary(Box<super::binary_application::BinaryApplication>),
 }
 
 impl Application {
@@ -86,6 +88,7 @@ impl Application {
             Self::Text(value) => &value.name,
             Self::Browser(value) => &value.name,
             Self::Server(value) => &value.name,
+            Self::Binary(value) => &value.name,
         }
     }
 
@@ -96,6 +99,7 @@ impl Application {
             Self::Text(value) => &value.cargo_name,
             Self::Browser(value) => &value.cargo_name,
             Self::Server(value) => &value.cargo_name,
+            Self::Binary(value) => &value.cargo_name,
         }
     }
 
@@ -106,6 +110,7 @@ impl Application {
             Self::Text(value) => &value.cargo_version,
             Self::Browser(value) => &value.cargo_version,
             Self::Server(value) => &value.cargo_version,
+            Self::Binary(value) => &value.cargo_version,
         }
     }
 
@@ -116,6 +121,7 @@ impl Application {
             Self::Text(value) => &value.cargo_description,
             Self::Browser(value) => &value.cargo_description,
             Self::Server(value) => &value.cargo_description,
+            Self::Binary(value) => &value.cargo_description,
         }
     }
 
@@ -126,6 +132,7 @@ impl Application {
             Self::Text(value) => &value.cargo_repository,
             Self::Browser(value) => &value.cargo_repository,
             Self::Server(value) => &value.cargo_repository,
+            Self::Binary(value) => &value.cargo_repository,
         }
     }
 
@@ -136,6 +143,7 @@ impl Application {
             Self::Text(value) => &value.cargo_homepage,
             Self::Browser(value) => &value.cargo_homepage,
             Self::Server(value) => &value.cargo_homepage,
+            Self::Binary(value) => &value.cargo_homepage,
         }
     }
 
@@ -146,6 +154,7 @@ impl Application {
             Self::Text(value) => value.library_roots.clone(),
             Self::Browser(value) => value.library_roots.clone(),
             Self::Server(value) => vec![value.core.root.clone()],
+            Self::Binary(value) => value.library_roots.clone(),
         }
     }
 
@@ -156,6 +165,8 @@ impl Application {
             Self::Text(value) => &value.acceptance_vectors,
             Self::Browser(value) => &value.acceptance_vectors,
             Self::Server(value) => &value.acceptance_vectors,
+            // A binary application's acceptance is its own: vectors that name inputs, or sessions.
+            Self::Binary(_) => &NO_VECTORS,
         }
     }
 
@@ -166,6 +177,7 @@ impl Application {
             Self::Text(value) => value.entry_root.clone(),
             Self::Browser(value) => value.entry_root.clone(),
             Self::Server(value) => value.core.root.clone(),
+            Self::Binary(value) => value.entry_root.clone(),
         }
     }
 
@@ -179,6 +191,7 @@ impl Application {
             Self::Text(value) => &value.core_contract,
             Self::Browser(value) => &value.core_contract,
             Self::Server(_) => &SERVER,
+            Self::Binary(value) => &value.core_contract,
         }
     }
 
@@ -189,6 +202,7 @@ impl Application {
             Self::Text(value) => value.request_maximum,
             Self::Browser(value) => value.request_maximum,
             Self::Server(value) => value.request_maximum,
+            Self::Binary(value) => value.request_maximum,
         }
     }
 
@@ -199,6 +213,7 @@ impl Application {
             Self::Text(value) => value.response_maximum,
             Self::Browser(value) => value.response_maximum,
             Self::Server(value) => value.response_maximum,
+            Self::Binary(value) => value.response_maximum,
         }
     }
 
@@ -209,6 +224,9 @@ impl Application {
             Self::Text(value) => value.guest_allocation_maximum,
             Self::Browser(value) => value.guest_allocation_maximum,
             Self::Server(value) => u32::try_from(value.input_maximum()).unwrap_or(u32::MAX),
+            Self::Binary(value) => {
+                u32::try_from(value.resolved_frame_maximum()).unwrap_or(u32::MAX)
+            }
         }
     }
 
@@ -219,6 +237,7 @@ impl Application {
             Self::Text(value) => value.capabilities_empty,
             Self::Browser(value) => value.capabilities_empty,
             Self::Server(_) => true,
+            Self::Binary(value) => value.capabilities_empty,
         }
     }
 
@@ -229,6 +248,7 @@ impl Application {
             Self::Text(value) => value.fat_archive,
             Self::Browser(value) => value.fat_archive,
             Self::Server(_) => false,
+            Self::Binary(value) => value.fat_archive,
         }
     }
 
@@ -239,6 +259,7 @@ impl Application {
             Self::Text(value) => value.primary_layer,
             Self::Browser(value) => value.primary_layer,
             Self::Server(_) => 0,
+            Self::Binary(value) => value.primary_layer,
         }
     }
 
@@ -249,6 +270,7 @@ impl Application {
             Self::Text(value) => value.view_layer,
             Self::Browser(value) => value.view_layer,
             Self::Server(_) => 0,
+            Self::Binary(value) => value.view_layer,
         }
     }
 
@@ -256,6 +278,7 @@ impl Application {
     /// take the V1 implicit budget of 32 pages.
     pub fn core_memory_pages(&self) -> u32 {
         match self {
+            Self::Binary(value) => value.core_memory_pages,
             Self::Text(value) if value.has_resource_bounds() => {
                 value.core_memory_pages.unwrap_or(DEFAULT_CORE_MEMORY_PAGES)
             }
@@ -267,6 +290,7 @@ impl Application {
     /// absent text/3 bound takes the V1 implicit budget of 65536 bytes.
     pub fn core_stack_bytes(&self) -> Option<u32> {
         match self {
+            Self::Binary(value) => Some(value.core_stack_bytes),
             Self::Text(value) if value.has_resource_bounds() => {
                 Some(value.core_stack_bytes.unwrap_or(DEFAULT_CORE_STACK_BYTES))
             }
@@ -290,6 +314,9 @@ impl Application {
         }
     }
 }
+
+/// The acceptance vectors of a profile whose acceptance is not text vectors.
+static NO_VECTORS: Vec<ApplicationAcceptanceVector> = Vec::new();
 
 /// The V1 implicit Core-Wasm guest memory budget, in 64 KiB pages.
 pub const DEFAULT_CORE_MEMORY_PAGES: u32 = 32;

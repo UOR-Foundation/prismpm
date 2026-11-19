@@ -173,6 +173,12 @@ The acceptance of a server application observes a declared host effect that no v
 
 Class: `semantic`. Exit code: 1.
 
+## `PP2027` --- Invalid binary application declaration
+
+A binary application declaration breaks its profile: its session member disagrees with its guest contract, its resolved frame cannot fit its declared memory, a bound is out of range, or its acceptance names an input it does not carry or exceeds a declared bound.
+
+Class: `semantic`. Exit code: 1.
+
 ## `PP3001` --- Malformed Hologram archive header or version
 
 A .holo file is not a binary Hologram v4 archive with the exact HOLO header.

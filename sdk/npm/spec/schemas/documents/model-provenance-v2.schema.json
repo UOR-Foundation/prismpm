@@ -55,7 +55,12 @@
       "pattern": "^[0-9a-f]{64}$"
     },
     "core_wasm_contract": {
-      "const": "hologram:guest/core-wasm@1"
+      "description": "The guest contract, as the manifest's wasm layer names it: the stateless world, or from format revision 2026-11-18 the session or checkpoint world (HO-49).",
+      "enum": [
+        "hologram:guest/core-wasm@1",
+        "hologram:guest/core-wasm@2",
+        "hologram:guest/core-wasm@3"
+      ]
     },
     "generated_core_sha256": {
       "type": "string",
