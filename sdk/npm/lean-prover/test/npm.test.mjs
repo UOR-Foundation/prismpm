@@ -39,6 +39,11 @@ test("every blob is read from an npm shard and admitted by the BLAKE3 label of i
   const pkg = JSON.parse(readFileSync(join(installed().root, "out", "library", "package.json"), "utf8"));
   assert.deepEqual(Object.keys(pkg.dependencies).sort(), carried.npm.shards.map((s) => s.name).sort());
   assert.ok(Object.values(pkg.dependencies).every((v) => v === "1.0.0"), "each shard at exactly one version");
+  for (const s of carried.npm.shards) {
+    const shardPkg = JSON.parse(readFileSync(resolve(`${s.name}/package.json`), "utf8"));
+    assert.equal(shardPkg.prismLeanShard.label, s.label, "a shard's package.json names its label");
+    assert.deepEqual(shardPkg.prismLeanShard.blobs.map((b) => b.kappa), s.blobs, "and each blob's label, sorted");
+  }
 });
 
 test("a changed byte in an installed shard, or a missing shard, is refused", async () => {

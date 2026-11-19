@@ -32,6 +32,9 @@ for (const shard of plan) {
     name: shard.name, ...common,
     description: `Blobs of the WASM Lean prover, each named by the BLAKE3 label of its bytes; this package is named by the label of its listing.`,
     files: ["b"],
+    // What a host needs to fetch the tarball itself and check it: the shard's label, and each blob's label (over
+    // its decoded bytes, the file b/<hex>) and size.
+    prismLeanShard: { label: shard.label, blobs: shard.blobs.map((e) => ({ kappa: e.kappa, bytes: e.bytes })).sort((a, b) => (a.kappa < b.kappa ? -1 : 1)) },
   }, null, 2) + "\n");
 }
 

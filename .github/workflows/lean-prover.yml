@@ -191,20 +191,35 @@ jobs:
         run: TOOLS=lean bash build/fetch-tools.sh
       - name: The engine agrees with native Lean on every corpus declaration; every planted defect is refused
         run: bash gate/run-gate.sh
-      # The same engine and manifest under Node 22, the oldest Node prism-code supports: Memory64, wasm exceptions,
-      # the 8 GB memory maximum and the worker's deep stack must all hold there too, declaration for declaration.
+      # The same engine and manifest under Node 22, the oldest Node prism-code supports, and inside a 4 GiB memory
+      # cap, the cloud-sandbox profile: a cgroup (systemd-run, MemoryMax=4G, no swap) on the runner, no container.
+      # Memory64, wasm exceptions, the 8 GB memory maximum and the worker's deep stack must all hold there,
+      # declaration for declaration. A run the cap kills exits 137, and the step says so.
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '22'
-      - name: The engine agrees with native Lean under Node 22 as well
+      - name: Under Node 22 and a 4 GiB cap, the engine agrees with native Lean
         run: |
           set -euo pipefail
-          node --version | tee "$WORK/gate/node22-version.txt"
-          mapfile -t specs < "$WORK/gate/corpus.txt"
           g=$WORK/gate
-          node gate/run-wasm.mjs "$g/manifest" --store "$g/store-node22" --timings "$g/timing-node22-cold.json" "${specs[@]}" > "$g/wasm-node22.jsonl"
+          node --version | tee "$g/node22-version.txt"
+          mapfile -t specs < "$g/corpus.txt"
+          set +e
+          sudo systemd-run --scope --quiet -p MemoryMax=4G -p MemorySwapMax=0 --uid="$(id -u)" --gid="$(id -g)" -- \
+            "$(command -v node)" "$PWD/gate/run-wasm.mjs" "$g/manifest" --store "$g/store-node22" \
+            --timings "$g/timing-node22-cap4g.json" "${specs[@]}" > "$g/wasm-node22.jsonl"
+          code=$?
+          set -e
+          echo "exit $code" | tee "$g/node22-cap4g-exit.txt"
+          [ "$code" -ne 137 ] || { echo "::error::the engine was killed by the 4 GiB cap under Node 22"; exit 1; }
+          [ "$code" -eq 0 ]
           node gate/agree.mjs "$g/native.jsonl" "$g/wasm-node22.jsonl" | tee "$g/agree-node22.txt"
-          node gate/speed.mjs "$g/speed.json" native="$g/time-native.txt" wasm-cold="$g/timing-wasm-cold.json"             wasm-warm="$g/timing-wasm-warm.json" node22-cold="$g/timing-node22-cold.json" | tee "$g/speed.txt"
+      - name: The speed record
+        if: always()
+        run: |
+          g=$WORK/gate
+          node gate/speed.mjs "$g/speed.json" native="$g/time-native.txt" wasm-cold="$g/timing-wasm-cold.json" \
+            wasm-warm="$g/timing-wasm-warm.json" node22-cap4g="$g/timing-node22-cap4g.json" | tee "$g/speed.txt"
       # The manifest (lean-wasm-prover/1) and every blob gzip-encoded under the BLAKE3 label of its decoded bytes:
       # the engine, its loader, LexLean's WASI build, Init and LexLean's runtime. A tab or a Node host loads it as is.
       - name: Keep the manifest and its blobs
