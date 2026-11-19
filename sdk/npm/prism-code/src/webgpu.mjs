@@ -7,10 +7,12 @@
  * decisions are the rules of `model/webgpu-bridge` (WebGpuBridge.lex.tex), one for one, where Lean proves what they
  * guarantee; test/webgpu-bridge-model.test.mjs holds this file to the model's text.
  *
- * Conventions shared with LexLean's WGSL backend: every buffer is `array<u32>` in `@group(0)`, buffer i is
- * `@binding(i)`; a `read_write` binding is an output and is read back whole; the entry point is `main`; the
- * invocation index is `global_invocation_id.x`; the kernel guards its own stores by `arrayLength`, so the spare
- * invocations of the last workgroup write nothing.
+ * LexLean's `Kernel` model fixes buffers as a list of u32 lists, invocation i = global index, reads past the end as 0
+ * and stores past the end as dropped. The rest is this bridge's proposal, which the WGSL printer adopts when it is
+ * written: buffer i is `array<u32>` at `@group(0) @binding(i)`; every `read_write` binding (any number of them) is an
+ * output and is read back whole; the entry point is `main`; the workgroup size is the kernel's own
+ * `@workgroup_size(n)` along x; the invocation index is `global_invocation_id.x`; stores are guarded by
+ * `arrayLength`, so the spare invocations of the last workgroup write nothing.
  */
 import { blake3Hex } from './blake3.mjs';
 import { PrismCodeError } from './errors.mjs';

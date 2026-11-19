@@ -1,4 +1,4 @@
-// Kernel 1 of Hologram AI's integer engine, q4_group_sums with zero point 8, written by hand in the layout LexLean's
+// Kernel 1 of Hologram AI's integer engine, q4GroupSums with zero point 8 (packedZeros false), written by hand in the layout LexLean's
 // WGSL backend emits, until its rendered text is published. All arithmetic is u32 and wraps, which is i32 arithmetic
 // in two's complement. b0: activation codes, i16 sign-extended, index unit*32+k. b1: 4-bit weights packed little
 // endian, nibble g = (b1[g>>3] >> 4*(g&7)) & 15, g = row*K + unit*32 + k. b2: packed zero points (unused).

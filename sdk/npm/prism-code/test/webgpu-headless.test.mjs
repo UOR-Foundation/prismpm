@@ -108,10 +108,19 @@ async function withChrome(flags, run) {
         pending.set(id, done);
         socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression: `(async () => { ${source} })()`, awaitPromise: true, returnByValue: true } }));
       });
+      if (answer.error) throw new Error(`CDP ${answer.error.message}`);
       assert.ok(!answer.result.exceptionDetails, JSON.stringify(answer.result.exceptionDetails));
       return answer.result.result.value;
     };
-    await evaluate('while (document.readyState !== "complete") await new Promise((d) => setTimeout(d, 20)); return true;');
+    // The tab is listed before it commits to the page, and committing destroys the context an evaluation ran in, so
+    // ask again until this origin has loaded.
+    for (let ready = false, i = 0; !ready; i++) {
+      ready = await evaluate('return location.protocol === "http:" && document.readyState === "complete";').catch((error) => {
+        if (i > 100) throw error;
+        return false;
+      });
+      if (!ready) await new Promise((done) => setTimeout(done, 100));
+    }
     const result = await run(evaluate);
     socket.close();
     return result;
