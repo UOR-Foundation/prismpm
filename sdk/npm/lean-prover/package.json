@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/prover.mjs",
     "./gate": "./src/gate.mjs",
+    "./npm": "./src/installed.mjs",
     "./package.json": "./package.json"
   },
   "files": [

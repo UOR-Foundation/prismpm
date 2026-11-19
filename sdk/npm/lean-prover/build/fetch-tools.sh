@@ -10,6 +10,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 pkg=$(cd "$here/.." && pwd)
 root=$(cd "$pkg/../../.." && pwd)
 : "${WORK:?}"
+mkdir -p "$WORK"
 toml() { python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))[sys.argv[2]][sys.argv[3]])' "$root/tools.lock" "$1" "$2"; }
 lock() { python3 -c 'import sys,json; v=json.load(open(sys.argv[1]))
 for k in sys.argv[2:]: v=v[k]

@@ -94,6 +94,8 @@ else
     --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
 fi
 
+# The same blobs as npm packages, packed and held to the shard cap, never published here.
+
 # The corpus: each project rendered natively, its modules in elaboration order.
 corpus_dirs=()
 n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["corpus"]))' "$pkg/engine.lock.json")
@@ -180,3 +182,7 @@ node "$here/attest.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" 
   --corpus "$out/corpus.txt" --lexlean-sha256 "$(lock lexlean binaries linux_x86_64_sha256)" \
   --defects "$out/defects.json" --out "$out/gate.json" "${init_args[@]}" | tee "$out/gate-label.txt"
 node "$here/speed.mjs" "$out/speed.json" native="$out/time-native.txt" wasm-cold="$out/timing-wasm-cold.json" wasm-warm="$out/timing-wasm-warm.json"
+
+# The same blobs as npm packages, with the gate attestation and the official Init listing in the library package,
+# packed and held to the shard cap. Nothing is published here.
+bash "$here/npm-pack.sh" "$out/manifest" "$out/npm" --gate "$out/gate.json" --official "$out/official-init.json"

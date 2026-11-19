@@ -17,11 +17,13 @@ import { Worker } from "node:worker_threads";
 import { blake3Label, checkEntry, ProverError, readAdmitted } from "./blob.mjs";
 import { gateAdmits } from "./gate.mjs";
 import { libraryLabel, unofficialInit } from "./library.mjs";
+import { checkNpmSection } from "./npm.mjs";
 import { cachedCheck, storeResult } from "./store.mjs";
 import { entrypointsOf, judge, judgedRows } from "./verdict.mjs";
 import { run as runWasi } from "./wasi.mjs";
 
 export { libraryLabel, ProverError };
+export { shardsFor } from "./npm.mjs";
 export const MANIFEST_SCHEMA = "lean-wasm-prover/1";
 export const RENDER_SCHEMA = "lexlean/lean-modules/1";
 export const LEAN = Object.freeze({ version: "4.32.2", commit: "f3b06c705e6c85f5314019d5d3baab0fec5b580c" });
@@ -57,6 +59,7 @@ export function checkManifest(manifest) {
   if (manifest.gate !== undefined && (typeof manifest.gate !== "string" || !LABEL.test(manifest.gate))) {
     fail("the manifest's gate is not a BLAKE3 label");
   }
+  if (manifest.npm !== undefined) checkNpmSection(manifest);
   return manifest;
 }
 

@@ -61,6 +61,24 @@ The manifest has schema `lean-wasm-prover/1`. Each entry is `{ path, kappa, byte
 
 Module results can be kept in a store keyed by BLAKE3 label (`prove({ project, store })`, `src/store.mjs`). A stored result is reused only after its blobs are relabelled and the kernel checks the module again.
 
+## From npm
+
+An agent's sandbox often reaches only the npm registry, so the same blobs also ship as npm packages (`src/npm.mjs`, specified in `spec/src/NpmShard.lex.tex`):
+- **Shard packages**, `@prism-code/lean-shard-<hex>@1.0.0`. Each holds blobs as `b/<hex>.gz`: gzip-encoded, as in the manifest folder and the host store, and named by the BLAKE3 label of the decoded bytes. The package itself is named by the label of its listing, and its `package.json` (`prismLeanShard`) lists every blob's file, label and sizes.
+- **One library package**, `@prism-code/lean-library-<hex>@1.0.0`. `<hex>` is the BLAKE3 label of the `manifest.json` it carries. It also carries the gate's attestation and the official Init listing, and depends on every shard at exactly `1.0.0`.
+
+Because each name is a label, a package never changes. npm checks each tarball's integrity, and the prover still re-derives each blob's label on read. Shards are capped at 64 MiB packed: npm publishes no tarball limit, and this stays well under the per-file limits other registries document.
+
+A host can fetch the registry tarballs itself: `shardsFor(manifest)` gives each shard's name, version and blobs, and `open({ manifest, pin, read, gate, official })` then reads from the host's own store. prism-code does this. Or a host can let npm install the library package and open the prover from one pinned label:
+
+```js
+import { openInstalled } from "@prism-code/lean-prover/npm";
+// after: npm install @prism-code/lean-library-<hex>@1.0.0
+const prover = await openInstalled({ pin, from: "/path/to/project/package.json" });
+```
+
+The gate packs these packages (`gate/npm-pack.sh`) and holds each tarball to the cap. It never publishes them.
+
 ## In a browser
 
 `web/` holds a page and a worker that run the same engine in a tab. The worker fetches the manifest, admits every blob by the BLAKE3 label of its decoded bytes, and caches blobs in the tab's private store (OPFS). The page then elaborates the gate's corpus and compares each module with native Lean, declaration by declaration, with timings.
@@ -120,6 +138,6 @@ The corpus is fixed in `engine.lock.json`:
 The engine runs the corpus three ways, and each run must agree with native Lean on every declaration:
 - **cold:** an empty module store, under Node 24;
 - **warm:** the store the cold run filled, so each module is checked again by the kernel instead of elaborated;
-- **cold under Node 22.**
+- **cold under Node 22, inside a 4 GiB memory cap:** a cgroup on the CI runner, the cloud-sandbox profile.
 
 `speed.json` records total, open and per-module time and peak memory for native Lean and each engine run. Times are recorded, never compared.

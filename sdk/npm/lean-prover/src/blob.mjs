@@ -34,11 +34,15 @@ const toBytes = (value) => (value instanceof Uint8Array ? value : value instance
  * decoded bytes do not have the manifest's label). Never throws.
  */
 export function examine(entry, stored) {
-  const encoded = toBytes(stored);
+  // A transport may hand the bytes over in another encoding than the manifest's ({ encoding, bytes }); the label of
+  // the decoded bytes decides either way.
+  const encoding = stored && !(stored instanceof Uint8Array) && !(stored instanceof ArrayBuffer) && typeof stored.encoding === "string" ? stored.encoding : entry.encoding;
+  const encoded = toBytes(stored?.bytes ?? stored);
   if (!encoded) return { code: "lean-prover.blob-missing" };
+  if (encoding !== "gzip" && encoding !== "identity") return { code: "lean-prover.blob-undecodable" };
   let bytes;
   try {
-    bytes = entry.encoding === "gzip" ? new Uint8Array(gunzipSync(encoded)) : encoded.slice();
+    bytes = encoding === "gzip" ? new Uint8Array(gunzipSync(encoded)) : encoded.slice();
   } catch {
     return { code: "lean-prover.blob-undecodable" };
   }
