@@ -157,7 +157,7 @@ theorem{
   parameters: [h : Host, wide : Build, narrow : Build],
   statement: ((breaksGate h wide narrow) = false),
   proof: linear_arithmetic{definitions: [breaksGate, chosenWidth, noBuild, runsOn, usable, width32, width64]},
-  axioms: [Classical.choice, Quot.sound, propext]
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -172,7 +172,7 @@ theorem{
   parameters: [h : Host, wide : Build, narrow : Build],
   statement: ((breaksNarrowGate h wide narrow) = false),
   proof: linear_arithmetic{definitions: [breaksNarrowGate, runsOn, usable, width32, width64]},
-  axioms: [Classical.choice, Quot.sound, propext]
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -213,7 +213,7 @@ theorem{
   parameters: [h : Host],
   statement: ((breaksBudget h) = false),
   proof: linear_arithmetic{definitions: [afterRequest, breaksBudget, keepEngine, restartEngine]},
-  axioms: [Classical.choice, Quot.sound, propext]
+  axioms: [Quot.sound, propext]
 }
 
 definition{
