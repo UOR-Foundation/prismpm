@@ -99,6 +99,13 @@ class Engine {
   close() { return this.worker.terminate(); }
 }
 
+/** The manifest's engine width: 64 or 32. */
+export const widthOf = (manifest) => manifest.width ?? 64;
+
+// Bytes the engine's memory may reach before it is restarted. WebAssembly memory never shrinks, and the resident
+// state keeps one environment per import set, so a long session grows; a restart drops that state only.
+export const DEFAULT_BUDGET = Object.freeze({ 64: 6 * 2 ** 30, 32: 3 * 2 ** 30 });
+
 function uniqueBuffers() {
   const seen = new Set();
   return (buffer) => (seen.has(buffer) ? false : (seen.add(buffer), true));
