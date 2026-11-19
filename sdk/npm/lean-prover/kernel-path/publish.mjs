@@ -35,7 +35,7 @@ if (process.argv[2] === "fallback") {
   const leanCommit = "f3b06c705e6c85f5314019d5d3baab0fec5b580c", kernelWasm = bytes("kernel/lean-kernel.wasm");
   if (!kernelWasm.includes(Buffer.from(leanCommit))) throw new Error("the kernel build does not carry the pinned Lean commit");
   const bootstrap = ["hologram/hologram_store_bg.wasm", "hologram/hologram_store.js"];
-  const assets = ["kernel/lean-kernel.wasm", "kernel/lean-kernel.mjs", "library/library.ndjson", "src/emit.mjs", "src/store.mjs", "src/prover.mjs", "src/worker.mjs", "web/app.mjs"];
+  const assets = ["kernel/lean-kernel.wasm", "kernel/lean-kernel.mjs", "library/library.ndjson", "src/emit.mjs", "src/store.mjs", "src/prover.mjs", "src/shared.mjs", "src/worker.mjs", "web/app.mjs"];
   const pin = {
     schema: "lexlean/pin/1",
     lean: { version: "4.32.2", commit: leanCommit },

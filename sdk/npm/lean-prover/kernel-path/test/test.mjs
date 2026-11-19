@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { open, verified } from "../src/node.mjs";
+import { openShared } from "../src/shared.mjs";
 import { root, read, kernel, loadLibrary, emitter, readModule, declaredAxioms } from "./harness.mjs";
 
 let failures = 0;
@@ -91,6 +92,30 @@ const dir = tmp("store"), proofs = path.join(root, EX, "proofs.json");
   let refused = ""; try { verified(copy); } catch (e) { refused = e.message; }
   check(/refused src\/emit\.mjs/.test(refused), "a pinned file altered on disk is refused before anything runs");
   fs.rmSync(copy, { recursive: true, force: true });
+}
+
+// ---------- one prover for every build and every tab ----------
+section("One prover serves every build and every tab");
+{
+  // Web Locks as a browser gives them, for one origin: one holder per name, the rest wait in order.
+  const held = new Map(), locks = { request: (name, a, b) => { const opts = b ? a : {}, cb = b || a; return new Promise((done) => {
+    const run = () => { held.set(name, held.get(name) || []); Promise.resolve(cb({ name })).then(() => { const next = held.get(name).shift(); if (next) next(); else held.delete(name); }).then(done); };
+    if (!held.has(name)) run(); else if (opts.ifAvailable) Promise.resolve(cb(null)).then(done); else held.get(name).push(run); }); } };
+  const text = read(`${EX}/Kernels.lean.txt`), sdir = tmp("shared"); let opened = 0;
+  const tab = () => openShared({ env: "test-env", locks, open: () => { opened++; return open({ storeDir: sdir, proofs, kernels: 2, idleMs: 300 }); } });
+  const a = await tab(), b = await tab(), c = await tab();
+  const [rb, rc, ra] = await Promise.all([b.prove(text), c.prove(text), a.prove(text)]);
+  check(a.role() === "owner" && b.role() === "client" && c.role() === "client" && opened === 1, `three tabs, one prover opened: roles ${a.role()}, ${b.role()}, ${c.role()}`);
+  check(rb.proved === 16 && rc.proved === 16 && ra.proved === 16 && rb.shared && (await b.kernels()) === 0 && (await c.kernels()) === 0, `two builds in other tabs are answered by the owner (${rb.proved} of ${rb.theorems} each), and start no kernel of their own`);
+  check(ra.found + rb.found + rc.found === 3 * ra.found && ra.found > 0 && ra.ms === rb.ms, "the same module asked for three times at once is judged once");
+  await new Promise((r) => setTimeout(r, 700));
+  check((await a.kernels()) === 0, "kernels with nothing to do are let go");
+  const again = await b.prove(read(`${EX}/Folds.lean.txt`));
+  check(again.proved === 9 && !again.libraryJudgedMs, `the next build starts them again without judging the library a second time (${again.ms.toFixed(0)} ms)`);
+  await a.close(); await new Promise((r) => setTimeout(r, 50));
+  const after = await c.prove(read(`${EX}/Main.lean.txt`));
+  check([b.role(), c.role()].filter((x) => x === "owner").length === 1 && after.proved === 6 && opened === 2, `the owner's tab closes: another tab takes over and answers (${after.proved} of ${after.theorems})`);
+  await b.close(); await c.close(); fs.rmSync(sdir, { recursive: true, force: true });
 }
 
 // ---------- throughput ----------

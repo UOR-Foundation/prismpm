@@ -20,8 +20,8 @@ import { readModule } from "./emit.mjs";
 const enc = new TextEncoder(), dec = new TextDecoder();
 const CHUNK = 256, PER_KERNEL = 48;
 
-/** host: { env, library, kernel, hasher, address, store, spawn, kernels, proofs? } */
-export async function openProver({ env, library, kernel, hasher, address, store, spawn, kernels = 4, proofs = null }) {
+/** host: { env, library, kernel, hasher, address, store, spawn, kernels, proofs?, idleMs? } */
+export async function openProver({ env, library, kernel, hasher, address, store, spawn, kernels = 4, proofs = null, idleMs = 30000 }) {
   const key = (tag, ...rest) => address(enc.encode([tag, env, ...rest].join("\u0000")));
 
   // The memo: a chain of segments from the head. A segment that is missing or fails its label ends the walk, and
@@ -56,7 +56,7 @@ export async function openProver({ env, library, kernel, hasher, address, store,
   }
   const ask = (w, msg) => new Promise((ok) => { const id = nextId++; waiting.set(id, ok); w.post({ id, ...msg }); });
 
-  async function prove(text) {
+  async function proveNow(text) {
     const t = performance.now(), r = { theorems: 0, proved: 0, failed: [], reused: 0, found: 0, published: 0, ms: 0, kernels: 0 };
     const done = async () => { await flush(); r.proved = r.theorems - r.failed.length; r.kernels = pool.length; r.ms = performance.now() - t; return r; };
     const moduleKey = key("lexlean/module/1", text), known = memo.get(moduleKey);
@@ -131,5 +131,19 @@ export async function openProver({ env, library, kernel, hasher, address, store,
     if (!r.failed.length) remember(moduleKey, { theorems: theorems.length });
     return done();
   }
-  return { environment: env, prove, memo: { entries: memo.size, refused }, kernels: () => pool.length, close: () => Promise.all(pool.map((w) => w.terminate())) };
+  // One prover serves every caller. The same module asked for twice at once is judged once, and kernels that have
+  // had nothing to do for idleMs are let go: their memory comes back, and the next request starts them again
+  // without judging the library a second time.
+  const inflight = new Map(); let active = 0, idle = null;
+  const retire = () => { for (const w of pool.splice(0)) w.terminate(); };
+  function prove(text) {
+    const k = key("lexlean/asked/1", text); let p = inflight.get(k);
+    if (!p) {
+      clearTimeout(idle); active++;
+      p = proveNow(text).finally(() => { inflight.delete(k); if (!--active && idleMs >= 0) { idle = setTimeout(retire, idleMs); if (idle.unref) idle.unref(); } });
+      inflight.set(k, p);
+    }
+    return p;
+  }
+  return { environment: env, prove, memo: { entries: memo.size, refused }, kernels: () => pool.length, close: () => { clearTimeout(idle); return Promise.all(pool.splice(0).map((w) => w.terminate())); } };
 }

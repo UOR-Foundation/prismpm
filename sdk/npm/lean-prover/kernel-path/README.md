@@ -58,6 +58,15 @@ node test/browsers.mjs firefox webkit iphone     # needs Playwright and its brow
 Rebuilding the library, the published proofs and the pin is the only step that runs Lean
 and is not in this folder. The lemma library is a LexLean source package (`reflect-library`, UOR-Foundation/lexlean#587), verified by `lexlean verify`; the library here is exported from that verified build (see [INTEGRATION.md](INTEGRATION.md)).
 
+## One prover for every build
+
+In a browser, `openShared` (src/shared.mjs) gives every tab of the origin the same prover. A Web Lock named by the
+environment's label decides which tab owns it; the others ask it over a BroadcastChannel and start nothing: no kernel,
+no library, no memo. The kernel and the library are fetched only by the owner, at the first request. Kernels with
+nothing to do for 30 seconds are let go, and the next request starts them again without judging the library twice.
+The same module asked for twice at once is judged once. When the owner's tab closes, another tab takes over. A tab
+whose owner does not answer (a frozen background tab) proves alone rather than wait.
+
 ## Measured
 
 On one desktop, Lean 4.32.2 kernel, the `fold-laws` example (31 theorems across three modules):
@@ -88,6 +97,7 @@ On one desktop, Lean 4.32.2 kernel, the `fold-laws` example (31 theorems across 
 ```
 src/emit.mjs      finds proofs; reads a module, writes kernel terms          (untrusted)
 src/prover.mjs    the prover: labels, memo, kernels, published proofs        (one implementation)
+src/shared.mjs    one prover for the origin: every tab and build is served by one set of kernels
 src/worker.mjs    one kernel per worker, in a browser or in Node
 src/store.mjs     κ-stores: OPFS, IndexedDB, memory, a folder
 src/node.mjs      open() for Node          web/           the page

@@ -59,16 +59,21 @@ try {
   const root = holo.address(pinBytes);
   if (q.get("pin") && q.get("pin") !== root) throw new Error(`refused: the pin served is ${root}, not the one asked for`);
   let bytes = pinBytes.length;
-  for (const [p, a] of Object.entries(pin.assets)) {
+  // Code is fetched and checked now, since it is about to run. The kernel and the library are data, and large:
+  // they are fetched and checked only by the tab that comes to own the prover, when it first needs them.
+  const need = async (p) => {
+    if (files.has(p) && files.get(p).checked) return files.get(p);
+    const a = pin.assets[p]; if (!a) throw new Error(`${p} is not in the pin`);
     const b = files.get(p) || (a.encoding === "gzip" ? await get(a.file, true) : await get(p)); // labelled by the decoded bytes
     if (holo.address(b) !== a.kappa) throw new Error(`refused ${p}: it does not match the pin`);
-    files.set(p, b); bytes += b.length;
-  }
+    b.checked = true; files.set(p, b); bytes += b.length; return b;
+  };
+  for (const [p, a] of Object.entries(pin.assets)) if (a.encoding !== "gzip") await need(p);
   const bootMs = performance.now() - started;
   document.getElementById("pin").textContent = `Lean ${pin.lean.version} kernel · environment ${root}`;
-  say(`${files.size} files, ${(bytes / 1048576).toFixed(2)} MB, fetched and verified in ${bootMs.toFixed(0)} ms`);
+  say(`${files.size} code files, ${(bytes / 1048576).toFixed(2)} MB, fetched and verified in ${bootMs.toFixed(0)} ms`);
   const app = await import(link("web/app.mjs"));
-  await app.main({ pin, root, files, link, holo, say, bootMs });
+  await app.main({ pin, root, files, need, link, holo, say, bootMs });
 } catch (e) { document.getElementById("pin").textContent = "Refused to start."; say("FAILED: " + (e && e.stack || e)); }
 results.done = true;
 try { await fetch("/report", { method: "POST", body: JSON.stringify({ url: location.search, agent: navigator.userAgent, lines: results.lines }) }); } catch {}

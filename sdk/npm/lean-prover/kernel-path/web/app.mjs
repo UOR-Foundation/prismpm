@@ -4,9 +4,10 @@
 //   ?auto=example        the bundled example, all three modules
 //   ?auto=bench&n=20000  a generated module of n theorems, then again, then with one theorem edited
 //   &fresh=1             start from an empty store          &store=opfs|idb|memory   force a backend
-//   &kernels=4           at most this many kernels
+//   &kernels=4           at most this many kernels          &alone=1   do not share a prover with other tabs
 import { browser as openStore } from "../src/store.mjs";
 import { openProver } from "../src/prover.mjs";
+import { openShared } from "../src/shared.mjs";
 
 const EXAMPLE = "examples/fold-laws", MODULES = ["Kernels.lean.txt", "Folds.lean.txt", "Main.lean.txt"];
 const shapes = [
@@ -19,13 +20,11 @@ const shapes = [
 ];
 const generated = (n) => "namespace FoldLaws.Kernels\n\n" + Array.from({ length: n }, (_, i) => { const [vs, s] = shapes[i % shapes.length](i); return `theorem t${i} ${vs.map((v) => `(${v} : Int)`).join(" ")} : ${s} := by\n  linear_arithmetic\n`; }).join("\n");
 
-export async function main({ pin, root, files, link, holo, say, bootMs }) {
+export async function main({ pin, root, files, need, link, holo, say, bootMs }) {
   const q = new URLSearchParams(location.search), dec = new TextDecoder();
   // A phone has fewer cores to spare and far less memory: each kernel holds about 64 to 77 MB.
   const cores = navigator.hardwareConcurrency || 4, small = (navigator.deviceMemory && navigator.deviceMemory <= 4) || /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
   const kernels = Number(q.get("kernels")) || Math.max(1, Math.min(small ? 2 : 8, cores - 1));
-  const store = await openStore(holo, q.get("store"));
-  if (q.get("fresh")) await store.clear();
   const text = async (p) => dec.decode(new Uint8Array(await (await fetch(new URL("../" + p, location.href), { cache: "no-store" })).arrayBuffer()));
   // Published proofs for the example. They are outside the pin and not trusted: a pack's bytes are checked against
   // its label, then the kernel judges every declaration in it.
@@ -33,10 +32,20 @@ export async function main({ pin, root, files, link, holo, say, bootMs }) {
   for (const p of index.packs) for (const n of p.theorems) byTheorem.set(n, p);
   const proofs = { byTheorem, axioms: new Map(Object.entries(index.axioms || {})), fetch: async (p) => { const b = new Uint8Array(await (await fetch(new URL(`../${EXAMPLE}/${p.file}`, location.href), { cache: "no-store" })).arrayBuffer()); if (holo.address(b) !== p.kappa) throw new Error(`refused ${p.file}: it does not match its label`); return dec.decode(b); } };
   const spawn = () => { const w = new Worker(link("src/worker.mjs"), { type: "module" }), h = { post: (m) => w.postMessage(m), terminate: () => w.terminate(), onmessage: null, onerror: null }; w.onmessage = (e) => h.onmessage && h.onmessage(e.data); w.onerror = (e) => h.onerror && h.onerror(e); return h; };
-  const prover = await openProver({ env: root, library: files.get("library/library.ndjson"), kernel: files.get("kernel/lean-kernel.wasm"), hasher: files.get("hologram/hologram_store_bg.wasm"), address: holo.address, store, spawn, kernels, proofs });
-  say(`store: ${store.kind}${store.unavailable.length ? " (not available: " + store.unavailable.join("; ") + ")" : ""}; ${prover.memo.entries} remembered${prover.memo.refused ? "; the store refused a segment: " + prover.memo.refused : ""}`);
-  say(`ready ${(performance.now()).toFixed(0)} ms after the page started; up to ${kernels} kernels`);
-  const line = (label, r) => say(`${label}: ${r.proved} of ${r.theorems} proved in ${r.ms.toFixed(r.ms < 10 ? 1 : 0)} ms (reused ${r.reused}, found here ${r.found}, published proof ${r.published}, failed ${r.failed.length}; kernels ${r.kernels}${r.libraryJudgedMs ? `; library judged here in ${r.libraryJudgedMs.toFixed(0)} ms` : ""})${r.failed.length ? " first failure: " + r.failed[0].name + ": " + r.failed[0].why : ""}`);
+  // One prover for every tab of this origin: the tab that owns it opens the store and the kernels; the others ask it.
+  const open = async () => {
+    const store = await openStore(holo, q.get("store"));
+    if (q.get("fresh")) await store.clear();
+    const t = performance.now(), [library, kernel] = await Promise.all([need("library/library.ndjson"), need("kernel/lean-kernel.wasm")]);
+    say(`kernel and library, ${((library.length + kernel.length) / 1048576).toFixed(2)} MB, fetched and verified in ${(performance.now() - t).toFixed(0)} ms`);
+    const p = await openProver({ env: root, library, kernel, hasher: files.get("hologram/hologram_store_bg.wasm"), address: holo.address, store, spawn, kernels, proofs, idleMs: q.get("idle") ? Number(q.get("idle")) : undefined });
+    say(`store: ${store.kind}${store.unavailable.length ? " (not available: " + store.unavailable.join("; ") + ")" : ""}; ${p.memo.entries} remembered${p.memo.refused ? "; the store refused a segment: " + p.memo.refused : ""}`);
+    return p;
+  };
+  const prover = await openShared(q.get("alone") ? { env: root, open, locks: null } : { env: root, open });
+  globalThis.lexleanProver = prover; // for tests: role() and kernels()
+  say(`ready ${(performance.now()).toFixed(0)} ms after the page started; ${prover.role() === "client" ? "served by the prover another tab owns: nothing is started here" : `this tab owns the prover; up to ${kernels} kernels`}`);
+  const line = (label, r) => say(`${label}: ${r.proved} of ${r.theorems} proved in ${r.ms.toFixed(r.ms < 10 ? 1 : 0)} ms (reused ${r.reused}, found here ${r.found}, published proof ${r.published}, failed ${r.failed.length}; ${r.shared ? "judged in the owning tab; its kernels" : "kernels"} ${r.kernels}${r.libraryJudgedMs ? `; library judged here in ${r.libraryJudgedMs.toFixed(0)} ms` : ""})${r.failed.length ? " first failure: " + r.failed[0].name + ": " + r.failed[0].why : ""}`);
 
   // ----- the interface -----
   const app = document.getElementById("app");

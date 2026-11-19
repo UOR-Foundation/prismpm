@@ -45,7 +45,7 @@ export function publishedProofs(indexFile) {
   return { byTheorem, axioms: new Map(Object.entries(index.axioms || {})), fetch: async (p) => { const b = new Uint8Array(fs.readFileSync(path.join(dir, p.file))); if (holo.address(b) !== p.kappa) throw new Error(`refused ${p.file}: it does not match its label`); return new TextDecoder().decode(b); } };
 }
 
-export async function open({ storeDir, kernels = Math.max(1, Math.min(8, os.cpus().length - 2)), proofs = null } = {}) {
+export async function open({ storeDir, kernels = Math.max(1, Math.min(8, os.cpus().length - 2)), proofs = null, idleMs } = {}) {
   const v = verified();
   const spawn = () => {
     const w = new Worker(path.join(root, "src/worker.mjs")), h = { post: (m) => w.postMessage(m), terminate: () => w.terminate(), onmessage: null, onerror: null };
@@ -55,7 +55,7 @@ export async function open({ storeDir, kernels = Math.max(1, Math.min(8, os.cpus
   const prover = await openProver({
     env: v.env, library: v.files.get("library/library.ndjson"), kernel: v.files.get("kernel/lean-kernel.wasm"), hasher: v.files.get("hologram/hologram_store_bg.wasm"),
     address: holo.address, store: storeDir ? folder(holo, storeDir, fs, path) : memory(holo), spawn, kernels,
-    proofs: typeof proofs === "string" ? publishedProofs(proofs) : proofs,
+    proofs: typeof proofs === "string" ? publishedProofs(proofs) : proofs, idleMs,
   });
   return { ...prover, pin: v.pin };
 }
