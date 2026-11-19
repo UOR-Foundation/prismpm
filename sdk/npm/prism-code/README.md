@@ -101,8 +101,11 @@ pinned copy is here ([Phase 3](../../../docs/proposals/canonical-serverless-buil
 on a read-only WASI host held in memory: it checks every app and takes its
 semantic snapshot in under a second, and a rule app is then proved by Lean's
 kernel in this process and built, with no server. Its pinned copy is fetched
-once, about 4 MB, and used only when it has its BLAKE3 digest;
-`PRISM_LEXLEAN_FETCH=0` fetches nothing. Any other app's theorems are proved by
+once, about 4 MB, and used only when it has its κ-label (BLAKE3);
+`PRISM_LEXLEAN_FETCH=0` fetches nothing. It and Lean's kernel are kept once per machine in
+`$PRISM_HOME/kappa`. `setup` and the first check after an upgrade remove what this
+version no longer pins; `prism-code system df` shows what that frees, and
+`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Any other app's theorems are proved by
 the hosted verifier, which stores the model unlisted, not privately, until
 in-process proof producers land (Phase 4). `PRISM_CODE_TIER=offline` sends
 nothing anywhere. Such an app is not yet built into a holo by the guided build,

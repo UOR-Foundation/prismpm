@@ -21,6 +21,7 @@ import { VERSION } from '../version.mjs';
 import { gapLedger } from '../gaps.mjs';
 import { NO_DOCKER_FREE_BUILD, frontendWhere, proverWhere } from './frontend.mjs';
 import { lexleanReady, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
+import { collectIfUpgraded, withStoreHeld } from './store-gc.mjs';
 import { sourceDigest } from './project.mjs';
 import { axiomViolations, forbiddenAxioms, forbiddenMessage } from './sdk.mjs';
 
@@ -62,7 +63,7 @@ async function hostedOf(client, gaps) {
  * Check the model: LexLean reads, links and elaborates it, and every
  * diagnostic is returned anchored to its line. Proves nothing.
  */
-export async function check(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), wasm = null } = {}) {
+async function checkUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
@@ -99,7 +100,7 @@ export async function check(dir, session, { log = () => {}, env = process.env, c
  * this process from its semantic snapshot; any other app's theorems are proved
  * by `lexlean verify`. Returns `{ ok, where, guarantees | message, diagnostics }`.
  */
-export async function prove(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, wasm = null } = {}) {
+async function proveUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
@@ -204,7 +205,7 @@ async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, en
  * its holo needs Lean's export, Rust and WebAssembly, which no step runs
  * without an image yet.
  */
-export async function build(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, wasm = null } = {}) {
+async function buildUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
   if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, wasm });
@@ -285,3 +286,19 @@ export async function tryRequest(dir, session, request) {
   return { ...failure(new PrismCodeError('try.unbuilt', 'Nothing is built yet, so nothing answers: call prism_build first. Prism answers only from a built app, never from a second reading of the model.')), request };
 }
 
+/**
+ * A step that holds the machine store while it runs, so no collection removes what it reads, after
+ * collecting what an upgrade left behind (store-gc.mjs).
+ */
+const held = (step) => (dir, session, options = {}) => {
+  const env = options.env ?? process.env;
+  collectIfUpgraded({ env });
+  return withStoreHeld(env, () => step(dir, session, options));
+};
+
+/** Check the model (checkUnheld), holding the store. */
+export const check = held(checkUnheld);
+/** Prove the model (proveUnheld), holding the store. */
+export const prove = held(proveUnheld);
+/** Build the app (buildUnheld), holding the store. */
+export const build = held(buildUnheld);

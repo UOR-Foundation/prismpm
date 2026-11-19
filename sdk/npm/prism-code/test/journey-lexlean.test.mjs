@@ -22,8 +22,9 @@ process.env.PRISM_LEXLEAN_FETCH = '0';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 const STARTERS = fileURLToPath(new URL('../templates/starters/', import.meta.url));
-const HOSTED = { PRISM_CODE_TIER: 'hosted' };
-const OFFLINE = { PRISM_CODE_TIER: 'offline' };
+// The env a step is given is the whole environment it sees: it names this test's home, never the user's.
+const HOSTED = { PRISM_CODE_TIER: 'hosted', PRISM_HOME: process.env.PRISM_HOME };
+const OFFLINE = { PRISM_CODE_TIER: 'offline', PRISM_HOME: process.env.PRISM_HOME };
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
 test('every starter file is the bytes its index names, and no starter names a spec', () => {
