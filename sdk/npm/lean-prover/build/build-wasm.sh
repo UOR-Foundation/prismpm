@@ -7,14 +7,24 @@
 #   with LEAN_COOP_TASKS (upstream/make-coop-patch.py) so it never starts a thread; no mimalloc, Lean's own allocator.
 # One module serves Node and the browser: an ES module factory with Emscripten's in-memory file system, which the
 # host fills with label-checked bytes (src/engine-worker.mjs, web/elab-worker.mjs).
-#   WORK=... bash build/build-wasm.sh       (after fetch-tools.sh, gen-c.sh, build-driver.sh, build-deps.sh)
+# WIDTH=32: the same objects as 32-bit WebAssembly, for browsers without 64-bit memory (Safari before 27.3, every
+# iOS browser): no MEMORY64, no GMP (Lean's own big numbers, as upstream's 32-bit build), a 4 GB maximum. It also
+# links `lean32`, Lean's own command line for Node (util/shell.cpp), which compiles the Init this engine reads
+# (build-init32.sh): a 32-bit Lean cannot read the release's 64-bit .olean files.
+#   WORK=... [WIDTH=32] bash build/build-wasm.sh   (after fetch-tools.sh, gen-c.sh, build-driver.sh, build-deps.sh)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 pkg=$(cd "$here/.." && pwd)
 work=${WORK:?}
 src=$work/lean4/src
-obj=$work/obj
-dist=$work/dist
+width=${WIDTH:-64}
+case $width in
+  64) obj=$work/obj dist=$work/dist inc=$work/gen-include mem="-sMEMORY64=1" gmp="-DLEAN_USE_GMP" target=wasm64
+      gmplib=$work/deps/gmp/lib/libgmp.a uvlib=$work/deps/libuv/build/libuv.a maxmem=8589934592 ;;
+  32) obj=$work/obj32 dist=$work/dist32 inc=$work/gen-include32 mem="" gmp="" target=wasm32
+      gmplib="" uvlib=$work/deps/libuv/build32/libuv.a maxmem=4294967296 ;;
+  *) echo "WIDTH is 64 or 32"; exit 1 ;;
+esac
 opt=${OPT:--O2}
 # shellcheck disable=SC1091
 source "$here/env.sh"
@@ -27,14 +37,14 @@ git -C "$work/lean4" checkout -q -- src
 git -C "$work/lean4" apply "$pkg/upstream/lean-wasm-elaborator.patch"
 git -C "$work/lean4" diff --stat | tail -1
 
-mkdir -p "$obj/c" "$obj/cpp" "$dist" "$work/gen-include/lean"
-cat > "$work/gen-include/lean/config.h" <<'EOF'
+mkdir -p "$obj/c" "$obj/cpp" "$dist" "$inc/lean"
+cat > "$inc/lean/config.h" <<'EOF'
 #pragma once
 #include <lean/version.h>
 #define LEAN_SMALL_ALLOCATOR
 #define LEAN_IS_STAGE0 0
 EOF
-cat > "$work/gen-include/lean/version.h" <<'EOF'
+cat > "$inc/lean/version.h" <<EOF
 #pragma once
 #define LEAN_VERSION_MAJOR 4
 #define LEAN_VERSION_MINOR 32
@@ -42,12 +52,12 @@ cat > "$work/gen-include/lean/version.h" <<'EOF'
 #define LEAN_VERSION_IS_RELEASE 1
 #define LEAN_SPECIAL_VERSION_DESC ""
 #define LEAN_VERSION_STRING "4.32.2"
-#define LEAN_PLATFORM_TARGET "wasm64-unknown-emscripten"
+#define LEAN_PLATFORM_TARGET "$target-unknown-emscripten"
 #define LEAN_MANUAL_ROOT "https://lean-lang.org/doc/reference/4.32.2/"
 EOF
-echo "#define LEAN_GITHASH \"$(git -C "$work/lean4" rev-parse HEAD)\"" > "$work/gen-include/githash.h"
+echo "#define LEAN_GITHASH \"$(git -C "$work/lean4" rev-parse HEAD)\"" > "$inc/githash.h"
 
-common="$opt -sMEMORY64=1 -DNDEBUG -DLEAN_EMSCRIPTEN -DLEAN_MULTI_THREAD -DLEAN_COOP_TASKS -DLEAN_USE_GMP -DLEAN_EXPORTING -fwasm-exceptions -ffp-contract=off -I$work/gen-include -I$src/include -I$src -I$work/deps/gmp/include -I$work/deps/libuv/include"
+common="$opt $mem -DNDEBUG -DLEAN_EMSCRIPTEN -DLEAN_MULTI_THREAD -DLEAN_COOP_TASKS $gmp -DLEAN_EXPORTING -fwasm-exceptions -ffp-contract=off -I$inc -I$src/include -I$src -I$work/deps/gmp/include -I$work/deps/libuv/include"
 export common obj
 
 cc_one() { f=$1; o=$obj/c/$(basename "$f" .c).o; [ "$o" -nt "$f" ] || emcc -c $common -Wno-everything "$f" -o "$o"; }
@@ -67,6 +77,18 @@ emcc -c $common -Wno-everything "$obj/symtab.c" -o "$obj/symtab.o"
 
 # The engine keeps one Lean for the life of the prover: wasm-entry.c initializes it once and serves requests.
 mkdir -p "$dist"
-em++ $opt -sMEMORY64=1 -fwasm-exceptions "$obj/Elab.o" "$obj/symtab.o" "$obj/wasm-entry.o" "$obj"/cpp/*.o "$obj/libmods.a"   "$work/deps/gmp/lib/libgmp.a" "$work/deps/libuv/build/libuv.a" -o "$dist/lean-elab.mjs"   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=8589934592 -sSTACK_SIZE=67108864   -sEXPORTED_FUNCTIONS=_main,_malloc,_free,_elab_ready,_elab_request -sFORCE_FILESYSTEM=1 -sENVIRONMENT=web,worker   -sMODULARIZE=1 -sEXPORT_ES6=1 -sINVOKE_RUN=0 -sEXIT_RUNTIME=0 -sEXPORTED_RUNTIME_METHODS=FS,ENV,ccall ${LINK_EXTRA:-}
+em++ $opt $mem -fwasm-exceptions "$obj/Elab.o" "$obj/symtab.o" "$obj/wasm-entry.o" "$obj"/cpp/*.o "$obj/libmods.a"   $gmplib "$uvlib" -o "$dist/lean-elab.mjs"   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=$maxmem -sSTACK_SIZE=67108864   -sEXPORTED_FUNCTIONS=_main,_malloc,_free,_elab_ready,_elab_request -sFORCE_FILESYSTEM=1 -sENVIRONMENT=web,worker   -sMODULARIZE=1 -sEXPORT_ES6=1 -sINVOKE_RUN=0 -sEXIT_RUNTIME=0 -sEXPORTED_RUNTIME_METHODS=FS,ENV,ccall ${LINK_EXTRA:-}
 ls -l "$dist"
 gzip -9 -c "$dist/lean-elab.wasm" | wc -c
+
+# lean32: Lean's command line under Node, from the same objects, for compiling the 32-bit Init (build-init32.sh).
+# Lean mounts /home and /tmp from the host when it runs as WebAssembly (util/shell.cpp), so its work stays there.
+if [ "$width" = 32 ]; then
+  echo 'extern int lean_main(int, char **); int main(int argc, char **argv) { return lean_main(argc, argv); }' > "$obj/lean-main.c"
+  emcc -c $common -Wno-everything "$obj/lean-main.c" -o "$obj/lean-main.o"
+  [ "$obj/shell.o" -nt "$src/util/shell.cpp" ] || em++ -c -std=c++20 $common -DLEAN_BUILD_TYPE=\"Release\" -Wno-everything "$src/util/shell.cpp" -o "$obj/shell.o"
+  mkdir -p "$work/lean32"
+  em++ $opt -fwasm-exceptions "$obj/lean-main.o" "$obj/shell.o" "$obj/symtab.o" "$obj"/cpp/*.o "$obj/libmods.a" "$uvlib" -o "$work/lean32/lean32.cjs" \
+    -lnodefs.js -sENVIRONMENT=node -sEXIT_RUNTIME=1 -sEXPORTED_FUNCTIONS=_main,_malloc,_free -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=$maxmem -sSTACK_SIZE=67108864 -sFORCE_FILESYSTEM=1
+  ls -l "$work/lean32"
+fi

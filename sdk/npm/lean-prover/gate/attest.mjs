@@ -2,7 +2,9 @@
 // written only when native Lean and the engine agree on every corpus declaration and every planted defect was
 // refused. Its own label is what a manifest's `gate` field names.
 //   node gate/attest.mjs --manifest DIR --native native.jsonl --wasm wasm.jsonl --corpus corpus.txt
-//        --lexlean-sha256 HEX --defects defects.json --out gate.json
+//        --lexlean-sha256 HEX --defects defects.json --out gate.json [--init-native FILE --init-wasm FILE]
+// A 32-bit build's attestation also carries `width` and `init`: every Init declaration of its own Init equals the
+// release's (the driver's `check` on each Init module, native over the release, the engine over its own).
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { kappa } from "../src/vendor/blake3.mjs";
@@ -14,7 +16,16 @@ const enc = new TextEncoder();
 const labelOf = (v) => kappa(enc.encode(JSON.stringify(v)));
 
 /** The attestation, or a thrown refusal naming why the gate does not admit this engine. */
-export function attest({ manifest, native, wasm, corpus, lexleanSha256, lexleanSemantics, defects }) {
+export function attest({ manifest, native, wasm, corpus, lexleanSha256, lexleanSemantics, defects, initNative, initWasm }) {
+  const width = manifest.width ?? 64;
+  let init = null;
+  if (width === 32) {
+    if (!initNative || !initWasm) throw new Error("the gate refuses: a 32-bit build needs its Init compared with the release's");
+    const r = agree(initNative, initWasm);
+    if (r.disagreements) throw new Error(`the gate refuses: ${r.disagreements} Init modules differ from the release's: ${r.rows.filter((x) => !x.agree).slice(0, 3).map((x) => `${x.module} (${x.why})`).join(", ")}`);
+    if (r.declarations === 0) throw new Error("the gate refuses: no Init declaration was compared");
+    init = { modules: r.rows.length, declarations: r.declarations, disagreements: 0 };
+  }
   const result = agree(native, wasm);
   if (result.disagreements) throw new Error(`the gate refuses: ${result.disagreements} modules disagree`);
   if (result.declarations === 0) throw new Error("the gate refuses: the corpus has no declarations");
@@ -23,6 +34,7 @@ export function attest({ manifest, native, wasm, corpus, lexleanSha256, lexleanS
   if (!defects.length || notRefused.length) throw new Error(`the gate refuses: planted defects not refused: ${notRefused.map((d) => d.name).join(", ") || "none ran"}`);
   return {
     schema: GATE_SCHEMA,
+    ...(width === 32 ? { width, init } : {}),
     lean: { version: manifest.lean, commit: manifest.lean_commit },
     engine: { wasm: manifest.engine.wasm.kappa, loader: manifest.engine.loader.kappa },
     library: libraryLabel(manifest),
@@ -49,6 +61,8 @@ if (process.argv[1]?.replaceAll("\\", "/").endsWith("gate/attest.mjs")) {
     lexleanSha256: a["lexlean-sha256"],
     lexleanSemantics: manifest.lexlean.semantics_id,
     defects: JSON.parse(readFileSync(a.defects, "utf8")),
+    initNative: a["init-native"] ? load(readFileSync(a["init-native"], "utf8")) : null,
+    initWasm: a["init-wasm"] ? load(readFileSync(a["init-wasm"], "utf8")) : null,
   });
   const bytes = JSON.stringify(attestation);
   writeFileSync(a.out, bytes);

@@ -3,6 +3,8 @@
 # refused. Only then is the attestation written that names the engine, library, LexLean and corpus by BLAKE3 label.
 #
 #   WORK=... bash gate/run-gate.sh      (Linux x86-64, after build/build-engine.sh in the same WORK)
+#   WORK=... WIDTH=32 bash gate/run-gate.sh   (after build/build-engine32.sh: the 32-bit engine over its own Init, which
+#     must equal the release's Init declaration by declaration before anything else counts; output in $WORK/gate32)
 #
 # Inputs: $WORK/dist (the engine), $WORK/driver/.lake/build/bin/elab (the same driver, native), elan's Lean 4.32.2.
 # Output: $WORK/gate/{native,wasm}.jsonl, defects.json, gate.json, gate-label.txt and the manifest folder.
@@ -11,7 +13,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 pkg=$(cd "$here/.." && pwd)
 : "${WORK:?}"
 source "$pkg/build/env.sh"
+width=${WIDTH:-64}
 out=$WORK/gate
+[ "$width" = 64 ] || out=$WORK/gate32
 rm -rf "$out" && mkdir -p "$out"
 lock() { python3 -c 'import sys,json; v=json.load(open(sys.argv[1]))
 for k in sys.argv[2:]: v=v[int(k)] if isinstance(v,list) else v[k]
@@ -70,10 +74,25 @@ export LEAN_SYSROOT LEAN_PATH
 LEAN_SYSROOT=$("$LEAN_BIN/lean" --print-prefix)
 LEAN_PATH=$rt
 
+# The 32-bit engine reads only 32-bit .olean files: the same runtime, compiled again by lean32 over its own Init.
+# Native Lean keeps the 64-bit runtime above.
+if [ "$width" = 32 ]; then
+  consumer32=$WORK/runtime-consumer32
+  rm -rf "$consumer32" && mkdir -p "$consumer32"
+  cp "$consumer/lean-toolchain" "$consumer/lakefile.toml" "$consumer32/"
+  ( cd "$consumer32" && LEAN_SYSROOT=$WORK/sys32 LAKE_OVERRIDE_LEAN=true "$LEAN_BIN/lake" build )
+  rt32=$consumer32/.lake/build/lib/lean
+fi
+
 # The manifest and its blobs, as soon as the engine and the library exist, so a browser trial has them even
 # if a later step fails.
-node "$pkg/scripts/make-manifest.mjs" --sysroot "$LEAN_SYSROOT" --runtime "$rt" --engine "$WORK/dist" \
-  --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
+if [ "$width" = 64 ]; then
+  node "$pkg/scripts/make-manifest.mjs" --sysroot "$LEAN_SYSROOT" --runtime "$rt" --engine "$WORK/dist" \
+    --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
+else
+  node "$pkg/scripts/make-manifest.mjs" --sysroot "$WORK/sys32" --runtime "$rt32" --engine "$WORK/dist32" --width 32 \
+    --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
+fi
 
 # The same blobs as npm packages, packed and held to the shard cap, never published here.
 
@@ -136,6 +155,19 @@ node --input-type=module -e '
     if (/^lib\/lean\/Init(\.|\/)/.test(rel) && statSync(p).isFile()) listing[rel] = kappa(readFileSync(p));
   }
   writeFileSync(out, JSON.stringify(listing));' "$LEAN_SYSROOT" "$out/official-init.json"
+# A 32-bit Init counts only when it equals the release's: every Init module checked by the driver natively over the
+# release and in the engine over its own Init, declaration by declaration (gate/init-check.mjs).
+init_args=()
+if [ "$width" = 32 ]; then
+  node "$here/init-check.mjs" "$out/manifest" --list > "$out/init-modules.txt"
+  echo "Init: $(wc -l < "$out/init-modules.txt") modules"
+  mapfile -t init_mods < "$out/init-modules.txt"
+  /usr/bin/time -f '%e %M' -o "$out/time-init-native.txt" "$ELAB" --check "$out/init-native-out" "${init_mods[@]}" > "$out/init-native.jsonl"
+  /usr/bin/time -f '%e %M' -o "$out/time-init-wasm.txt" node "$here/init-check.mjs" "$out/manifest" --modules "$out/init-modules.txt" > "$out/init-wasm.jsonl"
+  node "$here/agree.mjs" "$out/init-native.jsonl" "$out/init-wasm.jsonl" | tee "$out/agree-init.txt"
+  init_args=(--init-native "$out/init-native.jsonl" --init-wasm "$out/init-wasm.jsonl")
+fi
+
 # Cold: an empty module store, every module elaborated. Warm: the store the cold run filled, every module checked
 # again by the kernel instead of elaborated. Both must agree with native Lean.
 rm -rf "$out/store"
@@ -145,10 +177,10 @@ node "$here/agree.mjs" "$out/native.jsonl" "$out/wasm-warm.jsonl" | tee "$out/ag
 
 node "$here/agree.mjs" "$out/native.jsonl" "$out/wasm.jsonl" | tee "$out/agree.txt"
 node "$here/defects.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" --wasm "$out/wasm.jsonl" \
-  --elab "$ELAB" --official "$out/official-init.json" --module "$(grep -m1 '^Leap.' "$out/corpus.txt")" --work "$out/defect" --out "$out/defects.json"
+  --elab "$ELAB" --official "$out/official-init.json" --module "$(grep -m1 '^Leap.' "$out/corpus.txt")" --work "$out/defect" --out "$out/defects.json" "${init_args[@]}"
 node "$here/attest.mjs" --manifest "$out/manifest" --native "$out/native.jsonl" --wasm "$out/wasm.jsonl" \
   --corpus "$out/corpus.txt" --lexlean-sha256 "$(lock lexlean binaries linux_x86_64_sha256)" \
-  --defects "$out/defects.json" --out "$out/gate.json" | tee "$out/gate-label.txt"
+  --defects "$out/defects.json" --out "$out/gate.json" "${init_args[@]}" | tee "$out/gate-label.txt"
 node "$here/speed.mjs" "$out/speed.json" native="$out/time-native.txt" wasm-cold="$out/timing-wasm-cold.json" wasm-warm="$out/timing-wasm-warm.json"
 
 # The same blobs as npm packages, with the gate attestation and the official Init listing in the library package,

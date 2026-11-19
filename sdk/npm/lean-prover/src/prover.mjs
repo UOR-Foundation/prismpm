@@ -53,6 +53,9 @@ export function checkManifest(manifest) {
     if (seen.has(entry.path)) fail(`library path ${entry.path} is listed twice`);
     seen.add(entry.path);
   }
+  // The engine's width: 64 (MEMORY64, the release's Init) or 32 (its own Init, admitted by declaration equality).
+  // A manifest from before widths existed is 64-bit.
+  if (manifest.width !== undefined && manifest.width !== 64 && manifest.width !== 32) fail(`the manifest's width is ${manifest.width}, not 64 or 32`);
   if (manifest.gate !== undefined && (typeof manifest.gate !== "string" || !LABEL.test(manifest.gate))) {
     fail("the manifest's gate is not a BLAKE3 label");
   }
@@ -69,10 +72,18 @@ export function pinnedManifest(bytes, pin) {
   return checkManifest(manifest);
 }
 
-/** The manifest is admitted for proving: its gate admitted its engine (LP-04), and its Init is official (LP-05). */
+/** The manifest's engine width: 64 or 32. */
+export const widthOf = (manifest) => manifest.width ?? 64;
+
+/**
+ * The manifest is admitted for proving: its gate admitted its engine (LP-04), and its Init is official (LP-05). A
+ * 32-bit Init is never the release's bytes; its gate attested that every Init declaration equals the release's
+ * (InTabElaborator.libraryAdmitted, selfBuiltAgreed), which gateAdmits checks with the width.
+ */
 export function checkAdmission(manifest, { gate, official }) {
   const g = gateAdmits(manifest, gate);
   if (!g.admitted) throw new ProverError("lean-prover.engine-ungated", g.why);
+  if (widthOf(manifest) === 32) return;
   const off = unofficialInit(manifest, official);
   if (off.length) throw new ProverError("lean-prover.library-unofficial", `${off.length} Init files are not the official release's: ${off.slice(0, 3).join(", ")}`);
 }
@@ -143,17 +154,67 @@ export async function openEngine({ manifest, read }) {
   return { engine, lexleanWasm, evidence };
 }
 
+// The smallest module with a 64-bit memory: magic, version, and a memory section of one memory64 limit (flag 4, min 1).
+const MEMORY64_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 5, 3, 1, 4, 1]);
+
+/** Whether this host runs 64-bit WebAssembly memory (Chrome and Edge 133, Firefox 134, Safari 27.3, Node 22). */
+export function hasMemory64() {
+  try { return WebAssembly.validate(MEMORY64_PROBE); } catch { return false; }
+}
+
+/**
+ * The build this host runs (InTabProver.chosenWidth): the 64-bit one when the host has 64-bit memory and its gate
+ * admits it, else the 32-bit one when its gate admits it, else none. `builds` are { manifest, pin, gate, official }
+ * candidates of any order; a candidate whose pin, shape or gate fails is not usable, never chosen.
+ */
+export function chooseBuild(builds, { memory64 = hasMemory64() } = {}) {
+  const usable = (want) => builds.find((b) => {
+    try {
+      const m = pinnedManifest(b.manifest, b.pin);
+      if (widthOf(m) !== want) return false;
+      checkAdmission(m, b);
+      return true;
+    } catch { return false; }
+  });
+  return (memory64 && usable(64)) || usable(32) || null;
+}
+
+// Bytes the engine's memory may reach before it is restarted (InTabProver.afterRequest). WebAssembly memory never
+// shrinks, and the resident state keeps one environment per import set, so a long session grows; a restart drops that
+// state only, and the module store answers what it held, checked on read. 32-bit memory ends at 4 GiB, and a phone's
+// tab is killed well before that, so a host passes its own budget.
+export const DEFAULT_BUDGET = Object.freeze({ 64: 6 * 2 ** 30, 32: 3 * 2 ** 30 });
+
 /** Opens the prover: the pinned manifest, admitted by its gate and the official Init, then the engine and LexLean. */
-export async function open({ manifest, pin, read, gate, official }) {
+export async function open({ manifest, pin, read, gate, official, budgetBytes }) {
   const m = pinnedManifest(manifest, pin);
   checkAdmission(m, { gate, official });
-  const { engine, lexleanWasm, evidence } = await openEngine({ manifest: m, read });
+  let { engine, lexleanWasm, evidence } = await openEngine({ manifest: m, read });
   const lexlean = await WebAssembly.compile(lexleanWasm);
+  const budget = budgetBytes ?? DEFAULT_BUDGET[widthOf(m)];
+  const withinBudget = async () => {
+    const { heapBytes } = await engine.call({ op: "heap" });
+    if (heapBytes <= budget) return;
+    await engine.close();
+    ({ engine } = await openEngine({ manifest: m, read }));
+  };
   return {
     evidence,
-    prove: (options) => proveWith({ engine, render: (files) => render(lexlean, files), manifest: m, evidence, ...options }),
+    width: widthOf(m),
+    prove: async (options) => {
+      const verdict = await proveWith({ engine, render: (files) => render(lexlean, files), manifest: m, evidence, ...options });
+      await withinBudget();
+      return verdict;
+    },
     close: () => engine.close(),
   };
+}
+
+/** Opens the build this host runs (chooseBuild), or refuses with `lean-prover.engine-ungated` when none is usable. */
+export async function openFor({ builds, read, memory64, budgetBytes }) {
+  const b = chooseBuild(builds, { memory64 });
+  if (!b) throw new ProverError("lean-prover.engine-ungated", "no gated build runs on this host");
+  return open({ ...b, read, budgetBytes });
 }
 
 /** The project as a Map of project-relative path to bytes; an object of path to bytes or text is accepted too. */

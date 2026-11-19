@@ -8,7 +8,7 @@
 //   node gate/run-wasm.mjs MANIFEST_DIR [--store DIR] [--timings FILE] Module=path ...
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { openEngine } from "../src/prover.mjs";
+import { DEFAULT_BUDGET, openEngine, widthOf } from "../src/prover.mjs";
 import { cachedCheck, storeResult } from "../src/store.mjs";
 
 const args = process.argv.slice(2);
@@ -26,25 +26,43 @@ const store = storeDir && (mkdirSync(storeDir, { recursive: true }), {
 
 const now = () => performance.now();
 const t0 = now();
-const { engine, evidence } = await openEngine({ manifest, read });
+let { engine, evidence } = await openEngine({ manifest, read });
 const openMs = Math.round(now() - t0);
 const modules = [];
+// The engine's memory after each module, and a restart past the prover's budget (open in src/prover.mjs), taken only
+// where a project ends: a restart drops /out, which the next module of the same project imports from.
+const budget = DEFAULT_BUDGET[widthOf(manifest)];
+const heap = async () => (await engine.call({ op: "heap" })).heapBytes;
+let restarts = 0, project = null;
 try {
   for (const spec of specs) {
     const at = spec.indexOf("=");
     const module = spec.slice(0, at), source = spec.slice(at + 1);
     const path = `/src/${module.replaceAll(".", "/")}.lean`;
     const text = new Uint8Array(readFileSync(source));
+    if (project !== null && project !== module.split(".")[0] && (await heap()) > budget) {
+      await engine.close();
+      ({ engine } = await openEngine({ manifest, read }));
+      restarts++;
+    }
+    project = module.split(".")[0];
     const t = now();
     await engine.call({ op: "write", path, bytes: text });
     let answer = store ? await cachedCheck({ engine, store, evidence, module, text }) : null;
     const reused = answer !== null;
     if (!answer) {
-      ({ answer } = await engine.call({ op: "request", request: { op: "elaborate", outDir: "/out", module, path } }));
+      try {
+        ({ answer } = await engine.call({ op: "request", request: { op: "elaborate", outDir: "/out", module, path } }));
+      } catch (e) {
+        console.error(`${module} trapped with the engine's memory at ${await heap().catch(() => "unknown")} bytes, budget ${budget}, after ${restarts} restarts`);
+        throw e;
+      }
       if (store && answer.elaborated && answer.replayRefused === null) await storeResult({ engine, store, evidence, module, text, answer });
     }
     const wallMs = Math.round(now() - t);
-    modules.push({ module, reused, wallMs, elabMs: answer.elabMs ?? null, replayMs: answer.replayMs ?? null, declarations: answer.decls?.length ?? 0 });
+    const heapBytes = await heap();
+    console.error(`${module}: ${wallMs} ms, engine memory ${(heapBytes / 2 ** 20).toFixed(0)} MiB`);
+    modules.push({ module, reused, wallMs, heapBytes, elabMs: answer.elabMs ?? null, replayMs: answer.replayMs ?? null, declarations: answer.decls?.length ?? 0 });
     console.log(JSON.stringify({ ...answer, module, wallMs, reused }));
   }
 } finally {
@@ -55,6 +73,7 @@ if (timingsFile) {
     node: process.version,
     store: store ? "used" : "none",
     openMs,
+    restarts,
     modulesMs: modules.reduce((a, m) => a + m.wallMs, 0),
     totalMs: Math.round(now() - t0),
     // Peak resident memory of the whole process, the engine's thread included, in kilobytes.

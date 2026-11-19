@@ -4,7 +4,9 @@
 // requests. How bytes are trusted: the page gives the manifest's base URL; every file, the engine included, is fetched
 // as `blobs/<hex>` and its BLAKE3 label re-derived (prism-code's BLAKE3) before Lean or the browser runs a byte of it.
 //
-//   { op: "open", base }                          -> { op: "open", ok, timings, files, mb } | { ok: false, refusal }
+//   { op: "open", base, base32, width }           -> { op: "open", ok, width, memory64, timings, files, mb } | { ok: false, refusal }
+//     width "auto" opens the 64-bit build where this browser has 64-bit memory and the 32-bit one (base32) elsewhere
+//     (spec/src/InTabProver.lex.tex, chosenWidth); "64" or "32" forces one, for measuring both.
 //   { op: "source", path, text }                  -> { op: "source", ok }
 //   { op: "elaborate", id, module, path }         -> { id, answer, ms }, answer is the driver's JSON
 import { kappa } from "./blake3.mjs";
@@ -84,13 +86,22 @@ async function fetchChecked(base, entry, refetched = false) {
   return bytes;
 }
 
-async function open(base) {
+// The smallest module with a 64-bit memory: magic, version, and a memory section of one memory64 limit.
+const memory64 = (() => { try { return WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 5, 3, 1, 4, 1])); } catch { return false; } })();
+let peakHeap = 0;
+const heapBytes = () => { const n = lean?.HEAPU8?.length ?? 0; if (n > peakHeap) peakHeap = n; return n; };
+
+async function open(base64, base32, want = "auto") {
+  const width = want === "32" || (want === "auto" && !memory64) ? 32 : 64;
+  if (width === 64 && !memory64) return { ok: false, width, memory64, refusal: "this browser has no 64-bit WebAssembly memory" };
+  const base = width === 32 ? base32 : base64;
   const timings = {};
   await openStore();
   startPool();
   let t = now();
   const manifest = await (await fetch(`${base}/manifest.json`)).json();
   if (manifest.schema !== "lean-wasm-prover/1") return { ok: false, refusal: `the manifest is not lean-wasm-prover/1` };
+  if ((manifest.width ?? 64) !== width) return { ok: false, width, memory64, refusal: `${base} holds a ${manifest.width ?? 64}-bit build, not a ${width}-bit one` };
   const [glue, wasm] = await Promise.all([fetchChecked(base, manifest.engine.loader), fetchChecked(base, manifest.engine.wasm)]);
   timings.engineMs = Math.round(now() - t);
   t = now();
@@ -127,19 +138,21 @@ async function open(base) {
   t = now();
   if (lean.ccall("elab_ready", "number", [], []) !== 0) return { ok: false, refusal: "Lean did not initialize: " + log.join(" ") };
   timings.initializeMs = Math.round(now() - t);
-  return { ok: true, timings, files: files.length, mb: Math.round(mb), heapMB: heapMB() };
+  heapBytes();
+  return { ok: true, width, memory64, timings, files: files.length, mb: Math.round(mb), heapMB: heapMB(), peakHeapMB: Math.round(peakHeap / 1048576) };
 }
 
 self.onmessage = async ({ data }) => {
   try {
-    if (data.op === "open") return self.postMessage({ op: "open", ...(await open(data.base)) });
+    if (data.op === "open") return self.postMessage({ op: "open", ...(await open(data.base, data.base32, data.width)) });
     if (!lean) return self.postMessage({ id: data.id, op: data.op, error: "the worker is not open" });
     if (data.op === "source") { lean.FS.writeFile(data.path, data.text); return self.postMessage({ op: "source", ok: true }); }
     if (data.op === "elaborate") {
       const t = now();
       const req = JSON.stringify({ op: "elaborate", outDir: "/out", module: data.module, path: data.path });
       const answer = JSON.parse(lean.ccall("elab_request", "string", ["string"], [req]));
-      return self.postMessage({ id: data.id, answer, ms: Math.round(now() - t), heapMB: heapMB() });
+      heapBytes();
+      return self.postMessage({ id: data.id, answer, ms: Math.round(now() - t), heapMB: heapMB(), peakHeapMB: Math.round(peakHeap / 1048576) });
     }
   } catch (e) {
     self.postMessage({ id: data.id, op: data.op, error: "the worker failed: " + (e && e.message ? e.message : String(e)) });

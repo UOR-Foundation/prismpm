@@ -1,6 +1,7 @@
 // The gate's planted defects. Each must be refused, or the gate admits nothing (gate/attest.mjs).
 //   node gate/defects.mjs --manifest DIR --native native.jsonl --wasm wasm.jsonl --elab NATIVE_ELAB
 //        --module Module=path --official official-init.json --work DIR --out defects.json
+//        [--init-native FILE --init-wasm FILE]    (a 32-bit build: its Init against the release's)
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -66,8 +67,28 @@ await plant("ungated-engine", async () => {
   return { refused: !v.admitted, detail: v.why };
 });
 
+// A 32-bit build: an Init declaration that differs from the release's is refused, and so is a gate of another width.
+if ((manifest.width ?? 64) === 32) {
+  const initNative = load(readFileSync(a["init-native"], "utf8")), initWasm = load(readFileSync(a["init-wasm"], "utf8"));
+  const stand = { lexleanSha256: "0".repeat(64), lexleanSemantics: manifest.lexlean.semantics_id, defects: [{ name: "stand-in", refused: true }] };
+  await plant("init-differs", async () => {
+    const changed = new Map([...initWasm].map(([m, j]) => [m, structuredClone(j)]));
+    const j = [...changed.values()].find((x) => x.decls?.length);
+    j.decls[0].value = String(BigInt(j.decls[0].value) ^ 1n);
+    try { attest({ manifest, native, wasm, corpus: [], ...stand, initNative, initWasm: changed }); return { refused: false }; }
+    catch (e) { return { refused: /Init modules differ/.test(e.message), detail: `${j.module}.${j.decls[0].name}` }; }
+  });
+  await plant("gate-of-another-width", async () => {
+    const wide = attest({ manifest, native, wasm, corpus: [], ...stand, initNative, initWasm });
+    delete wide.width; delete wide.init;
+    const v = gateAdmits({ ...manifest, gate: gateLabel(wide) }, wide);
+    return { refused: !v.admitted, detail: v.why };
+  });
+}
+
 // An Init file that is not the official release's: the library is refused (official: the toolchain's own files).
-await plant("unofficial-init", async () => {
+// A 32-bit Init is never the release's bytes; its admission is the declaration equality above.
+if ((manifest.width ?? 64) === 64) await plant("unofficial-init", async () => {
   const official = JSON.parse(readFileSync(a.official, "utf8"));
   if (unofficialInit(manifest, official).length) throw new Error("the gate's own library is not official");
   const other = structuredClone(manifest);

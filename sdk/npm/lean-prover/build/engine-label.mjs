@@ -1,7 +1,9 @@
 // The engine build's cache key: the BLAKE3 label of every input that decides its bytes. It changes exactly when
 // the Lean commit, the patch, Emscripten, the driver, a dependency pin or a build script changes, so CI rebuilds
 // only then (.github/workflows/lean-prover.yml).
-//   node build/engine-label.mjs      prints blake3:<hex>
+// The 32-bit build (WIDTH=32) adds its own inputs (engine.lock.json engine32_inputs) and its width, so its label never
+// equals the 64-bit one and a change to its scripts reruns it alone.
+//   node build/engine-label.mjs [32]     prints blake3:<hex>
 import { readFileSync } from "node:fs";
 import { kappa } from "../src/vendor/blake3.mjs";
 
@@ -19,4 +21,6 @@ export const recipe = [
   kappa(new TextEncoder().encode(emsdk)),
   lock.engine_inputs.map((p) => [p, file(p)]),
 ];
-console.log(kappa(new TextEncoder().encode(JSON.stringify(recipe))));
+const width = process.argv[2] === "32" ? 32 : 64;
+const keyed = width === 64 ? recipe : [...recipe, { width, inputs: lock.engine32_inputs.map((p) => [p, file(p)]) }];
+console.log(kappa(new TextEncoder().encode(JSON.stringify(keyed))));

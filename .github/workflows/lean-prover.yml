@@ -11,6 +11,11 @@ name: lean prover
 #   the Lean commit, the patch, Emscripten, the driver, a dependency pin or a build script changes.
 # - gate: the engine equals native Lean on every corpus declaration, and every planted defect is refused. Its
 #   attestation names the engine, library, LexLean and corpus labels.
+# - engine32, gate32: the same for the 32-bit engine, which browsers without 64-bit WebAssembly memory run (Safari
+#   before 27.3, every iOS browser). Its Init is compiled by lean32 and admitted only when every Init declaration
+#   equals the release's. Cached by its own label (build/engine-label.mjs 32).
+# - browsers, safari: Chromium, Firefox, WebKit, Safari and Mobile Safari (iOS Simulator) each run the gate's browser
+#   corpus with the gated builds, and record agreement, cold and warm time and peak engine memory.
 #
 # No container image is pulled: every tool is fetched by its pin and checked before use.
 
@@ -259,4 +264,204 @@ jobs:
             ${{ runner.temp }}/lean-prover/gate/*.jsonl
             ${{ runner.temp }}/lean-prover/gate/*.json
             ${{ runner.temp }}/lean-prover/gate/*.txt
+          if-no-files-found: warn
+
+  engine32:
+    name: 32-bit engine and Init (cached by BLAKE3 label)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    outputs:
+      label: ${{ steps.label.outputs.label }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # Under /home: lean32 sees only /home and /tmp of the host (Lean's util/shell.cpp under Emscripten).
+      - name: Name the work folder
+        run: echo "WORK=$RUNNER_TEMP/lean-prover" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      # The key: every input of the 64-bit engine, the 32-bit scripts and the width (build/engine-label.mjs 32).
+      - name: The pinned patch, and the 32-bit engine's label
+        id: label
+        run: |
+          set -euo pipefail
+          node build/check-pins.mjs patch
+          label=$(node build/engine-label.mjs 32)
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "32-bit engine inputs: $label"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: cache
+        with:
+          path: |
+            ${{ runner.temp }}/lean-prover/dist32
+            ${{ runner.temp }}/lean-prover/sys32/lib/lean
+            ${{ runner.temp }}/lean-prover/lean32
+            ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
+          key: lean-prover-engine32-${{ steps.label.outputs.label }}
+      - name: Make room for the build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Build the 32-bit engine, lean32 and the Init lean32 compiles
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          JOBS: '4'
+        run: bash build/build-engine32.sh
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ${{ runner.temp }}/lean-prover/dist32
+            ${{ runner.temp }}/lean-prover/sys32/lib/lean
+            ${{ runner.temp }}/lean-prover/lean32
+            ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
+          key: lean-prover-engine32-${{ steps.label.outputs.label }}
+      - name: Keep the 32-bit engine
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-engine32
+          path: ${{ runner.temp }}/lean-prover/dist32
+          if-no-files-found: error
+
+  gate32:
+    name: 32-bit corpus gate (its Init and every corpus declaration equal native)
+    needs: engine32
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Name the work folder
+        run: echo "WORK=$RUNNER_TEMP/lean-prover" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/lean-prover/dist32
+            ${{ runner.temp }}/lean-prover/sys32/lib/lean
+            ${{ runner.temp }}/lean-prover/lean32
+            ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
+          key: lean-prover-engine32-${{ needs.engine32.outputs.label }}
+          fail-on-cache-miss: true
+      - name: Fetch elan and Lean 4.32.2
+        run: TOOLS=lean bash build/fetch-tools.sh
+      # lean32 compiles LexLean's runtime for the 32-bit library; the sysroot's bin/lean runs it under Node.
+      - name: The sysroot lean32 serves
+        run: bash build/sysroot32.sh
+      - name: The 32-bit Init equals the release's; the engine agrees with native Lean on every corpus declaration
+        env:
+          WIDTH: '32'
+        run: bash gate/run-gate.sh
+      - name: Keep the 32-bit manifest and its blobs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-library-32
+          path: ${{ runner.temp }}/lean-prover/gate32/manifest
+          if-no-files-found: warn
+          compression-level: 0
+      - name: Keep the 32-bit gate's evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-gate-32
+          path: |
+            ${{ runner.temp }}/lean-prover/gate32/*.jsonl
+            ${{ runner.temp }}/lean-prover/gate32/*.json
+            ${{ runner.temp }}/lean-prover/gate32/*.txt
+          if-no-files-found: warn
+
+  browsers:
+    name: Chromium, Firefox and WebKit run the gated builds
+    needs: [gate, gate32]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-prover-library
+          path: ${{ runner.temp }}/lib
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-prover-library-32
+          path: ${{ runner.temp }}/lib32
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-prover-browser-corpus
+          path: ${{ runner.temp }}/corpus
+      # Playwright at the version sdk/oracles pins; each Playwright release pins its browser builds.
+      - name: Playwright 1.62.1 and its browsers
+        run: |
+          set -euo pipefail
+          npm install --no-save --prefix "$RUNNER_TEMP/pw" playwright@1.62.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium firefox webkit
+      - name: Each engine runs the corpus cold and warm, with the build it chooses and the 32-bit one
+        run: |
+          set -euo pipefail
+          node web/serve.mjs "$RUNNER_TEMP/lib" "$RUNNER_TEMP/corpus" 8794 --lib32 "$RUNNER_TEMP/lib32" &
+          sleep 2
+          node gate/browsers.mjs --playwright "$RUNNER_TEMP/pw" --url http://localhost:8794 --out "$RUNNER_TEMP/browsers.json"
+          node gate/browsers.mjs --table "$RUNNER_TEMP/browsers.json" >> "$GITHUB_STEP_SUMMARY"
+          node gate/browsers.mjs --all-work "$RUNNER_TEMP/browsers.json"
+      - name: Keep the record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-browsers
+          path: ${{ runner.temp }}/browsers.json
+          if-no-files-found: warn
+
+  safari:
+    name: Safari on macOS and Mobile Safari in the iOS Simulator
+    needs: [gate, gate32]
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-prover-library
+          path: ${{ runner.temp }}/lib
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-prover-library-32
+          path: ${{ runner.temp }}/lib32
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-prover-browser-corpus
+          path: ${{ runner.temp }}/corpus
+      - name: Safari and Mobile Safari run the corpus cold and warm, with the build each chooses
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/reports"
+          node web/serve.mjs "$RUNNER_TEMP/lib" "$RUNNER_TEMP/corpus" 8794 --lib32 "$RUNNER_TEMP/lib32" --reports "$RUNNER_TEMP/reports" &
+          sleep 2
+          node gate/safari.mjs --url http://localhost:8794 --reports "$RUNNER_TEMP/reports" --out "$RUNNER_TEMP/safari.json"
+          node gate/safari.mjs --url http://localhost:8794 --reports "$RUNNER_TEMP/reports" --out "$RUNNER_TEMP/ios.json" --ios
+          node gate/browsers.mjs --table "$RUNNER_TEMP/safari.json" "$RUNNER_TEMP/ios.json" >> "$GITHUB_STEP_SUMMARY"
+          node gate/browsers.mjs --all-work "$RUNNER_TEMP/safari.json" "$RUNNER_TEMP/ios.json"
+      - name: Keep the record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-safari
+          path: |
+            ${{ runner.temp }}/safari.json
+            ${{ runner.temp }}/ios.json
+            ${{ runner.temp }}/reports
           if-no-files-found: warn
