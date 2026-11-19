@@ -282,6 +282,14 @@ export function emitter(lib) {
         const ty = p.k === "fvar" ? pairOf(p.type) : null;
         return ty ? apps(E.const(t.idx === 0 ? "Prod.fst" : "Prod.snd", [z0, z0]), ty[0], ty[1], p) : E.proj(t.typeName, t.idx, p);
       }
+      if (t.k === "proj") { // a field of a record the term itself builds, as the kernel reduces it
+        const p = norm(t.struct), [ph, pa] = spine(p), decl = lib.decls.get(t.typeName);
+        if (decl && ph.k === "const" && ph.name === t.typeName + ".mk") {
+          let params = 0; for (let x = decl.type; x.k === "pi"; x = x.body) params++;
+          if (pa.length > params + t.idx) return norm(pa[params + t.idx]);
+        }
+        return E.proj(t.typeName, t.idx, p);
+      }
       if (t.k !== "app" && t.k !== "const") return t;
       const [h, a] = spine(t);
       if (h.k === "const") {
@@ -462,6 +470,18 @@ export function emitter(lib) {
             (hc) => [[eqN(n, a[4]), lemma("ite_f", NatC(), c, a[3], a[4], hc)]]);
           return v;
         }
+      }
+      // x - y on naturals (the runtime's subtract, or `-` itself), which stops at zero: an unknown, and y <= x taken
+      // both ways when the search needs it, giving x - y or 0.
+      const isSub = h.k === "const" && ((h.name === "LexLeanRuntime.subtract" && a.length === 4) || (h.name === "HSub.hSub" && a.length === 6)) && isType(a[0], "Nat");
+      if (isSub && !atomIx.has(view)) {
+        const x = a[a.length - 2], y = a[a.length - 1], c = apps(c0("Nat.ble"), y, x), v = atom(view);
+        factI(R.k(0n), v, lemma("nat_nonneg", n));
+        const ofNat = (t) => E.app(c0("Int.ofNat"), t), eqI = (p, q) => apps(E.const("Eq", [u1]), Int(), p, q);
+        splitI(lemma("bool_cases", c), eqB(c, true), eqB(c, false),
+          (hc) => [[eqI(ofNat(n), T.sub(ofNat(x), ofNat(y))), lemma("nat_sub_t", x, y, hc)]],
+          (hc) => [[eqN(n, natLit(0n)), lemma("nat_sub_f", x, y, hc)]]);
+        return v;
       }
       if (!atomIx.has(view)) { const v = atom(view); factI(R.k(0n), v, lemma("nat_nonneg", n)); return v; }
       return atom(view);
@@ -735,7 +755,29 @@ export function emitter(lib) {
   // elaborated), it is taken from there; otherwise it is written here from the text, for the integer fragment.
   function linear(th) {
     const given = lib.decls.get("LexStmt." + th.name);
-    return compile(th, given && given.value ? given.value : statementFromText(th));
+    const S = given && given.value ? given.value : statementFromText(th);
+    // A closed equation, such as a check over an app's own catalogs `= true`: the kernel evaluates both sides, so
+    // the proof is `Eq.refl`. Nothing is unfolded here, where a large catalog would be expensive.
+    const [g, a] = spine(S);
+    if (g.k === "const" && g.name === "Eq" && a.length === 3 && !hasFVar(S)) {
+      lib.decls.set(th.name, { levelParams: [], type: S });
+      return { name: th.name, type: S, value: apps(E.const("Eq.refl", g.us), a[0], a[2]) };
+    }
+    // `rfl` under parameters, for an equation or an equivalence whose two sides are equal by definition: the kernel
+    // decides that, once the parameters are bound.
+    if (th.script && th.script.length === 1 && th.script[0].kind === "rfl") {
+      let body = S; const fvs = [];
+      while (body.k === "pi") { const fv = E.fvar(body.name, body.type); fvs.push(fv); body = instantiate(body.body, fv); }
+      const [h, xs] = spine(body);
+      const proof = h.k === "const" && h.name === "Eq" && xs.length === 3 ? apps(E.const("Eq.refl", h.us), xs[0], xs[1])
+        : h.k === "const" && h.name === "Iff" && xs.length === 2 ? apps(c0("Iff.refl"), xs[0]) : null;
+      if (proof) {
+        const value = fvs.reduceRight((v, fv) => E.lam(fv.name, fv.type, abstract(v, fv)), proof);
+        lib.decls.set(th.name, { levelParams: [], type: S });
+        return { name: th.name, type: S, value };
+      }
+    }
+    return compile(th, S);
   }
 
   function closeOver(th, locals, type, value) {
@@ -754,7 +796,7 @@ export function emitter(lib) {
   function theorem(th) {
     // LexLean lowers its linear_arithmetic form to a fixed script that ends in `all_goals omega`.
     const last = th.script[th.script.length - 1];
-    if (lib.decls.has("LexStmt." + th.name) || (last && (last.kind === "linear_arithmetic" || last.kind === "all_goals"))) return linear(th);
+    if (lib.decls.has("LexStmt." + th.name) || (last && (last.kind === "linear_arithmetic" || last.kind === "all_goals" || last.kind === "decide"))) return linear(th);
     const locals = new Map();
     for (const [x, ty] of th.binders) locals.set(x, E.fvar(x, inst(elab(ty, locals))));
     const statement = inst(elab(th.type, locals));
