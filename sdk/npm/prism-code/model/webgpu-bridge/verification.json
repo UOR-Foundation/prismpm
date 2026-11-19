@@ -1,0 +1,111 @@
+{
+  "schema": "prism/model-verification/1",
+  "project": "prism-webgpu-bridge",
+  "command": "hosted lexlean MCP (mcp.uor.foundation), profile spec: lexlean_draft_write, lexlean_check --all, lexlean_verify",
+  "draft": "spec/e08e02d87a4ccea89b63a61a9f89cae583855cb99d0ece60189b2399fe48e9e6",
+  "task": "task-52",
+  "check": {
+    "semantic_id": "388650984fd927fd835f83471420e1cd30878d69f8500052e75efc3eded84716",
+    "source_id": "06f888b76159ea3a6f02fedf4aa566b9407b6867a8271dd7447fb959a163ef95"
+  },
+  "result": "verified 2 modules",
+  "note": "The hosted verifier answered state verified for task-52 and returned no attestation ID; lexlean.lock is not committed because no lexlean CLI runs on the authoring machine (no SDK image since 2026-11-18). Re-run with lexlean lock && lexlean verify --all where one does.",
+  "sources": {
+    "lexlean.toml": "sha256:30531a26a760ec9b262be701c8386fd79816ee402342e241775683509abe2363",
+    "src/WebGpuBridge.lex.tex": "sha256:196aeb975715306fca715d0676e4fd3c6ae2dc786317e6c48105755687a228e4",
+    "src/WebGpuBridgeProofs.lex.tex": "sha256:c5ddc9eb869409401b5cd135dd8865c905290ab076547c8eee0cd81511206232"
+  },
+  "theorems": [
+    {
+      "name": "aKernelIsDispatchedOnlyOnAnAdapter",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aKernelIsDispatchedOnlyWhenItsWgslAddressRecomputes",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "everyBindingHasOneNonEmptyBufferAndOneIsReadBack",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aPlanIsDispatchedOnlyWithinTheDevicesLimits",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "everyInvocationOfAnAdmittedPlanIsDispatched",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "anAdmittedPlanDispatchesNoWholeSpareWorkgroup",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aReadbackIsAdmittedOnlyWholeWords",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "cpuAndGpuAgreeOnlyWhenEveryWordIsEqual",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "agreementNeedsAnAdmittedRunAndAnAdmittedReadback",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "anAgreeVerdictMeansAgreement",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "aKernelThatDidNotRunIsNeverAgreementOrDifference",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    }
+  ],
+  "plantedDefects": [
+    {
+      "defect": "Two clauses removed together: in WebGpuBridge.kernelBound, ((project p kernelNamed) =? (project p kernelDerived)), so WGSL runs under an address it does not have; and in WebGpuBridge.dispatchCovers, ((project p invocations) <=? (project p dispatched)), so a plan may dispatch fewer invocations than it has.",
+      "draft": "spec/5300fc31d7f4af8f7069b96a2e084fdc73957d1f6fa4bf31c55b13a1b4e5432e",
+      "task": "task-54",
+      "diagnostic": "error[LLV7002]: Lean rejected `Spec.WebGpuBridgeProofs` (error): omega could not prove the goal (twice)",
+      "rejected": [
+        "aKernelIsDispatchedOnlyWhenItsWgslAddressRecomputes",
+        "everyInvocationOfAnAdmittedPlanIsDispatched"
+      ],
+      "restored": "verified 2 modules (task-52)"
+    }
+  ]
+}

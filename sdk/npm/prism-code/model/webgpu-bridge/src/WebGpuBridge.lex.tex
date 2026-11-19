@@ -1,0 +1,108 @@
+\begin{lexlean}{WebGpuBridge}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Plan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: adapter, type: Nat},
+    {name: kernelNamed, type: Nat},
+    {name: kernelDerived, type: Nat},
+    {name: bindings, type: Nat},
+    {name: buffers, type: Nat},
+    {name: outputs, type: Nat},
+    {name: emptyBuffers, type: Nat},
+    {name: largestBuffer, type: Nat},
+    {name: bufferLimit, type: Nat},
+    {name: invocations, type: Nat},
+    {name: workgroupSize, type: Nat},
+    {name: dispatched, type: Nat},
+    {name: workgroups, type: Nat},
+    {name: workgroupLimit, type: Nat}
+  ]
+}
+
+definition{
+  name: kernelBound,
+  parameters: [p : Plan],
+  result: Bool,
+  body: (((project p kernelNamed) =? (project p kernelDerived)) && ((project p bindings) =? (project p buffers)))
+}
+
+definition{
+  name: buffersFit,
+  parameters: [p : Plan],
+  result: Bool,
+  body: ((((project p emptyBuffers) =? 0) && (1 <=? (project p outputs))) && ((project p largestBuffer) <=? (project p bufferLimit)))
+}
+
+definition{
+  name: dispatchCovers,
+  parameters: [p : Plan],
+  result: Bool,
+  body: ((((1 <=? (project p invocations)) && (1 <=? (project p workgroupSize))) && (((project p invocations) <=? (project p dispatched)) && ((project p dispatched) <? ((project p invocations) + (project p workgroupSize))))) && ((project p workgroups) <=? (project p workgroupLimit)))
+}
+
+definition{
+  name: planAdmitted,
+  parameters: [p : Plan],
+  result: Bool,
+  body: ((((project p adapter) =? 1) && (kernelBound p)) && ((buffersFit p) && (dispatchCovers p)))
+}
+
+structure{
+  name: Readback,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: expectedWords, type: Nat},
+    {name: readWords, type: Nat},
+    {name: trailingBytes, type: Nat}
+  ]
+}
+
+definition{
+  name: readbackAdmitted,
+  parameters: [r : Readback],
+  result: Bool,
+  body: (((project r readWords) =? (project r expectedWords)) && ((project r trailingBytes) =? 0))
+}
+
+structure{
+  name: Comparison,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: ran, type: Nat},
+    {name: planOk, type: Nat},
+    {name: readbackOk, type: Nat},
+    {name: cpuWords, type: Nat},
+    {name: gpuWords, type: Nat},
+    {name: differing, type: Nat}
+  ]
+}
+
+definition{
+  name: agrees,
+  parameters: [c : Comparison],
+  result: Bool,
+  body: (((((project c ran) =? 1) && ((project c planOk) =? 1)) && ((project c readbackOk) =? 1)) && (((project c cpuWords) =? (project c gpuWords)) && ((project c differing) =? 0)))
+}
+
+definition{name: statusAgree, parameters: [], result: Nat, body: 0}
+
+definition{name: statusDiffer, parameters: [], result: Nat, body: 1}
+
+definition{name: statusNotRun, parameters: [], result: Nat, body: 2}
+
+definition{
+  name: verdict,
+  parameters: [c : Comparison],
+  result: Nat,
+  body: (if (agrees c) then (statusAgree) else (if (((project c ran) =? 1) && ((project c planOk) =? 1)) then (statusDiffer) else (statusNotRun)))
+}
+\end{semanticmodule}
+\end{lexlean}

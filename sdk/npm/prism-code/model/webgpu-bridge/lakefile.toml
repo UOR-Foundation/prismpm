@@ -1,0 +1,6 @@
+name = "PrismWebGpuBridge"
+version = "0.1.0"
+defaultTargets = ["PrismWebGpuBridge"]
+
+[[lean_lib]]
+name = "PrismWebGpuBridge"

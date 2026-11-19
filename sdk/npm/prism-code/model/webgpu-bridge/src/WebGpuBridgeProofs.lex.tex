@@ -1,0 +1,172 @@
+\begin{lexlean}{WebGpuBridgeProofs}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{WebGpuBridge}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: breaksAdapter,
+  parameters: [p : WebGpuBridge::Plan],
+  result: Bool,
+  body: ((WebGpuBridge::planAdmitted p) && (not ((project p adapter) =? 1)))
+}
+
+theorem{
+  name: aKernelIsDispatchedOnlyOnAnAdapter,
+  parameters: [p : WebGpuBridge::Plan],
+  statement: ((breaksAdapter p) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::buffersFit, WebGpuBridge::dispatchCovers, WebGpuBridge::kernelBound, WebGpuBridge::planAdmitted, breaksAdapter]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksKernelAddress,
+  parameters: [p : WebGpuBridge::Plan],
+  result: Bool,
+  body: ((WebGpuBridge::planAdmitted p) && (not ((project p kernelNamed) =? (project p kernelDerived))))
+}
+
+theorem{
+  name: aKernelIsDispatchedOnlyWhenItsWgslAddressRecomputes,
+  parameters: [p : WebGpuBridge::Plan],
+  statement: ((breaksKernelAddress p) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::buffersFit, WebGpuBridge::dispatchCovers, WebGpuBridge::kernelBound, WebGpuBridge::planAdmitted, breaksKernelAddress]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksBindings,
+  parameters: [p : WebGpuBridge::Plan],
+  result: Bool,
+  body: ((WebGpuBridge::planAdmitted p) && (((not ((project p bindings) =? (project p buffers))) || (not ((project p emptyBuffers) =? 0))) || ((project p outputs) =? 0)))
+}
+
+theorem{
+  name: everyBindingHasOneNonEmptyBufferAndOneIsReadBack,
+  parameters: [p : WebGpuBridge::Plan],
+  statement: ((breaksBindings p) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::buffersFit, WebGpuBridge::dispatchCovers, WebGpuBridge::kernelBound, WebGpuBridge::planAdmitted, breaksBindings]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksLimits,
+  parameters: [p : WebGpuBridge::Plan],
+  result: Bool,
+  body: ((WebGpuBridge::planAdmitted p) && (((project p bufferLimit) <? (project p largestBuffer)) || ((project p workgroupLimit) <? (project p workgroups))))
+}
+
+theorem{
+  name: aPlanIsDispatchedOnlyWithinTheDevicesLimits,
+  parameters: [p : WebGpuBridge::Plan],
+  statement: ((breaksLimits p) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::buffersFit, WebGpuBridge::dispatchCovers, WebGpuBridge::kernelBound, WebGpuBridge::planAdmitted, breaksLimits]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksCoverage,
+  parameters: [p : WebGpuBridge::Plan],
+  result: Bool,
+  body: ((WebGpuBridge::planAdmitted p) && ((project p dispatched) <? (project p invocations)))
+}
+
+theorem{
+  name: everyInvocationOfAnAdmittedPlanIsDispatched,
+  parameters: [p : WebGpuBridge::Plan],
+  statement: ((breaksCoverage p) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::buffersFit, WebGpuBridge::dispatchCovers, WebGpuBridge::kernelBound, WebGpuBridge::planAdmitted, breaksCoverage]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksSpareWorkgroup,
+  parameters: [p : WebGpuBridge::Plan],
+  result: Bool,
+  body: ((WebGpuBridge::planAdmitted p) && (((project p invocations) + (project p workgroupSize)) <=? (project p dispatched)))
+}
+
+theorem{
+  name: anAdmittedPlanDispatchesNoWholeSpareWorkgroup,
+  parameters: [p : WebGpuBridge::Plan],
+  statement: ((breaksSpareWorkgroup p) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::buffersFit, WebGpuBridge::dispatchCovers, WebGpuBridge::kernelBound, WebGpuBridge::planAdmitted, breaksSpareWorkgroup]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksReadback,
+  parameters: [r : WebGpuBridge::Readback],
+  result: Bool,
+  body: ((WebGpuBridge::readbackAdmitted r) && ((not ((project r readWords) =? (project r expectedWords))) || (not ((project r trailingBytes) =? 0))))
+}
+
+theorem{
+  name: aReadbackIsAdmittedOnlyWholeWords,
+  parameters: [r : WebGpuBridge::Readback],
+  statement: ((breaksReadback r) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::readbackAdmitted, breaksReadback]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksAgreementWords,
+  parameters: [c : WebGpuBridge::Comparison],
+  result: Bool,
+  body: ((WebGpuBridge::agrees c) && ((not ((project c differing) =? 0)) || (not ((project c cpuWords) =? (project c gpuWords)))))
+}
+
+theorem{
+  name: cpuAndGpuAgreeOnlyWhenEveryWordIsEqual,
+  parameters: [c : WebGpuBridge::Comparison],
+  statement: ((breaksAgreementWords c) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::agrees, breaksAgreementWords]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksAgreementRun,
+  parameters: [c : WebGpuBridge::Comparison],
+  result: Bool,
+  body: ((WebGpuBridge::agrees c) && (((not ((project c ran) =? 1)) || (not ((project c planOk) =? 1))) || (not ((project c readbackOk) =? 1))))
+}
+
+theorem{
+  name: agreementNeedsAnAdmittedRunAndAnAdmittedReadback,
+  parameters: [c : WebGpuBridge::Comparison],
+  statement: ((breaksAgreementRun c) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::agrees, breaksAgreementRun]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: breaksVerdict,
+  parameters: [c : WebGpuBridge::Comparison],
+  result: Bool,
+  body: (((WebGpuBridge::verdict c) =? (WebGpuBridge::statusAgree)) && (not (WebGpuBridge::agrees c)))
+}
+
+theorem{
+  name: anAgreeVerdictMeansAgreement,
+  parameters: [c : WebGpuBridge::Comparison],
+  statement: ((breaksVerdict c) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::agrees, WebGpuBridge::statusAgree, WebGpuBridge::statusDiffer, WebGpuBridge::statusNotRun, WebGpuBridge::verdict, breaksVerdict]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksNotRun,
+  parameters: [c : WebGpuBridge::Comparison],
+  result: Bool,
+  body: (((project c ran) =? 0) && (not ((WebGpuBridge::verdict c) =? (WebGpuBridge::statusNotRun))))
+}
+
+theorem{
+  name: aKernelThatDidNotRunIsNeverAgreementOrDifference,
+  parameters: [c : WebGpuBridge::Comparison],
+  statement: ((breaksNotRun c) = false),
+  proof: linear_arithmetic{definitions: [WebGpuBridge::agrees, WebGpuBridge::statusAgree, WebGpuBridge::statusDiffer, WebGpuBridge::statusNotRun, WebGpuBridge::verdict, breaksNotRun]},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}
