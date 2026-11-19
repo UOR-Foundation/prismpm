@@ -7,11 +7,18 @@
 //   { op: "open", base }                          -> { op: "open", ok, timings, files, mb } | { ok: false, refusal }
 //   { op: "source", path, text }                  -> { op: "source", ok }
 //   { op: "elaborate", id, module, path }         -> { id, answer, ms }, answer is the driver's JSON
+// For a whole project (project.html), the same steps Node's prove takes (src/prover.mjs):
+//   { op: "render", id, files: [[path, bytes]] }  -> { id, ok, rendered } | { id, ok: false, diagnostics }   LexLean's WASI build
+//   { op: "write", id, path, bytes }              -> { id, ok }
+//   { op: "request", id, request }                -> { id, answer, ms, heapMB }   any driver request (elaborate, check)
 import { kappa } from "./blake3.mjs";
+import { run as runWasi } from "./src/wasi.mjs";
 
 const now = () => performance.now();
-let lean = null;
-const heapMB = () => (lean?.HEAPU8 ? Math.round(lean.HEAPU8.length / 1048576) : null);
+let lean = null, memory = null, lexleanBytes = null, lexlean = null;
+const log = []; // what Lean prints; a request that fails returns what it printed
+// The instance's own memory: this build exports no HEAPU8.
+const heapMB = () => (memory ? Math.round(Number(memory.buffer.byteLength) / 1048576) : lean?.HEAPU8 ? Math.round(lean.HEAPU8.length / 1048576) : null);
 
 // The tab's own store: blobs named by BLAKE3 label in the origin's private file system (OPFS), so a second visit reads them
 // from disk instead of the network. A stored blob is trusted no more than a fetched one: its BLAKE3 label is re-derived on
@@ -84,7 +91,9 @@ async function fetchChecked(base, entry, refetched = false) {
   return bytes;
 }
 
-async function open(base) {
+// lexleanUrl: a LexLean WASI build to use instead of the manifest's, for trying one that is not released yet. It is not
+// pinned by anything; its label is reported so the page can say exactly which bytes rendered the project.
+async function open(base, lexleanUrl) {
   const timings = {};
   await openStore();
   startPool();
@@ -92,6 +101,9 @@ async function open(base) {
   const manifest = await (await fetch(`${base}/manifest.json`)).json();
   if (manifest.schema !== "lean-wasm-prover/1") return { ok: false, refusal: `the manifest is not lean-wasm-prover/1` };
   const [glue, wasm] = await Promise.all([fetchChecked(base, manifest.engine.loader), fetchChecked(base, manifest.engine.wasm)]);
+  let lexleanLabel = manifest.lexlean?.wasm?.kappa ?? null, lexleanPinned = true;
+  if (lexleanUrl) { lexleanBytes = new Uint8Array(await (await fetch(lexleanUrl)).arrayBuffer()); lexleanLabel = kappa(lexleanBytes); lexleanPinned = false; }
+  else lexleanBytes = manifest.lexlean?.wasm ? await fetchChecked(base, manifest.lexlean.wasm) : null;
   timings.engineMs = Math.round(now() - t);
   t = now();
   // Every library file, fetched in parallel and checked by BLAKE3 label, then written where Lean's search path looks.
@@ -111,9 +123,9 @@ async function open(base) {
   const url = URL.createObjectURL(new Blob([glue], { type: "text/javascript" }));
   let factory;
   try { factory = (await import(url)).default; } finally { URL.revokeObjectURL(url); }
-  const log = [];
+  log.length = 0;
   lean = await factory({
-    instantiateWasm: (imports, done) => { WebAssembly.instantiate(wasm, imports).then((r) => done(r.instance, r.module)); return {}; },
+    instantiateWasm: (imports, done) => { WebAssembly.instantiate(wasm, imports).then((r) => { memory = Object.values(r.instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; done(r.instance, r.module); }); return {}; },
     print: (s) => log.push(s), printErr: (s) => log.push(s),
   });
   for (const [path, bytes] of files) {
@@ -127,14 +139,33 @@ async function open(base) {
   t = now();
   if (lean.ccall("elab_ready", "number", [], []) !== 0) return { ok: false, refusal: "Lean did not initialize: " + log.join(" ") };
   timings.initializeMs = Math.round(now() - t);
-  return { ok: true, timings, files: files.length, mb: Math.round(mb), heapMB: heapMB() };
+  return { ok: true, timings, files: files.length, mb: Math.round(mb), heapMB: heapMB(), semantics: manifest.lexlean?.semantics_id ?? null,
+    evidence: { engine: manifest.engine.wasm.kappa, loader: manifest.engine.loader.kappa, lexlean: lexleanLabel, lexleanPinned, gate: manifest.gate ?? null } };
 }
 
 self.onmessage = async ({ data }) => {
   try {
-    if (data.op === "open") return self.postMessage({ op: "open", ...(await open(data.base)) });
+    if (data.op === "open") return self.postMessage({ op: "open", ...(await open(data.base, data.lexlean)) });
     if (!lean) return self.postMessage({ id: data.id, op: data.op, error: "the worker is not open" });
     if (data.op === "source") { lean.FS.writeFile(data.path, data.text); return self.postMessage({ op: "source", ok: true }); }
+    if (data.op === "render") {
+      if (!lexleanBytes) return self.postMessage({ id: data.id, ok: false, diagnostics: "the manifest names no LexLean build" });
+      lexlean ??= await WebAssembly.compile(lexleanBytes);
+      const { exit, stdout, stderr } = runWasi(lexlean, { args: ["lexlean", "lean-modules", "--all"], files: new Map(data.files) });
+      if (exit !== 0) return self.postMessage({ id: data.id, ok: false, diagnostics: stderr || stdout });
+      return self.postMessage({ id: data.id, ok: true, rendered: JSON.parse(stdout) });
+    }
+    if (data.op === "write") {
+      lean.FS.mkdirTree(data.path.slice(0, data.path.lastIndexOf("/")));
+      lean.FS.writeFile(data.path, data.bytes);
+      return self.postMessage({ id: data.id, ok: true });
+    }
+    if (data.op === "request") {
+      const t = now();
+      const from = log.length;
+      const answer = JSON.parse(lean.ccall("elab_request", "string", ["string"], [JSON.stringify(data.request)]));
+      return self.postMessage({ id: data.id, answer, ms: Math.round(now() - t), heapMB: heapMB(), printed: log.slice(from).join(" | ").slice(-4000) });
+    }
     if (data.op === "elaborate") {
       const t = now();
       const req = JSON.stringify({ op: "elaborate", outDir: "/out", module: data.module, path: data.path });

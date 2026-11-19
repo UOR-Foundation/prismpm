@@ -12,6 +12,24 @@ export function entrypointsOf(lexleanToml) {
   return m ? [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]) : [];
 }
 
+/** The project's source roots, read from lexlean.toml's `source_roots = [...]`. */
+export function sourceRootsOf(lexleanToml) {
+  const m = /^source_roots\s*=\s*\[([^\]]*)\]/m.exec(lexleanToml);
+  return m ? [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]) : [];
+}
+
+/**
+ * The LexLean module an entrypoint path names: `src/A/B.lex.tex` under root `src` is `A.B`. `lexlean lean-modules`
+ * gives a project row's `module` in this form (CL-27).
+ */
+export function entrypointModule(path, roots) {
+  for (const r of roots) {
+    const prefix = r.replace(/\/+$/, "") + "/";
+    if (path.startsWith(prefix) && path.endsWith(".lex.tex")) return path.slice(prefix.length, -".lex.tex".length).replaceAll("/", ".");
+  }
+  return null;
+}
+
 /** The rows prove must answer for: every project module (elaborated) and every runtime module with policies (checked). */
 export function judgedRows(rendered) {
   return rendered.modules.filter((m) => m.kind === "project" || (m.kind === "runtime" && m.axiom_policies?.length));
@@ -21,7 +39,7 @@ export function judgedRows(rendered) {
  * rendered: the `lexlean/lean-modules/1` object; answers: Map of Lean module to the driver's answer;
  * entrypoints: project-relative source paths. Returns { accepted, modules, policies, refusals, refusal }.
  */
-export function judge({ rendered, answers, entrypoints }) {
+export function judge({ rendered, answers, entrypoints, sourceRoots = [] }) {
   const refusals = [];
   const refuse = (code, diagnostics) => refusals.push({ code, diagnostics });
   const projectRows = rendered.modules.filter((m) => m.kind === "project");
@@ -66,7 +84,8 @@ export function judge({ rendered, answers, entrypoints }) {
   }
 
   const covered = new Set(projectRows.map((r) => r.module).filter(Boolean));
-  for (const e of entrypoints) if (!covered.has(e)) refuse("lean-prover.entrypoint-uncovered", `${e} is not in the verdict`);
+  // A row names its source either by path or, as the render does, by LexLean module name.
+  for (const e of entrypoints) if (!covered.has(e) && !covered.has(entrypointModule(e, sourceRoots))) refuse("lean-prover.entrypoint-uncovered", `${e} is not in the verdict`);
 
   const accepted = refusals.length === 0 && modules.every((m) => m.accepted);
   return { accepted, modules, policies, refusals, ...(refusals.length ? { refusal: refusals[0] } : {}) };

@@ -92,6 +92,14 @@ CI's gate job keeps the two folders the page needs, as artifacts:
 node web/serve.mjs path/to/lean-prover-library path/to/lean-prover-browser-corpus
 ```
 
+`web/project.html` proves a whole LexLean project in the tab, the way `prove` does in Node, with the same verdict code (`src/verdict.mjs`): LexLean's WASI build checks the project and renders its modules (`lexlean lean-modules`), Lean elaborates each one, the kernel replays every declaration, and the axiom audit is applied. Nothing is sent anywhere. Give the project folder as the fourth argument:
+
+```sh
+node web/serve.mjs LIBDIR CORPUSDIR 8794 path/to/project     # then open /project.html
+```
+
+The render needs a LexLean build with `lean-modules` (LexLean pull request 578). Until a release has it, `?lexlean=URL` names an unreleased WASI build; it is not pinned, and the page reports its BLAKE3 label.
+
 ## Building the engine
 
 ```sh

@@ -19,7 +19,7 @@ import { gateAdmits } from "./gate.mjs";
 import { libraryLabel, unofficialInit } from "./library.mjs";
 import { checkNpmSection } from "./npm.mjs";
 import { cachedCheck, storeResult } from "./store.mjs";
-import { entrypointsOf, judge, judgedRows } from "./verdict.mjs";
+import { entrypointsOf, judge, judgedRows, sourceRootsOf } from "./verdict.mjs";
 import { run as runWasi } from "./wasi.mjs";
 
 export { libraryLabel, ProverError };
@@ -235,7 +235,8 @@ export async function proveWith({ engine, render: renderProject, manifest, evide
   } catch (e) {
     return refused(e.code ?? "lean-prover.engine-trap", e.message, { evidence: { ...evidence, project: projectEvidence } });
   }
-  const verdict = judge({ rendered, answers, entrypoints: entrypointsOf(dec.decode(files.get("lexlean.toml"))) });
+  const toml = dec.decode(files.get("lexlean.toml"));
+  const verdict = judge({ rendered, answers, entrypoints: entrypointsOf(toml), sourceRoots: sourceRootsOf(toml) });
   for (const m of verdict.modules) m.reused = reused.has(m.module);
   return { ...verdict, evidence: { ...evidence, project: projectEvidence } };
 }
