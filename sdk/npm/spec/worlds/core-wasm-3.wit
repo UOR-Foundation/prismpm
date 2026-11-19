@@ -1,0 +1,39 @@
+// The Core-Wasm checkpoint contract `hologram:guest/core-wasm@3` (HO-47).
+//
+// The session world `@2` with the state made addressable. The guest is an
+// import-free wasm32 core module, not a component. It exports exactly five
+// items: `memory`, `holo_alloc`, `holo_step`, `holo_state` and
+// `holo_restore`. WIT cannot name an exported memory, so `memory` is stated
+// here and not declared below.
+//
+// WIT names are kebab-case and name the core exports with underscores. In the
+// canonical ABI, u32 lowers to i32 and u64 lowers to i64, so the core
+// signatures are exactly:
+//
+//   holo_alloc:   (i32) -> i32
+//   holo_step:    (i32, i32) -> i64
+//   holo_state:   () -> i64
+//   holo_restore: (i32) -> i32
+//
+// A step is the step of `@2`. `holo-state` locates the resident state's bytes
+// as `offset << 32 | length` and changes nothing, so a host can name the state
+// by the BLAKE3 of those bytes. `holo-restore` reserves `length` bytes as the
+// state of a fresh instance and returns their offset; the host writes the
+// state there before the first step. It traps on an instance that has
+// reserved a request, taken a step or restored before, and on a length over
+// the declared state maximum. A trap ends the session.
+package hologram:guest@3.0.0;
+
+world core-wasm {
+  /// Reserve `length` bytes for the next request and return their offset. Discards the previous step's responses.
+  export holo-alloc: func(length: u32) -> u32;
+
+  /// Take one session step over the request at `offset` with `length` bytes. Returns `offset << 32 | length` of the responses.
+  export holo-step: func(offset: u32, length: u32) -> u64;
+
+  /// Return `offset << 32 | length` of the resident state's bytes. Changes nothing.
+  export holo-state: func() -> u64;
+
+  /// Reserve `length` bytes as the state of a fresh instance and return their offset.
+  export holo-restore: func(length: u32) -> u32;
+}

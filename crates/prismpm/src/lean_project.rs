@@ -105,7 +105,7 @@ mod tests {
         std::fs::write(&source, generated).unwrap();
         std::fs::write(
             work.path().join("lean-toolchain"),
-            "leanprover/lean4:v4.32.1\n",
+            "leanprover/lean4:v4.32.2\n",
         )
         .unwrap();
         let configuration = configuration("prismpm_thread_policy", &[module]);

@@ -109,7 +109,7 @@ Close the goal by reflexivity.
 \end{lexlean}
 ",
     )?;
-    write(root, "lean-toolchain", b"leanprover/lean4:v4.32.1\n")?;
+    write(root, "lean-toolchain", b"leanprover/lean4:v4.32.2\n")?;
     write(
         root,
         "lakefile.toml",
@@ -128,7 +128,7 @@ entrypoints = ["src/Main.lex.tex"]
 build_root = ".lexlean"
 lockfile = "lexlean.lock"
 lean_workspace = "."
-lean_toolchain = "leanprover/lean4:v4.32.1"
+lean_toolchain = "leanprover/lean4:v4.32.2"
 [[lexicon_source]]
 package = "lexlean.std.bool"
 kind = "builtin"

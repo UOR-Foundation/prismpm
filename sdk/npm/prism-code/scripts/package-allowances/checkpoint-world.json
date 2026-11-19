@@ -1,0 +1,4 @@
+{
+  "kib": 10,
+  "reason": "Checkpoints of the checkpoint world hologram:guest/core-wasm@3 (HO-47, HO-48): checkpoint and openAt in src/session.mjs and load, their typings, and the @3 world row in the vendored spec and verifier, 9.1 KiB measured."
+}

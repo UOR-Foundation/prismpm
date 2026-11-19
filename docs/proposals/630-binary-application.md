@@ -4,7 +4,7 @@
 | --- | --- |
 | Issue | [#630](https://github.com/UOR-Foundation/PrismPM/issues/630) |
 | Milestone | M3 v0.6 Replay, capabilities, conformance |
-| Status | Proposed, Experimental. Two maintainer decisions are open (unresolved questions 1 and 2). |
+| Status | Proposed, Experimental. Decided by the maintainer on 2026-11-18: question 1, admit the session worlds in a new dated format revision now, and let `prismpm verify` refuse them until hologram-live runs them; question 2, a generated static View that runs nothing. In part: the format revision (HO-49) and the declaration, its projection and its checks (HO-50). |
 | Depends on | #629 (the session world), #278 (worlds), #284 (histories), SPEC section 3 (Holo/1) |
 | Used by | #631 (host effects for guests) |
 | Coordinates with | #530 and #516 (`prismpm/binary-program/1`, a raw-file command line, draft) |
@@ -42,12 +42,12 @@ Named by digest, an input is a few dozen bytes in the history and the same bytes
 
 ### The declaration
 
-`Foundation.Binary.Application.V1.Model.BinaryApplication`, profile `prismpm/binary-application/1`, projected as `prismpm/model-document/8`.
+`Foundation.Binary.Application.V1.Model.BinaryApplication`, profile `prismpm/binary-application/1`, projected as `prismpm/model-document/9` (`/8` became the native library document in #683).
 It keeps the package metadata, library roots, entry root, layers and fat-archive intent of a text application and replaces the text-specific fields:
 
 | Field | Meaning |
 | --- | --- |
-| `coreContract` | `hologram:guest/core-wasm@1` or `hologram:guest/core-wasm@2`. |
+| `coreContract` | `hologram:guest/core-wasm@1`, `hologram:guest/core-wasm@2` or `hologram:guest/core-wasm@3` (HO-47). |
 | `requestMaximum`, `responseMaximum` | Bytes of the request payload and of one response, 1 to 64 MiB. |
 | `inputCountMaximum` | Inputs one request may name, 0 to 64. |
 | `inputMaximum`, `inputTotalMaximum` | Bytes of one input and of all inputs of a request, up to 1 GiB. |

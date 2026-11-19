@@ -166,6 +166,10 @@ The three honesty levels:
 | `HO-44` | `build` | The session world hologram:guest/core-wasm@2 is a new contract with its own WIT file and registry row, import-free, exporting exactly memory, holo_alloc and holo_step; its guest package is generated from the model's Bytes -> Bytes root as rendered by prod-codegen and a fixed shim rendered from the declared request, state, response, response-count, page and stack bounds alone; the shim keeps the state inside the instance, traps on a state, response, response count or trailing byte over its declaration and on a step over a region holo_alloc did not reserve, and compacts its arena after every step so the memory a step uses is a function of its state and request; bounds that cannot be generated and an entry that is not Bytes -> Bytes are refused with PP5101, and the @1 row and file are unchanged. |
 | `HO-45` | `build` | prism-code runs a session-world guest as sessions: one instance per session with an empty first state, steps in order returning zero or more responses through dispatch and stream, every failure ending the session, session.closed for a later step, session.busy for a concurrent step, session.required for dispatch on the application and session.unsupported for open on a stateless one; acceptance sessions are compared step by step; prism/history/2 records sessions as steps and the failure that ended them, and replay re-executes each on a fresh session, reporting every divergence as a DeterminismViolationError and refusing a history of the other world with replay.history. |
 | `HO-46` | `build` | Definitions of one application that share a last name component build: prod-export names a requested root by its last component and any other definition of the closure by its last component while no other definition has it, and otherwise by a reserved prefix followed by the length and text of each component of its qualified name, so distinct definitions have distinct names and calls reach the definition they name; an application with no shared last component exports the same bytes as before, and two requested roots that share a last component are refused by name with PP5004. |
+| `HO-47` | `build` | The checkpoint world hologram:guest/core-wasm@3 is a new contract with its own WIT file and registry row, import-free, exporting exactly memory, holo_alloc, holo_step, holo_state and holo_restore; its guest package is the @2 package generated from the same bounds and entry, and its shim is the @2 shim with two more exports: holo_state returns the location of the resident state bytes and changes nothing, and holo_restore reserves the resident state of a fresh instance, trapping on a length over the declared state maximum, on an instance that has taken a step or holds a state, and on a second call; the @1 and @2 rows, files and shims are unchanged. |
+| `HO-48` | `build` | prism-code checkpoints and restores sessions of the checkpoint world: checkpoint on a session returns the BLAKE3 kappa label of the state bytes and a copy of them; openAt opens a session on a fresh instance whose state is the given bytes, refusing with checkpoint.address bytes that do not hash to the label or a label that is not a BLAKE3 kappa label and with checkpoint.state bytes over the declared state maximum, before the guest runs; a session resumed from a checkpoint returns the same responses to the same requests as the session it was taken from; checkpoint and openAt on a guest of another world fail checkpoint.unsupported. |
+| `HO-49` | `build` | Holo format revision 2026-11-18 is revision 2026-10-23 for holo v5 with two more guest contracts and one more model document: a holo v5 may name hologram:guest/core-wasm@2 or hologram:guest/core-wasm@3 in its manifest and its provenance, with the wasm layer entered at holo_step, and may pack prismpm/model-document/9; the readers of @prism-code/verify, prism-code and the Rust inspector name the first revision an archive matches, so every existing archive keeps 2026-10-23, and a holo v4, whose application manifest fixes @1 and holo_run, is of no other revision. |
+| `HO-50` | `build` | A binary application, Foundation.Binary.Application.V1.Model.BinaryApplication with profile prismpm/binary-application/1, projects to prismpm/model-document/9: the stateless world with acceptance vectors, or the session or checkpoint world with session bounds and acceptance sessions, requests and responses up to 64 MiB, and inputs named by BLAKE3 digest whose bytes acceptanceInputs carries; a declaration whose session member disagrees with its contract, whose resolved frame cannot fit its declared memory, or whose acceptance names an input it does not carry is refused with PP2027, and the projection is valid against the closed model-document/9 schema. |
 
 ## lean-prover
 
@@ -368,7 +372,7 @@ The three honesty levels:
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `VR-01` | `build` | LexLean verifies formal models against the Lean 4.32.1 kernel. |
+| `VR-01` | `build` | LexLean verifies formal models against the Lean 4.32.2 kernel. |
 | `VR-02` | `build` | Verification records executable digests and normalized toolchain commands. |
 | `VR-03` | `build` | Lake stages generated Lean modules in isolated temporary workspaces. |
 | `VR-04` | `build` | leanchecker replays compiled module environments independently. |
@@ -387,10 +391,10 @@ The three honesty levels:
 | --- | --- | --- | --- | --- |
 | `BLAKE3-VECTORS-1-5-5` | `1.5.5` | https://raw.githubusercontent.com/BLAKE3-team/BLAKE3/81f772a4cd70dc0325047a6a737d2f6f4b92180e/test_vectors/test_vectors.json | `dcb91ea8accc77e6d6e632af7cdc1a99a9f3ae78cf648da595c7d064db32f624` | `HO-14` |
 | `IETF-RFC-7636` | `September 2015` | https://www.rfc-editor.org/rfc/rfc7636.txt | `1972e5d81cbaba7066cfd46374207bc2b4546b085ed5dd9b034e79e023e0ca31` | `ST-17` |
-| `LEAN-REL-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-01`, `VR-02` |
-| `LAKE-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-03` |
-| `LEANCHECKER-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-04` |
-| `PRINT-AXIOMS-4-32-1` | `4.32.1` | https://codeload.github.com/leanprover/lean4/tar.gz/f054605aea4b840552cca2e725580bffd1e1b704 | `6dec8667fbf57ba480a18a8b0c353b2ee157346b2630b211ccbefeedf20545f8` | `VR-05` |
+| `LEAN-REL-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-01`, `VR-02` |
+| `LAKE-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-03` |
+| `LEANCHECKER-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-04` |
+| `PRINT-AXIOMS-4-32-2` | `4.32.2` | https://codeload.github.com/leanprover/lean4/tar.gz/f3b06c705e6c85f5314019d5d3baab0fec5b580c | `ab2322bccd76535ab53df8019b07da596431bee32819ac3fc1cfac9ce67b45e9` | `VR-05` |
 | `OCI-IMAGE-1-1-1` | `1.1.1` | https://codeload.github.com/opencontainers/image-spec/tar.gz/147f9c13cedb47a0c4d9a11a222961073d585877 | `f632804ca432d6df5c0fad506d003ebdb99f57fff22c4559cb4163e1e240a7f4` | `AU-01`, `OC-01` |
 | `OCI-DISTRIBUTION-1-1-1` | `1.1.1` | https://codeload.github.com/opencontainers/distribution-spec/tar.gz/a139cc423184af6078077b9b7ee336eddbd03f8f | `e69fbe28c2eb4b2ef5a12c76b21c32d959ee97a646afe7704577b14c295641d2` | `AU-01`, `OC-04`, `OC-05` |
 | `OCI-RUNTIME-1-3-0` | `1.3.0` | https://codeload.github.com/opencontainers/runtime-spec/tar.gz/92249139eea7161e13745abd4cb6d0ea02a3227a | `fbed724a4bbdce2260eea9a4d6dcf534a5e2446e581ed1b8bf27abe536cee17a` | `AU-01`, `LC-03` |
@@ -437,10 +441,10 @@ The three honesty levels:
 
 | ID | Level | Claim |
 | --- | --- | --- |
-| `AUTH-LEAN-REL-4-32-1` | `some-true` | Lean 4.32.1 provides the formal kernel and elaborator that verifies generated PrismPM declarations. |
-| `AUTH-LAKE-4-32-1` | `some-true` | Lake resolves hermetic Lean workspaces without network access when all dependencies are pinned. |
-| `AUTH-LEANCHECKER-4-32-1` | `some-true` | leanchecker replays compiled module environments through the Lean kernel in an isolated process. |
-| `AUTH-PRINT-AXIOMS-4-32-1` | `some-true` | Lean 4.32.1 reports transitive axiom dependencies through #print axioms. |
+| `AUTH-LEAN-REL-4-32-2` | `some-true` | Lean 4.32.2 provides the formal kernel and elaborator that verifies generated PrismPM declarations. |
+| `AUTH-LAKE-4-32-2` | `some-true` | Lake resolves hermetic Lean workspaces without network access when all dependencies are pinned. |
+| `AUTH-LEANCHECKER-4-32-2` | `some-true` | leanchecker replays compiled module environments through the Lean kernel in an isolated process. |
+| `AUTH-PRINT-AXIOMS-4-32-2` | `some-true` | Lean 4.32.2 reports transitive axiom dependencies through #print axioms. |
 | `AUTH-ISO-42010-2022` | `some-true` | ISO/IEC/IEEE 42010:2022 establishes conceptual foundations for architecture descriptions of systems. |
 | `AUTH-ISO-27034-1-2011` | `some-true` | ISO/IEC 27034-1 provides concepts and principles for application security. |
 | `AUTH-ISO-27034-5-2017` | `some-true` | ISO/IEC 27034-5 defines application security control data structures. |

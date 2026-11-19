@@ -16,9 +16,9 @@ url = "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-g
 sha256 = "20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c"
 
 [lean]
-version = "v4.32.1"
-release = "leanprover/lean4:v4.32.1"
-commit = "f054605aea4b840552cca2e725580bffd1e1b704"
+version = "v4.32.2"
+release = "leanprover/lean4:v4.32.2"
+commit = "f3b06c705e6c85f5314019d5d3baab0fec5b580c"
 
 [elan]
 version = "4.2.3"

@@ -595,6 +595,30 @@
           }
         }
       }
+    },
+    {
+      "id": "verify.checkpoint-world.documents",
+      "title": "Format revision 2026-10-23 admits only the @1 guest contract in its documents, so an archive naming the checkpoint world fails holo.documents and withholds P1 until a revision admits it (HO-47, #630).",
+      "op": "verify",
+      "archive": "checkpoint-world",
+      "input": { "policy": { "minimum": "P1" } },
+      "expect": { "ok": true, "result": { "passed": false, "reasons": { "$contains": [{ "check": "holo.documents", "withholds": "P1" }] } } }
+    },
+    {
+      "id": "verify.checkpoint-world-v5.revision",
+      "title": "A holo v5 that names the checkpoint world, entered at holo_step, and packs prismpm/model-document/9 is of format revision 2026-11-18: its documents pass, and it is withheld only for the statements it does not carry (HO-49).",
+      "op": "verify",
+      "archive": "checkpoint-world-v5",
+      "input": { "policy": { "minimum": "P0" } },
+      "expect": { "ok": true, "result": { "passed": true, "level": "P0" } }
+    },
+    {
+      "id": "verify.checkpoint-world-v5.entered-at-run",
+      "title": "The same holo with its wasm layer entered at holo_run fails holo.documents, because the checkpoint world is entered at holo_step, and withholds P1 (HO-49).",
+      "op": "verify",
+      "archive": "checkpoint-world-v5-entered-at-run",
+      "input": { "policy": { "minimum": "P1" } },
+      "expect": { "ok": true, "result": { "passed": false, "reasons": { "$contains": [{ "check": "holo.documents", "withholds": "P1" }] } } }
     }
   ]
 }

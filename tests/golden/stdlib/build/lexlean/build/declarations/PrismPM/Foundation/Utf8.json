@@ -1,0 +1,1 @@
+{"declarations":[{"id":"6e33d951c61b9d7e7836231f627258e811277a297da75c8ef12f00f1261ab079","kind":"definition","name":"encode","references":[]},{"id":"1d5e4fa3b8f65fc0f023c1f728a68a00c113958a7fe9f1303b5953bbafae47d8","kind":"definition","name":"decode","references":[]}],"module":"Foundation.Utf8","spec":"lexlean/declarations/1"}

@@ -173,6 +173,12 @@ The acceptance of a server application observes a declared host effect that no v
 
 Class: `semantic`. Exit code: 1.
 
+## `PP2027` --- Invalid binary application declaration
+
+A binary application declaration breaks its profile: its session member disagrees with its guest contract, its resolved frame cannot fit its declared memory, a bound is out of range, or its acceptance names an input it does not carry or exceeds a declared bound.
+
+Class: `semantic`. Exit code: 1.
+
 ## `PP3001` --- Malformed Hologram archive header or version
 
 A .holo file is not a binary Hologram v4 archive with the exact HOLO header.
@@ -951,6 +957,9 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `capabilities.kind` |  | `AL-07` | A capability names a kind this version does not know. |
 | `capabilities.path` |  | `DK-41` | The capability file the manifest names does not exist. |
 | `capability_denied` | `CapabilityDeniedError` | `CT-12` | The declared world exceeds the granted capabilities, or the runtime denied a guest import or a resource. |
+| `checkpoint.address` |  | `HO-48` | openAt was given state bytes that do not hash to the checkpoint label, or a label that is not a BLAKE3 kappa label; no instance was made and the guest did not run. |
+| `checkpoint.state` |  | `HO-48` | openAt was given state bytes longer than the state maximum the application declares; no instance was made and the guest did not run. |
+| `checkpoint.unsupported` |  | `HO-48` | checkpoint or openAt was called on an application whose guest is not the checkpoint world hologram:guest/core-wasm@3, which alone exports its state. |
 | `client.option` |  | `DK-41` | createPrism was given options that are not a plain object, an option it does not have, or a docker option that is not a function or null. |
 | `closure.files` |  | `OC-11` | The closure directory does not have exactly one *_bg.wasm, or lacks a file a closure needs, so its stem cannot be found. |
 | `closure.glue` |  | `OC-11` | The closure glue module has no initSync export, or exports neither invoke_bytes nor calculate. |

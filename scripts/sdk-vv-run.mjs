@@ -99,7 +99,7 @@ export function executionEnvironment(work, image, socket) {
   return {
     PATH: '/usr/local/elan/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin',
     RUSTUP_HOME: '/usr/local/rustup',
-    ELAN_HOME: '/usr/local/elan', ELAN_TOOLCHAIN: 'leanprover/lean4:v4.32.1',
+    ELAN_HOME: '/usr/local/elan', ELAN_TOOLCHAIN: 'leanprover/lean4:v4.32.2',
     CARGO_HOME: join(work, 'cargo'), CARGO_TARGET_DIR: join(work, 'inputs/source/target/vv-driver'),
     CARGO_NET_OFFLINE: 'true', CARGO_BUILD_JOBS: '2',
     PRISMPM_SDK_INVENTORY: join(SHARED, 'inventory.json'), PRISMPM_TEST_SDK_IMAGE: image,

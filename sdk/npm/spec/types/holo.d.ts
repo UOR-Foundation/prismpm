@@ -16,12 +16,15 @@ export interface RevisionSupport {
 
 /** The identifiers a reader uses to recognize a revision. Archives do not carry the date. */
 export interface FormatRevisionIdentifiers {
+  /** The holo versions that carry this revision. */
+  holoVersions: readonly (4 | 5)[];
   physicalVersion: number;
   flags: number;
   sectionOrder: readonly SectionKindCode[];
   appManifestUri: string;
   extensions: readonly ExtensionName[];
-  coreWasmContract: CoreWasmContract;
+  /** The guest contracts a holo of this revision may name. */
+  coreWasmContracts: readonly GuestContract[];
   holoviewVersion: number;
   sourceManifestVersion: number;
   provenanceSchema: string;
@@ -112,9 +115,11 @@ export type CoreWasmContract = 'hologram:guest/core-wasm@1';
 
 /** The Core-Wasm session contract (issue #629). See `worlds/core-wasm-2.wit`. */
 export type SessionContract = 'hologram:guest/core-wasm@2';
+/** The Core-Wasm checkpoint contract (HO-47): sessions whose state is addressable. */
+export type CheckpointContract = 'hologram:guest/core-wasm@3';
 
 /** Every guest contract that has a world in `WORLDS`. */
-export type GuestContract = CoreWasmContract | SessionContract;
+export type GuestContract = CoreWasmContract | SessionContract | CheckpointContract;
 
 /** The guest's exports as a host sees them after instantiation. */
 export interface CoreWasmExports {

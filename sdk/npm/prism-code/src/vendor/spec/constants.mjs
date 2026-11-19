@@ -111,6 +111,21 @@ export const CORE_WASM_SESSION = freeze({
 });
 
 /**
+ * The Core-Wasm checkpoint contract (HO-47): the session contract with the
+ * state made addressable. `holo_state` locates the resident state's bytes and
+ * `holo_restore` installs a state in a fresh instance.
+ */
+export const CORE_WASM_CHECKPOINT = freeze({
+  CONTRACT: 'hologram:guest/core-wasm@3',
+  EXPORTS: freeze(['holo_alloc', 'holo_restore', 'holo_state', 'holo_step', 'memory']),
+  ALLOCATOR: 'holo_alloc',
+  ENTRY: 'holo_step',
+  STATE: 'holo_state',
+  RESTORE: 'holo_restore',
+  WORLD: 'worlds/core-wasm-3.wit',
+});
+
+/**
  * The worlds a guest can target, by guest contract (issue #278,
  * docs/proposals/278-wit-world.md). A holo declares its world by naming its
  * contract; the world's hash is a function of that name through this table.
@@ -152,6 +167,24 @@ export const WORLDS = freeze({
     imports: freeze([]),
     exports: freeze([
       freeze({ name: 'holo_alloc', kind: 'func', params: freeze(['i32']), results: freeze(['i32']) }),
+      freeze({ name: 'holo_step', kind: 'func', params: freeze(['i32', 'i32']), results: freeze(['i64']) }),
+      freeze({ name: 'memory', kind: 'memory' }),
+    ]),
+  }),
+  [CORE_WASM_CHECKPOINT.CONTRACT]: freeze({
+    version: 1,
+    package: 'hologram:guest@3.0.0',
+    world: 'core-wasm',
+    file: CORE_WASM_CHECKPOINT.WORLD,
+    digest: freeze({
+      blake3: '9f7f378fbcc5e1877352f1b0dcd5ed9d325eb9dab6b909ac07e0c8fde49357fa',
+      sha256: 'ff78688d4d0523ff98c8b4b9e9422abe5435242aaf97beae1dd10c06398a1c8c',
+    }),
+    imports: freeze([]),
+    exports: freeze([
+      freeze({ name: 'holo_alloc', kind: 'func', params: freeze(['i32']), results: freeze(['i32']) }),
+      freeze({ name: 'holo_restore', kind: 'func', params: freeze(['i32']), results: freeze(['i32']) }),
+      freeze({ name: 'holo_state', kind: 'func', params: freeze([]), results: freeze(['i64']) }),
       freeze({ name: 'holo_step', kind: 'func', params: freeze(['i32', 'i32']), results: freeze(['i64']) }),
       freeze({ name: 'memory', kind: 'memory' }),
     ]),
@@ -232,12 +265,15 @@ export const OCI = freeze({
  */
 export const FORMAT_REVISIONS = freeze({
   '2026-10-23': freeze({
+    /** The holo versions that carry this revision: v4 (Holo/1) and v5 (UORC, ADR-017). */
+    holoVersions: freeze([4, 5]),
     physicalVersion: PHYSICAL_VERSION,
     flags: FLAGS,
     sectionOrder: SECTION_ORDER,
     appManifestUri: APP_MANIFEST.URI,
     extensions: freeze([EXTENSION.APPLICATION_DIRECTORY, EXTENSION.PRISMPM_MODEL]),
-    coreWasmContract: CORE_WASM.CONTRACT,
+    /** The guest contracts a holo of this revision may name, in its directory and its provenance. */
+    coreWasmContracts: freeze([CORE_WASM.CONTRACT]),
     holoviewVersion: HOLOVIEW.VERSION,
     sourceManifestVersion: 4,
     provenanceSchema: 'prismpm/model-provenance/1',
@@ -249,7 +285,35 @@ export const FORMAT_REVISIONS = freeze({
       'prismpm/model-document/6',
     ]),
   }),
+  /**
+   * 2026-10-23 and the session worlds (#629, HO-47): a holo may also name the
+   * session or the checkpoint contract, whose wasm layer is entered at
+   * `holo_step`, and pack the binary application document (#630). Every v5
+   * archive of 2026-10-23 is an archive of this revision too; a reader names
+   * the first revision an archive matches, so those keep their date.
+   */
+  '2026-11-18': freeze({
+    /** Holo v5 only: a v4 application manifest is a fixed 356-byte suffix naming @1 and holo_run. */
+    holoVersions: freeze([5]),
+    physicalVersion: PHYSICAL_VERSION,
+    flags: FLAGS,
+    sectionOrder: SECTION_ORDER,
+    appManifestUri: APP_MANIFEST.URI,
+    extensions: freeze([EXTENSION.APPLICATION_DIRECTORY, EXTENSION.PRISMPM_MODEL]),
+    coreWasmContracts: freeze([CORE_WASM.CONTRACT, CORE_WASM_SESSION.CONTRACT, CORE_WASM_CHECKPOINT.CONTRACT]),
+    holoviewVersion: HOLOVIEW.VERSION,
+    sourceManifestVersion: 4,
+    provenanceSchema: 'prismpm/model-provenance/1',
+    modelDocumentSchemas: freeze([
+      'prismpm/model-document/1',
+      'prismpm/model-document/2',
+      'prismpm/model-document/5',
+      'prismpm/model-document/6',
+      'prismpm/model-document/9',
+    ]),
+  }),
 });
+
 /**
  * Holo v5 (ADR-017): a raw self-contained UORC archive of ordered objects,
  * sealed by UORC-SHA256-CHAIN-v1. Every identity is a κ-label, `sha256:` and

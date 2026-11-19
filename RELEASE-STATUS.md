@@ -97,7 +97,7 @@ committed in `model/dependencies.toml` at revision `991956fe427bb646498fd0912c89
 for Lean 4.32.1.
 
 Vendored release artifacts and tree manifests are locked to immutable SHA-256 digests:
-- `vendor/lean4-prod/lean.tar`: `50e085623708a3ffa3d582027589a0cc8b78e79fd62b176049f2eaad8efe47db`
+- `vendor/lean4-prod/lean.tar`: `b1e282a8b41d8ce6172db40d73ded55e7d9db39b9145c3f5bbc160ce6c74100d`
 - `vendor/lean4-prod/rust/MANIFEST.sha256`: `45fe620c63632e8a4cfa950cc75531b8266b5d56caafff24a31abe6eb81f309d`
 - `vendor/lean4-prod/crates/prod-alloc-counter-0.1.0.crate`: `3072374800280030ab1f03db059676f93d7f3d62df431895e32fe8c9eae8229e`
 - `vendor/lean4-prod/crates/prod-codegen-0.1.0.crate`: `81602aea6d0e08cebc8be4ea77d28b68ba8f84d0957b7a6d32175aa66b560b55`
