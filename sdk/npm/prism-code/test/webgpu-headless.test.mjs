@@ -132,7 +132,10 @@ async function withChrome(flags, run) {
     child.kill();
     await exited;
     server.close();
-    rmSync(profile, { recursive: true, force: true });
+    // Chrome's helper processes can still be writing the profile after the browser exits; removing it is cleanup only.
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch {}
   }
 }
 
