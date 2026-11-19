@@ -17,4 +17,8 @@ EOF
 chmod +x "$work/sys32/bin/lean"
 # On failure Node first echoes lean32.cjs's one minified line, longer than a CI log line holds, so only each line's
 # start and the end of the output are printed: the thrown error and its stack.
-"$work/sys32/bin/lean" --version 2> "$work/lean32-stderr.txt" || { cut -c1-300 "$work/lean32-stderr.txt" | tail -c 6000; exit 1; }
+# Its output, not its exit status, says it runs: --version ends in `throw 0` (EIO UInt32, Lean/Shell.lean), which
+# util/shell.cpp reads with unbox(), and a 32-bit Lean boxes a UInt32 as an object, so the status is not 0.
+v=$("$work/sys32/bin/lean" --version 2> "$work/lean32-stderr.txt") || true
+echo "$v"
+case $v in "Lean (version 4.32.2, wasm32-unknown-emscripten"*) ;; *) cut -c1-300 "$work/lean32-stderr.txt" | tail -c 6000; exit 1 ;; esac
