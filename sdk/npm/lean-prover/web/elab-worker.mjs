@@ -17,6 +17,7 @@ import { run as runWasi } from "./src/wasi.mjs";
 const now = () => performance.now();
 let lean = null, memory = null, lexleanBytes = null, lexlean = null;
 const log = []; // what Lean prints; a request that fails returns what it printed
+const opened = new Set(); // every path Lean has opened
 // The instance's own memory: this build exports no HEAPU8.
 const heapMB = () => (memory ? Math.round(Number(memory.buffer.byteLength) / 1048576) : lean?.HEAPU8 ? Math.round(lean.HEAPU8.length / 1048576) : null);
 
@@ -132,6 +133,9 @@ async function open(base, lexleanUrl) {
     lean.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
     lean.FS.writeFile(path, bytes);
   }
+  // Every library file Lean opens, for `{ op: "opened" }`: what a project actually reads, against what was loaded.
+  const fsOpen = lean.FS.open;
+  lean.FS.open = (path, ...rest) => { if (typeof path === "string") opened.add(path); return fsOpen.call(lean.FS, path, ...rest); };
   lean.ENV.LEAN_SYSROOT = "/lean";
   lean.ENV.LEAN_PATH = "/rt";
   lean.FS.mkdirTree("/src"); lean.FS.mkdirTree("/out");
@@ -160,6 +164,7 @@ self.onmessage = async ({ data }) => {
       lean.FS.writeFile(data.path, data.bytes);
       return self.postMessage({ id: data.id, ok: true });
     }
+    if (data.op === "opened") return self.postMessage({ id: data.id, opened: [...opened] });
     if (data.op === "request") {
       const t = now();
       const from = log.length;

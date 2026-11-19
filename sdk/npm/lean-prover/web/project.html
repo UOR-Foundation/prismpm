@@ -38,6 +38,7 @@ const waiting = new Map(); let nextId = 0, opening = null;
 worker.onmessage = ({ data }) => { if (data.op === "open") return opening(data); waiting.get(data.id)?.(data); waiting.delete(data.id); };
 worker.onerror = (e) => { say("The engine's worker failed: " + (e.message ?? e)); };
 const ask = (msg, transfer = []) => new Promise((r) => { const id = nextId++; waiting.set(id, r); worker.postMessage({ id, ...msg }, transfer); });
+window.askWorker = ask; // for measurement: { op: "opened" } lists what Lean read
 const t0 = performance.now();
 try {
   const opened = await new Promise((r) => { opening = r; worker.postMessage({ op: "open", base: "/lib", lexlean: q.get("lexlean") ?? undefined }); });
