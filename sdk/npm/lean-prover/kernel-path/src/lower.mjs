@@ -297,6 +297,9 @@ export function lower(snap, em, { hash = null } = {}) {
 
   // ----- the declarations, dependencies first: a declaration may only use what is written before it -----
   const declared = [], recursiveNames = [], done = new Set(), visiting = new Set();
+  // A name the model declares is never one the base library already has. So the declarations mean the same under any
+  // module prefix, and a verdict keyed without the prefix (below) is the verdict here too.
+  const claim = (...names) => { for (const x of names) if (em.lib.decls.base?.has(x)) fail(`${x} is already a constant of the base library`); };
   const emit = (n) => {
     if (done.has(n)) return;
     if (visiting.has(n)) fail(`${n}: mutual recursion is not covered yet`);
@@ -307,6 +310,7 @@ export function lower(snap, em, { hash = null } = {}) {
     if (d.kind === "structure") {
       if ((d.type_parameters ?? []).length || (d.parameters ?? []).length) fail(`${n}: a structure with parameters is not covered yet`);
       const T = c0(n), fields = d.fields.map((f) => ({ name: f.name, ty: type(mod, absType(mod, f.type)) }));
+      claim(n, `${n}.mk`, `${n}.rec`, ...fields.map((f) => `${n}.${f.name}`));
       em.writeInductive({ name: n, type: E.sort(one), numParams: 0, ctors: [{ name: `${n}.mk`, type: fields.reduceRight((acc, f) => E.pi(f.name, f.ty, acc), T), numFields: fields.length }] });
       // Each field's projection function, as Lean declares it: `fun self => self.i`.
       fields.forEach((f, i) => em.writeDef({ name: `${n}.${f.name}`, type: E.pi("self", T, f.ty), value: E.lam("self", T, E.proj(n, i, E.bvar(0))) }));
@@ -318,25 +322,30 @@ export function lower(snap, em, { hash = null } = {}) {
         const fs = (c.fields ?? []).map((f, i) => { const s = absType(mod, f.type ?? f), self = s.kind === "named" && s.member.name === n; isRec ||= self; return { name: f.name ?? `a${i}`, ty: self ? T : type(mod, s) }; });
         return { name: `${n}.${c.name}`, type: fs.reduceRight((acc, f) => E.pi(f.name, f.ty, acc), T), numFields: fs.length };
       });
+      claim(n, `${n}.rec`, ...ctors.map((c) => c.name));
       em.writeInductive({ name: n, type: E.sort(one), numParams: 0, isRec, ctors });
     } else if (d.kind === "definition") {
       if (d.termination) fail(`${n}: well-founded recursion is not covered yet`);
       const { value, ty } = d.recursive_argument ? recursive(n, mod, d)
         : withParams(mod, d.parameters ?? [], (ctx, lam, pi) => ({ value: lam(term(mod, ctx, d.body)), ty: pi(type(mod, absType(mod, d.result))) }));
       if (d.recursive_argument) recursiveNames.push(n);
+      claim(n);
       em.writeDef({ name: n, type: ty, value, hints: { regular: 1 } });
     } else fail(`${n}: a ${d.kind} is not covered yet`);
     declared.push(n);
   };
   for (const n of order) if (needed.has(n)) emit(n);
-  // Merkle labels, by declaration.
+  // Merkle labels, by declaration. A declaration is named in them as LexLean names it (its module and its name), not by
+  // its Lean name, which carries the project's module prefix: the same library modules in two projects get the same
+  // labels, so a theorem judged in one is known in the other.
+  const rel = (n) => { const { mod, d } = declOf(n); return `${mod}/${d.name}`; };
   const labels = new Map(), labelling = new Set();
   const labelOf = (n) => {
     if (labels.has(n)) return labels.get(n);
     if (labelling.has(n)) fail(`${n}: mutual recursion is not covered yet`);
     labelling.add(n);
     const { mod, d } = declOf(n);
-    const l = hash(JSON.stringify(["lexlean-kernel-path/declaration/1", n, mod, d, [...depsOf(n)].sort().map((m) => [m, labelOf(m)])]));
+    const l = hash(JSON.stringify(["lexlean-kernel-path/declaration/2", rel(n), mod, d, [...depsOf(n)].map((m) => [rel(m), labelOf(m)]).sort()]));
     labelling.delete(n); labels.set(n, l);
     return l;
   };
@@ -345,8 +354,9 @@ export function lower(snap, em, { hash = null } = {}) {
     const { mod, d } = byName.get(n);
     if (d.kind !== "theorem") continue;
     const statement = withParams(mod, d.parameters ?? [], (ctx, lam, pi) => pi(term(mod, ctx, d.statement)));
+    claim(n, "LexStmt." + n);
     em.writeDef({ name: "LexStmt." + n, type: E.sort(z), value: statement });
-    const key = hash ? hash(JSON.stringify(["lexlean-kernel-path/theorem/1", n, mod, d, [...depsOf(n)].sort().map((m) => [m, labelOf(m)])])) : null;
+    const key = hash ? hash(JSON.stringify(["lexlean-kernel-path/theorem/2", rel(n), mod, d, [...depsOf(n)].map((m) => [rel(m), labelOf(m)]).sort()])) : null;
     // How much it reaches: a stand-in for how long the kernel takes, until a judged time is known.
     const seen = new Set(), stack = [...depsOf(n)];
     while (stack.length) { const m = stack.pop(); if (!seen.has(m)) { seen.add(m); stack.push(...depsOf(m)); } }

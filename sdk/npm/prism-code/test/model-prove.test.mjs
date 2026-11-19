@@ -18,6 +18,7 @@ const kernelDir = () => {
   copyFileSync(join(kernelPath, 'library', 'base.ndjson.gz'), join(dir, 'base.ndjson.gz'));
   return dir;
 };
+const storeDir = () => mkdtempSync(join(tmpdir(), 'kappa-'));
 const snapshot = (name) => JSON.parse(readFileSync(join(kernelPath, 'test', 'model', `${name}-snapshot.json`), 'utf8'));
 const noFetch = async (url) => { throw new Error(`a request was made: ${url}`); };
 
@@ -45,7 +46,7 @@ test('a file that is not the pinned bytes is refused', { skip: !here && 'no lean
 });
 
 test("a loan app and a seat-booking app are proved by Lean's kernel, sending nothing", { skip: !here && 'no lean-prover package beside this one' }, async () => {
-  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir() };
+  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
   const loan = await modelProve(snapshot('loan'), { env, fetch: noFetch });
   assert.equal(loan.ok, true);
   assert.equal(loan.theorems.length, 3);
@@ -61,7 +62,7 @@ test('a theorem whose proof kind is not covered is not proved, and says why', { 
   const s = snapshot('loan');
   const th = s.modules.flatMap((m) => m.semantic.declarations).find((d) => d.kind === 'theorem');
   th.proof = { kind: 'induction' };
-  const r = await modelProve(s, { kernel: await openModelKernel({ env: { PRISM_MODEL_KERNEL_DIR: kernelDir() } }) });
+  const r = await modelProve(s, { kernel: await openModelKernel({ env: { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() } }) });
   assert.equal(r.ok, false);
   assert.match(r.theorems.find((t) => t.name.endsWith(`.${th.name}`)).status, /proof kind induction is not covered/);
 });
@@ -70,9 +71,33 @@ test('a false statement is not proved', { skip: !here && 'no lean-prover package
   const s = snapshot('seat');
   const th = s.modules.flatMap((m) => m.semantic.declarations).find((d) => d.kind === 'theorem' && d.name === 'startInBounds');
   th.statement.right.value = true; // breaksStartInBounds = true: false of this model
-  const r = await modelProve(s, { kernel: await openModelKernel({ env: { PRISM_MODEL_KERNEL_DIR: kernelDir() } }) });
+  const r = await modelProve(s, { kernel: await openModelKernel({ env: { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() } }) });
   assert.equal(r.ok, false);
   assert.match(r.theorems.find((t) => t.name.endsWith('.startInBounds')).status, /^not proved/);
   // The other seven are still judged, and proved.
   assert.equal(r.theorems.filter((t) => t.status.startsWith('proved')).length, 7);
+});
+
+test('a theorem judged once is not judged again, in this app or in another app with the same theorem', { skip: !here && 'no lean-prover package beside this one' }, async () => {
+  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
+  const first = await modelProve(snapshot('seat'), { env, fetch: noFetch });
+  assert.equal(first.ok, true);
+  assert.equal(first.judged, 8);
+  const again = await modelProve(snapshot('seat'), { env, fetch: noFetch });
+  assert.equal(again.ok, true);
+  assert.deepEqual([again.judged, again.remembered], [0, 8]);
+  assert.deepEqual(again.theorems.map((t) => t.status), first.theorems.map((t) => t.status));
+  // The same model in another project: other Lean names, the same keys.
+  const other = snapshot('seat');
+  for (const m of other.modules) m.lean_module = m.lean_module.replace(/^[^.]+/, 'AnotherApp');
+  const elsewhere = await modelProve(other, { env, fetch: noFetch });
+  assert.equal(elsewhere.ok, true);
+  assert.deepEqual([elsewhere.judged, elsewhere.remembered], [0, 8]);
+  // An edit is judged, and only it.
+  const edited = snapshot('seat');
+  const th = edited.modules.flatMap((m) => m.semantic.declarations).find((d) => d.kind === 'theorem' && d.name === 'inv002Holds');
+  th.statement = { kind: 'eq', left: { kind: 'bool', value: false }, right: { kind: 'bool', value: false } };
+  th.proof = { kind: 'reflexivity' }; th.axioms = [];
+  const after = await modelProve(edited, { env, fetch: noFetch });
+  assert.deepEqual([after.ok, after.judged, after.remembered], [true, 1, 7]);
 });

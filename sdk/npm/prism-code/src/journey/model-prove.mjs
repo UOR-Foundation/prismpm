@@ -22,11 +22,12 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { buildFetch } from './hosts.mjs';
-import { admittedLabel, pinnedFile, writeAtomic } from './kappa-store.mjs';
-import { emitter, loadLibrary } from '../vendor/kernel-path/emit.mjs';
-import { lower } from '../vendor/kernel-path/lower.mjs';
+import { admittedLabel, kappaDirectory, pinnedFile, writeAtomic } from './kappa-store.mjs';
+import { kappa } from '../uorc.mjs';
+import { loadLibrary } from '../vendor/kernel-path/emit.mjs';
+import { COVERED, plan } from '../vendor/kernel-path/plan.mjs';
 
 export const MODEL_KERNEL_REPOSITORY = 'UOR-Foundation/PrismPM';
 export const MODEL_KERNEL_COMMIT = '8e949491b3b1ddaf771179f534bce87a41f89c8a';
@@ -39,7 +40,7 @@ export const MODEL_KERNEL_FILES = Object.freeze({
 /** Lean's three standard axioms: no theorem may rest on any other. */
 export const STANDARD_AXIOMS = Object.freeze(['Classical.choice', 'Quot.sound', 'propext']);
 /** LexLean's proof kinds the proof finder covers, by the name it knows them by. */
-export const COVERED_PROOFS = Object.freeze({ linear_arithmetic: 'linear_arithmetic', decide: 'decide', reflexivity: 'rfl' });
+export const COVERED_PROOFS = COVERED;
 
 const RAW_URL = 'https://raw.githubusercontent.com';
 
@@ -93,9 +94,58 @@ export async function ensureModelKernel({ env = process.env, fetch = globalThis.
   }
 }
 
+
+// ----- what is done once, kept by its label, and never done again -----
+//
+// Two things are remembered on this machine, in the κ store (`$PRISM_HOME/kappa/kernel-path/`), so every proof of every
+// app here makes the next one cheaper:
+//   - the kernel with the base library loaded, suspended to an image: a later process resumes from it instead of
+//     reading the library again. Kept gzipped under the BLAKE3 label of those bytes, and used only when they have it.
+//   - each theorem's verdict, by its Merkle key (vendor/kernel-path/lower.mjs): the label of its statement and of every
+//     declaration it reaches, without the project's module prefix, so the same theorem over the same definitions is
+//     judged once for every app on this machine. Filed under the labels of the kernel, the library and this code.
+const enc = new TextEncoder(), dec = new TextDecoder();
+const storeDir = (env) => join(kappaDirectory(env), 'kernel-path');
+const codeLabel = () => kappa(Buffer.concat(['emit.mjs', 'lower.mjs', 'plan.mjs'].map((f) => readFileSync(new URL(`../vendor/kernel-path/${f}`, import.meta.url)))));
+const identity = (what) => kappa(enc.encode([`prism-code/kernel-path/${what}/1`, ...Object.values(MODEL_KERNEL_FILES).map((f) => f.kappa), what === 'verdicts' ? codeLabel() : ''].join('\n'))).slice(7);
+
+function readLabelled(file) {
+  // A file of `label\nbody`: the body, when it still has its label.
+  if (!existsSync(file)) return null;
+  const text = readFileSync(file, 'utf8'), cut = text.indexOf('\n');
+  return cut > 0 && kappa(enc.encode(text.slice(cut + 1))) === text.slice(0, cut) ? text.slice(cut + 1) : null;
+}
+const writeLabelled = (file, body) => writeAtomic(file, enc.encode(`${kappa(enc.encode(body))}\n${body}`));
+
+function readImage(env) {
+  try {
+    const label = readLabelled(join(storeDir(env), `image-${identity('image')}`))?.trim();
+    if (!label) return null;
+    const file = join(storeDir(env), 'images', label.slice(7));
+    if (!existsSync(file)) return null;
+    const gz = readFileSync(file);
+    return kappa(gz) === label ? gunzipSync(gz) : null;
+  } catch { return null; }
+}
+function keepImage(env, image) {
+  try {
+    const gz = gzipSync(image, { level: 1 }), label = kappa(gz);
+    writeAtomic(join(storeDir(env), 'images', label.slice(7)), gz);
+    writeLabelled(join(storeDir(env), `image-${identity('image')}`), label);
+  } catch { /* a store that cannot be written only means the next process reads the library again */ }
+}
+
+/** The theorem verdicts this machine has found: `{ key: { axioms, ms } }`. */
+export function knownVerdicts({ env = process.env } = {}) {
+  try { return new Map(Object.entries(JSON.parse(readLabelled(join(storeDir(env), `verdicts-${identity('verdicts')}.json`)) ?? '{}'))); } catch { return new Map(); }
+}
+function keepVerdicts(env, known) {
+  try { writeLabelled(join(storeDir(env), `verdicts-${identity('verdicts')}.json`), JSON.stringify(Object.fromEntries(known))); } catch { /* the next proof judges again */ }
+}
+
 let opened = null;
 
-/** Lean's kernel with the base library resident, opened once per process. Resolves `{ check, baseText }`. */
+/** Lean's kernel with the base library resident, opened once per process. Resolves `{ library, check, resumed }`. */
 export function openModelKernel({ env = process.env } = {}) {
   opened ??= (async () => {
     const glue = readFile('lean-kernel.mjs', env), wasm = readFile('lean-kernel.wasm.gz', env), base = readFile('base.ndjson.gz', env);
@@ -130,9 +180,21 @@ export function openModelKernel({ env = process.env } = {}) {
       return { exit, axioms: exit === 0 ? axioms : {}, output: rest.join('\n').slice(-600) };
     };
     const baseText = base.toString('utf8');
-    const loaded = run('load_library', baseText);
-    if (loaded.exit !== 0) throw new Error(`the kernel refused its base library: ${loaded.output}`);
-    return { baseText, check: (text) => run('check_suffix', text) };
+    // Resumed from this machine's image when there is one; otherwise the library is read, and the image kept.
+    const image = readImage(env);
+    let resumed = false;
+    if (image) {
+      const need = image.length - module.HEAPU8.length;
+      if (need > 0 && !module._malloc(need)) throw new Error('the kernel could not grow to its image');
+      module.HEAPU8.set(image);
+      if (module.HEAPU8.length > image.length) module.HEAPU8.fill(0, image.length);
+      resumed = true;
+    } else {
+      const loaded = run('load_library', baseText);
+      if (loaded.exit !== 0) throw new Error(`the kernel refused its base library: ${loaded.output}`);
+      keepImage(env, module.HEAPU8.slice());
+    }
+    return { library: loadLibrary(baseText), check: (text) => run('check_suffix', text), resumed };
   })();
   opened.catch(() => { opened = null; });
   return opened;
@@ -140,11 +202,13 @@ export function openModelKernel({ env = process.env } = {}) {
 
 /**
  * Prove every theorem of a model from its semantic snapshot. Resolves
- * `{ ok, theorems: [{ name, proof, declared, axioms, status }], declarations, ms, refusal? }`.
+ * `{ ok, theorems: [{ name, proof, declared, axioms, status, remembered }], declarations, judged, remembered, ms, refusal? }`.
  *
  * A theorem is proved when the kernel accepts its proof and the axioms it rests on are among those it declared and
  * Lean's three standard ones. A proof found here may rest on fewer axioms than the Lean text LexLean writes (an
- * arithmetic proof without `Classical.choice`); that is proved, and said.
+ * arithmetic proof without `Classical.choice`); that is proved, and said. A theorem this machine has judged under the
+ * same key is not judged again. When the kernel refuses one theorem's proof, that theorem is set aside as not proved
+ * and the rest are judged again, so one false theorem never hides the others.
  */
 export async function modelProve(snapshot, { env = process.env, fetch = globalThis.fetch, log = () => {}, kernel = null } = {}) {
   const started = performance.now();
@@ -153,47 +217,41 @@ export async function modelProve(snapshot, { env = process.env, fetch = globalTh
     await ensureModelKernel({ env, fetch, log });
     k = await openModelKernel({ env });
   }
-  const library = loadLibrary(k.baseText);
   const elapsed = () => Math.round(performance.now() - started);
-  // The kernel judges a file whole. When it refuses a theorem's proof, it names it: that theorem is set aside as not
-  // proved and the rest are judged again, so one false theorem never hides the others. Any other refusal is the
-  // lowering's, and nothing is proved.
-  let theorems = null, lowered = null, judged = null;
-  const aside = new Map();
-  for (;;) {
-    const em = emitter(library);
-    try {
-      lowered = lower(snapshot, em);
-    } catch (error) {
-      return { ok: false, theorems: [], declarations: 0, ms: elapsed(), refusal: error.message.replace(/^lower: /, '') };
-    }
-    theorems = lowered.theorems.map((th) => ({ name: th.name, proof: th.proof, declared: [...th.axioms].sort(), axioms: null, status: aside.get(th.name) ?? null }));
-    lowered.theorems.forEach((th, i) => {
-      if (theorems[i].status) return;
-      const kind = COVERED_PROOFS[th.proof];
-      if (!kind) { theorems[i].status = `not proved: the proof kind ${th.proof} is not covered here yet`; return; }
-      try {
-        em.write(em.theorem({ name: th.name, ns: th.name.slice(0, th.name.lastIndexOf('.')), script: [{ kind }], binders: [], raw: '', text: '' }));
-      } catch (error) {
-        theorems[i].status = `not proved: no proof found (${error.message})`;
-      }
-    });
-    judged = k.check(em.lines());
-    if (judged.exit === 0) break;
-    const named = /declaration '([^']+)'/.exec(judged.output)?.[1];
-    const culprit = theorems.find((t) => t.name === named && !t.status);
-    if (!culprit) return { ok: false, theorems, declarations: lowered.declared.length, ms: elapsed(), refusal: `Lean's kernel refused the lowered model: ${judged.output}` };
-    aside.set(culprit.name, `not proved: Lean's kernel refused the proof found (${judged.output.split('\n').slice(-1)[0].slice(0, 200)})`);
+  let p;
+  try {
+    p = plan(snapshot, k.library, { hash: (s) => kappa(enc.encode(s)) });
+  } catch (error) {
+    return { ok: false, theorems: [], declarations: 0, judged: 0, remembered: 0, ms: elapsed(), refusal: error.message.replace(/^lower: /, '') };
   }
+  const known = knownVerdicts({ env });
+  const theorems = p.theorems.map((th) => {
+    const v = th.status ? null : known.get(th.key);
+    return { name: th.name, key: th.key, proof: th.proof, declared: th.declared, axioms: v?.axioms ?? null, status: th.status, remembered: !!v };
+  });
+  let todo = theorems.filter((t) => !t.status && !t.remembered).map((t) => t.name);
+  const judged = todo.length;
+  while (todo.length) {
+    const t0 = performance.now(), r = k.check(p.file(todo)), ms = Math.round((performance.now() - t0) / todo.length);
+    if (r.exit === 0) {
+      for (const n of todo) { const t = theorems.find((x) => x.name === n); t.axioms = r.axioms[n] ?? null; if (t.axioms) known.set(t.key, { axioms: t.axioms, ms }); }
+      break;
+    }
+    const named = /declaration '([^']+)'/.exec(r.output)?.[1];
+    const culprit = theorems.find((t) => t.name === named && todo.includes(t.name));
+    if (!culprit) return { ok: false, theorems, declarations: p.declarations, judged, remembered: theorems.filter((t) => t.remembered).length, ms: elapsed(), refusal: `Lean's kernel refused the lowered model: ${r.output}` };
+    culprit.status = `not proved: Lean's kernel refused the proof found (${r.output.split('\n').slice(-1)[0].slice(0, 200)})`;
+    todo = todo.filter((n) => n !== culprit.name);
+  }
+  if (judged) keepVerdicts(env, known);
   for (const th of theorems) {
     if (th.status) continue;
-    const got = judged.axioms[th.name] ?? null;
-    th.axioms = got;
+    const got = th.axioms;
     th.status = got === null ? 'not proved: the kernel reported nothing for it'
       : got.some((a) => !STANDARD_AXIOMS.includes(a)) ? `not proved: it rests on ${got.filter((a) => !STANDARD_AXIOMS.includes(a)).join(', ')}, outside Lean's standard axioms`
       : got.some((a) => !th.declared.includes(a)) ? `not proved: it rests on ${got.filter((a) => !th.declared.includes(a)).join(', ')}, which it does not declare`
       : got.length < th.declared.length ? 'proved, on fewer axioms than declared' : 'proved';
   }
   const ok = theorems.length > 0 && theorems.every((t) => t.status.startsWith('proved'));
-  return { ok, theorems, declarations: lowered.declared.length, ms: Math.round(performance.now() - started) };
+  return { ok, theorems, declarations: p.declarations, judged, remembered: theorems.filter((t) => t.remembered).length, resumed: !!k.resumed, ms: elapsed() };
 }

@@ -124,6 +124,7 @@
   "src/uorc.mjs",
   "src/vendor/kernel-path/emit.mjs",
   "src/vendor/kernel-path/lower.mjs",
+  "src/vendor/kernel-path/plan.mjs",
   "src/vendor/spec/assurance-levels.mjs",
   "src/vendor/spec/constants.mjs",
   "src/vendor/verify.mjs",

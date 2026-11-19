@@ -162,7 +162,7 @@ async function proveModel(dir, session, { log, frontend, client, gaps, kernel, e
   if (missed.length) return { ok: false, where: 'kernel', seconds, theorems, message: `${missed.length} of ${result.theorems.length} theorems are not proved: ${missed.slice(0, 3).map((t) => `${short(t.name)} (${t.status.replace(/^not proved: /, '')})`).join('; ')}.` };
   const fewer = result.theorems.filter((t) => t.status !== 'proved').length;
   session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where: 'kernel', seconds, semanticId: snapshot.semantic_id ? `sha256:${snapshot.semantic_id}` : null };
-  return { ok: true, where: 'kernel', seconds, theorems, message: `Lean's kernel, in this process, accepted a proof of every one of the model's ${result.theorems.length} theorems over ${result.declarations} declarations, in ${seconds} s, each within its declared axioms${fewer ? ` (${fewer} on fewer than declared)` : ''}. Nothing was sent anywhere.` };
+  return { ok: true, where: 'kernel', seconds, theorems, message: `Lean's kernel, in this process, accepted a proof of every one of the model's ${result.theorems.length} theorems over ${result.declarations} declarations, in ${seconds} s, each within its declared axioms${fewer ? ` (${fewer} on fewer than declared)` : ''}. ${result.remembered ? `${result.remembered} were remembered from earlier proofs on this machine, by their content, and ${result.judged} judged now. ` : ''}Nothing was sent anywhere.` };
 }
 
 /** Record that Lean proved this model as it is on disk. */
