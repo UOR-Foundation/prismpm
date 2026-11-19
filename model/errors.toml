@@ -197,6 +197,13 @@ exit = 1
 statement = "The acceptance of a server application observes a declared host effect that no vector reaches: a core effect that no replayed transcript step requests, or an effect that fills the request frame and no served exchange reaches."
 
 [[error]]
+code = "PP2027"
+title = "Invalid binary application declaration"
+class = "semantic"
+exit = 1
+statement = "A binary application declaration breaks its profile: its session member disagrees with its guest contract, its resolved frame cannot fit its declared memory, a bound is out of range, or its acceptance names an input it does not carry or exceeds a declared bound."
+
+[[error]]
 code = "PP3001"
 title = "Malformed Hologram archive header or version"
 class = "holo"

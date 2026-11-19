@@ -3948,6 +3948,37 @@ checkpoint world fail `checkpoint.unsupported`. A history of a session that
 starts at a checkpoint, and the profile that declares the `@3` world, are not
 part of this section.
 
+### 12.18 Format revision 2026-11-18 and the binary application profile
+
+HO-49 owns format revision `2026-11-18`. It is revision `2026-10-23` for holo
+v5 with two more guest contracts and one more model document: a holo v5 may
+name `hologram:guest/core-wasm@2` or `hologram:guest/core-wasm@3` in its
+manifest's wasm layer and in its provenance (`core_wasm_contract`), with the
+layer entered at `holo_step`, and may pack `prismpm/model-document/9`. The
+contract of the manifest and of the provenance are the same. A holo v4 carries
+no other revision: its application manifest is a fixed suffix that names the
+stateless world and `holo_run`. An archive carries no date, so a reader names
+the first revision whose identifiers it carries (`FORMAT_REVISIONS` lists
+`holoVersions` and `coreWasmContracts` for each), and every existing archive
+keeps `2026-10-23`. `@prism-code/verify`, prism-code and the Rust inspector
+read the revision the same way.
+
+HO-50 owns the binary application profile, `prismpm/binary-application/1`
+(`Foundation.Binary.Application.V1.Model.BinaryApplication`, proposal 630),
+projected as `prismpm/model-document/9`. Its requests and responses are bytes
+with no UTF-8 rule, 1 byte to 64 MiB. Its guest is the stateless world, whose
+acceptance is vectors, or the session or checkpoint world, which declares a
+state maximum and a response-count maximum and whose acceptance is ordered
+sessions. A request may name up to 64 inputs by BLAKE3 digest, each and all
+together up to 1 GiB, and the model carries the bytes of every input its
+acceptance names (each at most 1 MiB). The resolved frame a guest sees is the
+input count, each input's digest, length and bytes, then the payload. `PP2027`
+refuses a declaration whose session member disagrees with its contract, whose
+resolved frame, answer and stack cannot fit its declared memory, whose bounds
+are out of range, or whose acceptance names an input it does not carry or
+exceeds a declared bound. The build of a binary application and the runtime
+resolution of input names are not part of this section.
+
 ## 13. OCI product-release graph
 
 Distribution uses OCI Image and Distribution 1.1. The root product release is
@@ -4488,6 +4519,8 @@ Every row below is normative, has the honesty level registered in `model/ids.tom
 | `HO-46` | `holo` | Definitions of one application that share a last name component build: prod-export names a requested root by its last component and any other definition of the closure by its last component while no other definition has it, and otherwise by a reserved prefix followed by the length and text of each component of its qualified name, so distinct definitions have distinct names and calls reach the definition they name; an application with no shared last component exports the same bytes as before, and two requested roots that share a last component are refused by name with PP5004. | §3 |
 | `HO-47` | `holo` | The checkpoint world hologram:guest/core-wasm@3 is a new contract with its own WIT file and registry row, import-free, exporting exactly memory, holo_alloc, holo_step, holo_state and holo_restore; its guest package is the @2 package generated from the same bounds and entry, and its shim is the @2 shim with two more exports: holo_state returns the location of the resident state bytes and changes nothing, and holo_restore reserves the resident state of a fresh instance, trapping on a length over the declared state maximum, on an instance that has taken a step or holds a state, and on a second call; the @1 and @2 rows, files and shims are unchanged. | §3 |
 | `HO-48` | `holo` | prism-code checkpoints and restores sessions of the checkpoint world: checkpoint on a session returns the BLAKE3 kappa label of the state bytes and a copy of them; openAt opens a session on a fresh instance whose state is the given bytes, refusing with checkpoint.address bytes that do not hash to the label or a label that is not a BLAKE3 kappa label and with checkpoint.state bytes over the declared state maximum, before the guest runs; a session resumed from a checkpoint returns the same responses to the same requests as the session it was taken from; checkpoint and openAt on a guest of another world fail checkpoint.unsupported. | §3 |
+| `HO-49` | `holo` | Holo format revision 2026-11-18 is revision 2026-10-23 for holo v5 with two more guest contracts and one more model document: a holo v5 may name hologram:guest/core-wasm@2 or hologram:guest/core-wasm@3 in its manifest and its provenance, with the wasm layer entered at holo_step, and may pack prismpm/model-document/9; the readers of @prism-code/verify, prism-code and the Rust inspector name the first revision an archive matches, so every existing archive keeps 2026-10-23, and a holo v4, whose application manifest fixes @1 and holo_run, is of no other revision. | §3 |
+| `HO-50` | `holo` | A binary application, Foundation.Binary.Application.V1.Model.BinaryApplication with profile prismpm/binary-application/1, projects to prismpm/model-document/9: the stateless world with acceptance vectors, or the session or checkpoint world with session bounds and acceptance sessions, requests and responses up to 64 MiB, and inputs named by BLAKE3 digest whose bytes acceptanceInputs carries; a declaration whose session member disagrees with its contract, whose resolved frame cannot fit its declared memory, or whose acceptance names an input it does not carry is refused with PP2027, and the projection is valid against the closed model-document/9 schema. | §3 |
 | `CT-01` | `controller` | The Controller API exposes owned request and result types for load, check, and build. | §4 |
 | `CT-02` | `controller` | The Controller encapsulates LexLean Engine operations without exposing internal compiler types. | §4 |
 | `CT-03` | `controller` | prismpm check validates models in memory without modifying the filesystem. | §4 |

@@ -22,8 +22,8 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | Typed errors (`errors`) | 8 | + | - | N/A |
 | Load a holo (`load`) | 22 | + | - | N/A |
 | Histories and replay (`replay`) | 5 | + | - | N/A |
-| Verify a holo (`verify`) | 27 | + | + | N/A |
-| The world contract (`world`) | 18 | + | - | N/A |
+| Verify a holo (`verify`) | 29 | + | + | N/A |
+| The world contract (`world`) | 20 | + | - | N/A |
 
 ## Checks
 
@@ -194,6 +194,8 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | `verify.env.invalid` | A PRISM_MINIMUM_LEVEL that names no level is an invalid policy. | + | + | N/A |
 | `verify.session-world.documents` | Format revision 2026-10-23 admits only the @1 guest contract in its documents, so an archive naming the session world fails holo.documents and withholds P1 until a revision admits it (#629, #630). | + | + | N/A |
 | `verify.checkpoint-world.documents` | Format revision 2026-10-23 admits only the @1 guest contract in its documents, so an archive naming the checkpoint world fails holo.documents and withholds P1 until a revision admits it (HO-47, #630). | + | + | N/A |
+| `verify.checkpoint-world-v5.revision` | A holo v5 that names the checkpoint world, entered at holo_step, and packs prismpm/model-document/9 is of format revision 2026-11-18: its documents pass, and it is withheld only for the statements it does not carry (HO-49). | + | + | N/A |
+| `verify.checkpoint-world-v5.entered-at-run` | The same holo with its wasm layer entered at holo_run fails holo.documents, because the checkpoint world is entered at holo_step, and withholds P1 (HO-49). | + | + | N/A |
 
 ### The world contract
 
@@ -217,6 +219,8 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | `world.effects.invalid` | An effect nobody defined is an invalid policy. | + | + | N/A |
 | `world.session.loaded` | A guest of the session world hologram:guest/core-wasm@2 loads as that world: pure and within an empty grant, because it imports nothing (#629). | + | - | N/A |
 | `world.checkpoint.loaded` | A guest of the checkpoint world hologram:guest/core-wasm@3 loads as that world: pure and within an empty grant, because it imports nothing (HO-47). | + | - | N/A |
+| `world.checkpoint-v5.loaded` | A holo v5 of format revision 2026-11-18 whose wasm layer is the checkpoint world, entered at holo_step, with a binary application document, loads as that world (HO-49). | + | - | N/A |
+| `world.checkpoint-v5.inspected` | Inspection names format revision 2026-11-18 for a holo v5 of the checkpoint world, and the world's package, file, digests and five exports, and says the guest conforms (HO-49). | + | + | N/A |
 
 ## Expected failures
 
@@ -301,3 +305,4 @@ Which Prism runtime passes which part of the runtime contract, from the results 
 | Rust | `world.load.refuses-wrong-exports` | The Rust runtime has no load operation yet (#298). |
 | Rust | `world.session.loaded` | The Rust runtime has no load operation yet (#298). |
 | Rust | `world.checkpoint.loaded` | The Rust runtime has no load operation yet (#298). |
+| Rust | `world.checkpoint-v5.loaded` | The Rust runtime has no load operation yet (#298). |

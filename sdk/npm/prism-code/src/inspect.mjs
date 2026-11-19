@@ -39,12 +39,13 @@ export const INSPECTION_SCHEMA = 'prismpm/holo-inspection/1';
  */
 export const FORMAT_REVISIONS = Object.freeze({
   '2026-10-23': Object.freeze({
+    holoVersions: Object.freeze([4, 5]),
     physicalVersion: 4,
     flags: 0,
     sectionOrder: Object.freeze([15, 8, 14, 14, 16, 16, 16, 16]),
     appManifestUri: APP_MANIFEST_URI,
     extensions: Object.freeze([DIRECTORY_EXTENSION, MODEL_EXTENSION]),
-    coreWasmContract: 'hologram:guest/core-wasm@1',
+    coreWasmContracts: Object.freeze(['hologram:guest/core-wasm@1']),
     holoviewVersion: 1,
     sourceManifestVersion: 4,
     provenanceSchema: 'prismpm/model-provenance/1',
@@ -53,6 +54,25 @@ export const FORMAT_REVISIONS = Object.freeze({
       'prismpm/model-document/2',
       'prismpm/model-document/5',
       'prismpm/model-document/6',
+    ]),
+  }),
+  '2026-11-18': Object.freeze({
+    holoVersions: Object.freeze([5]),
+    physicalVersion: 4,
+    flags: 0,
+    sectionOrder: Object.freeze([15, 8, 14, 14, 16, 16, 16, 16]),
+    appManifestUri: APP_MANIFEST_URI,
+    extensions: Object.freeze([DIRECTORY_EXTENSION, MODEL_EXTENSION]),
+    coreWasmContracts: Object.freeze(['hologram:guest/core-wasm@1', 'hologram:guest/core-wasm@2', 'hologram:guest/core-wasm@3']),
+    holoviewVersion: 1,
+    sourceManifestVersion: 4,
+    provenanceSchema: 'prismpm/model-provenance/1',
+    modelDocumentSchemas: Object.freeze([
+      'prismpm/model-document/1',
+      'prismpm/model-document/2',
+      'prismpm/model-document/5',
+      'prismpm/model-document/6',
+      'prismpm/model-document/9',
     ]),
   }),
 });
@@ -127,12 +147,13 @@ function recognizeRevision(parsed, resolved) {
   };
   for (const [revision, id] of Object.entries(FORMAT_REVISIONS)) {
     if (
+      id.holoVersions.includes(4) &&
       parsed.version === id.physicalVersion &&
       parsed.flags === id.flags &&
       sameList(observed.sectionOrder, id.sectionOrder) &&
       parsed.manifest.uri === id.appManifestUri &&
       sameList(observed.extensions, id.extensions) &&
-      observed.coreWasmContract === id.coreWasmContract &&
+      id.coreWasmContracts.includes(observed.coreWasmContract) &&
       observed.holoviewVersion === id.holoviewVersion &&
       observed.sourceManifestVersion === id.sourceManifestVersion &&
       observed.provenanceSchema === id.provenanceSchema &&

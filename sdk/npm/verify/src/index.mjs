@@ -398,8 +398,8 @@ function analyze(bytes) {
       const names = facts.sections.filter((s) => s.kind === spec.SECTION_KIND.EXTENSION).map((s) => s.name);
       if (names.join(' ') !== revision.extensions.join(' ')) differences.push(`the extensions are ${JSON.stringify(names)}, expected ${JSON.stringify(revision.extensions)}`);
       const wasm = directory?.layers?.find((l) => l.kind === 'wasm');
-      if (wasm && wasm.contract !== revision.coreWasmContract) differences.push(`the guest contract is ${wasm.contract}, expected ${revision.coreWasmContract}`);
-      if (provenance && provenance.core_wasm_contract !== revision.coreWasmContract) differences.push(`the provenance contract is ${provenance.core_wasm_contract}`);
+      if (wasm && !revision.coreWasmContracts.includes(wasm.contract)) differences.push(`the guest contract is ${wasm.contract}, expected one of ${revision.coreWasmContracts.join(', ')}`);
+      if (provenance && !revision.coreWasmContracts.includes(provenance.core_wasm_contract)) differences.push(`the provenance contract is ${provenance.core_wasm_contract}`);
       if (provenance && provenance.schema !== revision.provenanceSchema) differences.push(`the provenance schema is ${provenance.schema}, expected ${revision.provenanceSchema}`);
       const sourceManifest = facts.documents.sourceManifest;
       if (sourceManifest && sourceManifest.version !== revision.sourceManifestVersion) {
@@ -417,7 +417,9 @@ function analyze(bytes) {
       return differences;
     };
     let newest = [];
-    for (const [date, revision] of Object.entries(spec.FORMAT_REVISIONS)) {
+    // Holo v4's application manifest fixes the @1 contract and holo_run, so only the revisions holo v4 can carry apply.
+    const v4Revisions = Object.entries(spec.FORMAT_REVISIONS).filter(([, revision]) => revision.holoVersions.includes(4));
+    for (const [date, revision] of v4Revisions) {
       const differences = differencesFrom(revision);
       if (differences.length === 0) {
         facts.revision = date;
@@ -430,7 +432,7 @@ function analyze(bytes) {
     // that differ are a document problem, reported, not a reason to give up.
     const kinds = facts.sections.map((s) => s.kind).join(',');
     const names = facts.sections.filter((s) => s.kind === spec.SECTION_KIND.EXTENSION).map((s) => s.name).join(' ');
-    for (const [date, revision] of Object.entries(spec.FORMAT_REVISIONS)) {
+    for (const [date, revision] of v4Revisions) {
       if (kinds === revision.sectionOrder.join(',') && names === revision.extensions.join(' ')) {
         facts.layoutRevision = date;
         break;

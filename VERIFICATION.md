@@ -1,5 +1,57 @@
 # PrismPM falsifiability and verification record
 
+## Format revision 2026-11-18 and the binary application profile (HO-49, HO-50), 2026-11-18
+
+Tested, in WSL Ubuntu 26.04 with Rust 1.97.1 and Node 22.22.2, on the branch
+`guest/binary-profile` (stacked on `guest/session-world-wiring`):
+
+- HO-49, `node --test test/revision-2026-11-18.test.mjs` (prism-code): 6 passed,
+  the exact count the case requires.
+- HO-50, `cargo test -p prismpm --test binary_application`: 6 passed. Each test
+  projects a source-owned declaration through the pinned lexlean compiler in
+  process. Before PP2027 was registered, five failed with PP9001 and one with
+  PP2001 (an entry root named from the wrong snapshot fields).
+- `cargo test -p repo-conformance --test conformance` for HO-44, -45, -47, -48,
+  -49 and -50: each passed. One concurrent run failed HO-49 while the planted
+  defects below were rewriting its source; run alone it passed.
+- `cargo test -p prismpm --lib` filtered to `inspect::`, `holo::`, `contracts`,
+  `model_contract`, `session_guest` and `input_lock`: 168 passed, 0 failed
+  (159 on `main`, 0 failed); `repo-model`: passed; Clippy clean.
+- `node --test` in `sdk/npm/spec` (142), `sdk/npm/verify` (264) and
+  `sdk/npm/conformance` (86, after `matrix --write`) passed. The full prism-code
+  suite fails the same tests as a clean `main` in this environment and no
+  other.
+- The compliance matrix: both runtimes pass `verify.checkpoint-world-v5.*` and
+  `world.checkpoint-v5.inspected`; the Rust runtime declares
+  `world.checkpoint-v5.loaded` an expected failure, as for every load (#298).
+- `prism-conformance gate`: every format rule covered.
+- Not run here: `check-golden` and `golden-write` select Debian 12 or Ubuntu
+  24.04 only. The new stdlib module and the emitter digest
+  (`6c94bd762103b3be534c68a39bb9d9f3bdc990ddfef3f4fede1857c6fdc189f6`) change
+  `tests/golden/stdlib`; `golden-refresh.yml` regenerates it.
+
+Planted defects, each applied to the working tree, tested and restored:
+
+| Defect | Command | Result |
+| --- | --- | --- |
+| A. prism-code admits a session guest whose wasm layer is entered at `holo_run` | `node --test test/revision-2026-11-18.test.mjs` | rejected, test 5 |
+| B. verify v5 names the last matching revision, not the first | same | rejected, test 4 |
+| C. revision 2026-11-18 is also carried by holo v4 | same | not rejected: equivalent, because the v4 directory and provenance-v1 schemas pin `@1`; test 6 now asserts those schemas refuse it |
+| D. `validate` no longer holds the session member to the contract | `cargo test -p prismpm --test binary_application` | rejected, `a_session_member_that_disagrees_with_the_contract_is_pp2027` |
+| E. an input the acceptance names need not be carried | same | rejected, `an_input_the_acceptance_does_not_carry_is_pp2027` |
+| F. the Rust inspector names a v5 holo of the session worlds 2026-10-23 | `prism-conformance run --runtime rust --only world.checkpoint-v5.inspected` | rejected |
+
+D and F first reported "not rejected": both plants had silently failed to apply
+after `cargo fmt` rewrapped their targets. A first strengthened D test still
+passed because a second rule refused the same declaration; the test now uses a
+declaration only the session-member rule refuses, and F gained the inspect
+scenario that names the revision. The runs above apply each plant or stop.
+
+This accepts the format revision, the declaration, its projection and its
+checks. It does not accept the build of a binary application (the session
+guest from the declared bounds, the static View, the holo v5 of 2026-11-18),
+the runtime resolution of input names, or any SDK release.
+
 ## Checkpoint world (HO-47, HO-48), 2026-11-18
 
 Tested, in WSL Ubuntu with Rust 1.97.1 and Node 22.22.2, on the branch
