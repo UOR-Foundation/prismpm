@@ -36,9 +36,9 @@ export async function main({ pin, root, files, need, link, holo, say, bootMs }) 
   const open = async () => {
     const store = await openStore(holo, q.get("store"));
     if (q.get("fresh")) await store.clear();
-    const t = performance.now(), [library, kernel] = await Promise.all([need("library/library.ndjson"), need("kernel/lean-kernel.wasm")]);
-    say(`kernel and library, ${((library.length + kernel.length) / 1048576).toFixed(2)} MB, fetched and verified in ${(performance.now() - t).toFixed(0)} ms`);
-    const p = await openProver({ env: root, library, kernel, hasher: files.get("hologram/hologram_store_bg.wasm"), address: holo.address, store, spawn, kernels, proofs, idleMs: q.get("idle") ? Number(q.get("idle")) : undefined });
+    // Fetched and checked when the first kernel starts, and not at all by a session the memo answers.
+    const fetched = (path) => async () => { const t = performance.now(), b = await need(path); say(`${path}, ${(b.length / 1048576).toFixed(2)} MB, fetched and verified in ${(performance.now() - t).toFixed(0)} ms`); return b; };
+    const p = await openProver({ env: root, library: fetched("library/library.ndjson"), kernel: fetched("kernel/lean-kernel.wasm"), hasher: files.get("hologram/hologram_store_bg.wasm"), address: holo.address, store, spawn, kernels, proofs, idleMs: q.get("idle") ? Number(q.get("idle")) : undefined });
     say(`store: ${store.kind}${store.unavailable.length ? " (not available: " + store.unavailable.join("; ") + ")" : ""}; ${p.memo.entries} remembered${p.memo.refused ? "; the store refused a segment: " + p.memo.refused : ""}`);
     return p;
   };

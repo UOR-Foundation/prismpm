@@ -37,9 +37,12 @@ export async function openProver({ env, library, kernel, hasher, address, store,
 
   // Kernels: as many as the work needs, no more. The first one judges the library if no session has yet, and no
   // proof is accepted from any kernel before that verdict is in.
-  const libraryJudged = key("lexlean/library-judged/1"), libraryText = dec.decode(library);
+  // The kernel and the library may be given as bytes or as functions that fetch them: they are needed only when a
+  // kernel starts, and a session answered from the memo never starts one.
+  const libraryJudged = key("lexlean/library-judged/1"); let given = null;
+  const assets = () => (given ??= (async () => { const [l, k] = await Promise.all([typeof library === "function" ? library() : library, typeof kernel === "function" ? kernel() : kernel]); return { libraryText: dec.decode(l), kernel: k }; })());
   const pool = [], waiting = new Map(); let nextId = 0, starting = 0, libraryMs = null;
-  const startOne = (judgeLibrary) => new Promise((ok, bad) => {
+  const startOne = (judgeLibrary, { libraryText, kernel }) => new Promise((ok, bad) => {
     const w = spawn();
     w.onmessage = (data) => {
       if (data.ready) { if (data.judged) { if (!data.judged.ok) return bad(new Error("the kernel refused the library: " + data.judged.last)); libraryMs = data.judged.ms; remember(libraryJudged, { ms: Math.round(data.judged.ms) }); } pool.push(w); ok(); }
@@ -50,9 +53,10 @@ export async function openProver({ env, library, kernel, hasher, address, store,
   });
   async function ensureKernels(n) {
     n = Math.min(kernels, Math.max(1, n));
-    if (!pool.length && !starting && !memo.has(libraryJudged)) { starting++; try { await startOne(true); } finally { starting--; } }
+    const got = await assets();
+    if (!pool.length && !starting && !memo.has(libraryJudged)) { starting++; try { await startOne(true, got); } finally { starting--; } }
     const add = n - pool.length - starting; if (add <= 0) return;
-    starting += add; try { await Promise.all(Array.from({ length: add }, () => startOne(false))); } finally { starting -= add; }
+    starting += add; try { await Promise.all(Array.from({ length: add }, () => startOne(false, got))); } finally { starting -= add; }
   }
   const ask = (w, msg) => new Promise((ok) => { const id = nextId++; waiting.set(id, ok); w.post({ id, ...msg }); });
 

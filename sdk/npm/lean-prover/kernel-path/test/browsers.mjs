@@ -34,6 +34,18 @@ for (const name of process.argv.slice(2).length ? process.argv.slice(2) : ["fire
     if (errors.length) console.log("  page errors: " + errors.slice(0, 3).join(" | ").slice(0, 300));
     await page.close();
   }
+  // Two tabs at once: the second must be served by the first and start nothing of its own.
+  try {
+    const a = await ctx.newPage(), b = await ctx.newPage(), done = (p) => p.waitForFunction(() => window.__results && window.__results.done, null, { timeout: 240000 });
+    await a.goto(base + "?auto=example&fresh=1"); await done(a);
+    await b.goto(base + "?auto=bench&n=300"); await done(b);
+    const lines = await b.evaluate(() => window.__results.lines), state = await b.evaluate(async () => ({ role: window.lexleanProver.role(), kernels: await window.lexleanProver.kernels() }));
+    const ok = state.role === "client" && state.kernels === 0 && lines.some((l) => /^first, 300 theorems: 300 of 300 proved/.test(l)) && !lines.some((l) => /fetched and verified/.test(l) && /wasm|ndjson/.test(l));
+    console.log(`--- two tabs: second tab is ${state.role} with ${state.kernels} kernels; ${ok ? "served by the first, loaded no kernel or library" : "NOT SHARED"}`);
+    for (const l of lines) if (/^(ready|first|FAILED)/.test(l)) console.log("  " + l.slice(0, 260));
+    if (!ok) failed++;
+    await a.close(); await b.close();
+  } catch (e) { failed++; console.log(`--- two tabs: ${String(e.message).split("\n")[0]}`); }
   await ctx.close();
   try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
 }

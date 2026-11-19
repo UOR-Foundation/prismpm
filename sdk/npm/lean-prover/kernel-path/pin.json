@@ -46,8 +46,8 @@
    "bytes": 4382
   },
   "src/prover.mjs": {
-   "kappa": "blake3:fcb7cb3e429442481c439f0fa144baf9d2ba6e5d024766654a90bdca1c2b4b42",
-   "bytes": 11036
+   "kappa": "blake3:31c3f19824136f50cfd4cb92aa4f58f8f6d922a7c5d53352fe3f7419a6aea0d0",
+   "bytes": 11521
   },
   "src/shared.mjs": {
    "kappa": "blake3:10f0a537730ff8cedd7bcbb8f0cbb2670eac8490727f61d06b6719a1c35a5f57",
@@ -58,8 +58,8 @@
    "bytes": 5592
   },
   "web/app.mjs": {
-   "kappa": "blake3:050711d19ed4f8c5b76c0fcf13ac13620f7a35d5f1c2ce80d0d4246536d3609e",
-   "bytes": 8644
+   "kappa": "blake3:fc59aa396e0bc0a03ac6dd90de58c9fdec8641679634cd8103aed9fae6f4a2d9",
+   "bytes": 8748
   }
  }
 }
