@@ -13,6 +13,9 @@ import { compare, kernelAddress } from '../src/webgpu.mjs';
 
 const file = (path) => new URL(`../${path}`, import.meta.url);
 const WGSL = readFileSync(file('test/fixtures/webgpu/q4-group-sums.wgsl'), 'utf8');
+// LexLean's first render of kernel 1 (q4GroupSums, units 2, rowCodes 64, zero 8), from a port of its WGSL printer:
+// not canonical yet, so its address is derived here and pinned nowhere.
+const RENDERED = readFileSync(file('test/fixtures/webgpu/q4-group-sums.rendered.wgsl'), 'utf8');
 const FIXTURE = JSON.parse(readFileSync(file('test/fixtures/webgpu/q4-group-sums.json'), 'utf8'));
 const SERVED = { '/webgpu.mjs': 'src/webgpu.mjs', '/blake3.mjs': 'src/blake3.mjs', '/errors.mjs': 'src/errors.mjs' };
 
@@ -164,7 +167,10 @@ test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, 
   // Planted defects: the WGSL changed after its address was named, and a kernel whose zero point is 7, not 8.
   const altered = q4Case(FIXTURE.activation_codes, [...fixtureCase().plan.buffers[1]], 1, WGSL.replace('nibble - 8u', 'nibble - 7u'));
   const misnamed = { ...altered.plan, kernel: kernelAddress(altered.plan.wgsl) };
-  const [onFixture, onGenerated, onAltered, onMisnamed] = await runOnWebGpu([fixture.plan, generated.plan, altered.plan, misnamed]);
+  // The rendered kernel on the same input, with two spare output words: its `invocations` override, set by the bridge,
+  // keeps the padding invocations of the workgroup from writing them.
+  const rendered = { ...fixture.plan, wgsl: RENDERED, kernel: kernelAddress(RENDERED), buffers: [...fixture.plan.buffers.slice(0, 3), [0, 0, 0, 0]] };
+  const [onFixture, onGenerated, onAltered, onMisnamed, onRendered] = await runOnWebGpu([fixture.plan, generated.plan, altered.plan, misnamed, rendered]);
   t.diagnostic(`adapter ${JSON.stringify(onFixture.adapter)}`);
 
   // The CPU reference is the exact engine's: Lean checked these two sums for this input.
@@ -176,6 +182,8 @@ test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, 
     assert.deepEqual(run.words, [...expected]);
   }
   assert.equal(onGenerated.words.length, 1200);
+  assert.ok(onRendered.words, JSON.stringify(onRendered));
+  assert.deepEqual(onRendered.words, [...fixture.cpu, 0, 0]);
 
   // WGSL that is not the text its address names is refused before anything is dispatched.
   assert.equal(onAltered.code, 'webgpu.plan-refused');

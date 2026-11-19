@@ -9,7 +9,7 @@ export interface WebGpuPlan {
 export type Verdict = 'agree' | 'differ' | 'not-run';
 export const VERDICT: readonly Verdict[];
 export function kernelAddress(wgsl: string): string;
-export function kernelShape(wgsl: string): { bindings: { binding: number; access: 'read' | 'read_write' }[] | null; declared: number; workgroupSize: number };
+export function kernelShape(wgsl: string): { bindings: { binding: number; access: 'read' | 'read_write' }[] | null; declared: number; workgroupSize: number; overridesInvocations: boolean };
 export function planFacts(plan: WebGpuPlan, options?: { adapter?: boolean; limits?: { maxStorageBufferBindingSize?: number; maxComputeWorkgroupsPerDimension?: number } }): Record<string, number | string>;
 export function planAdmitted(facts: Record<string, number | string>): boolean;
 export function readbackFacts(words: number, bytes: ArrayBuffer): { expectedWords: number; readWords: number; trailingBytes: number };

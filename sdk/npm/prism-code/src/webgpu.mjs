@@ -12,7 +12,8 @@
  * written: buffer i is `array<u32>` at `@group(0) @binding(i)`; every `read_write` binding (any number of them) is an
  * output and is read back whole; the entry point is `main`; the workgroup size is the kernel's own
  * `@workgroup_size(n)` along x; the invocation index is `global_invocation_id.x`; stores are guarded by
- * `arrayLength`, so the spare invocations of the last workgroup write nothing.
+ * `arrayLength`; a rendered kernel declares `override invocations: u32;` and returns past it, and the bridge sets it to
+ * the plan's count, so the spare invocations of the last workgroup write nothing.
  */
 import { blake3Hex } from './blake3.mjs';
 import { PrismCodeError } from './errors.mjs';
@@ -48,7 +49,10 @@ export function kernelShape(wgsl) {
   declared.sort((a, b) => a.binding - b.binding);
   if (!declared.every((d, i) => d.binding === i)) regular = false;
   const size = /@workgroup_size\(\s*(\d+)\s*(?:,\s*1\s*(?:,\s*1\s*)?)?\)/.exec(wgsl);
-  return { bindings: regular ? declared : null, declared: declared.length, workgroupSize: size ? Number(size[1]) : 0 };
+  // A rendered kernel declares `override invocations: u32;` and returns early past it, so the padding invocations of
+  // the last workgroup write nothing; the host sets it when it creates the pipeline.
+  const overridesInvocations = /\boverride\s+invocations\s*:\s*u32\s*;/.test(wgsl);
+  return { bindings: regular ? declared : null, declared: declared.length, workgroupSize: size ? Number(size[1]) : 0, overridesInvocations };
 }
 
 /** The facts `planAdmitted` decides on, from a plan and the device's limits. */
@@ -111,7 +115,8 @@ export async function runPlan(plan, { gpu = globalThis.navigator?.gpu } = {}) {
   try {
     const facts = planFacts(plan, { adapter: true, limits: device.limits });
     if (!planAdmitted(facts)) throw new PrismCodeError('webgpu.plan-refused', `The plan for kernel ${plan.kernel} breaks a rule of model/webgpu-bridge, so nothing was dispatched.`, { facts });
-    const { bindings } = kernelShape(plan.wgsl);
+    const shape = kernelShape(plan.wgsl);
+    const { bindings } = shape;
     const words = plan.buffers.map((b) => Uint32Array.from(b));
     const S = globalThis.GPUBufferUsage;
     const layout = device.createBindGroupLayout({
@@ -119,7 +124,7 @@ export async function runPlan(plan, { gpu = globalThis.navigator?.gpu } = {}) {
     });
     device.pushErrorScope('validation');
     const module = device.createShaderModule({ code: plan.wgsl });
-    const pipeline = device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }), compute: { module, entryPoint: 'main' } });
+    const pipeline = device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }), compute: { module, entryPoint: 'main', ...(shape.overridesInvocations ? { constants: { invocations: plan.invocations } } : {}) } });
     const storage = words.map((w) => {
       const buffer = device.createBuffer({ size: w.byteLength, usage: S.STORAGE | S.COPY_SRC | S.COPY_DST });
       device.queue.writeBuffer(buffer, 0, w);

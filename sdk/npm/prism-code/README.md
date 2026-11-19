@@ -608,7 +608,8 @@ compare({ ran: true, planOk: true, readbackOk: true, cpu, gpu: outputs.get(3) })
 
 Layout: every buffer is `array<u32>` at `@group(0) @binding(i)`, entry `main`,
 `@workgroup_size(n)` along x, invocation index `global_invocation_id.x`, stores
-guarded by `arrayLength`. Refusals: `webgpu.plan-refused` (nothing dispatched),
+guarded by `arrayLength`; a kernel that declares `override invocations: u32;`
+has it set to the plan's count, so padding invocations write nothing. Refusals: `webgpu.plan-refused` (nothing dispatched),
 `webgpu.readback-refused`, `webgpu.unavailable`.
 
 ## Plugins and providers (experimental)
