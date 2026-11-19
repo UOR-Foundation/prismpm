@@ -143,8 +143,10 @@ const runInPage = (plans) => async (evaluate) =>
 /** Hardware first; a host the browser finds no adapter on runs SwiftShader. */
 async function runOnWebGpu(plans) {
   const first = await withChrome([], runInPage(plans));
-  if (first.some((r) => r.code === 'webgpu.unavailable')) return withChrome(['--use-webgpu-adapter=swiftshader'], runInPage(plans));
-  return first;
+  if (!first.some((r) => r.code === 'webgpu.unavailable')) return first;
+  // On Linux, Chrome reaches SwiftShader's WebGPU through its Vulkan backend.
+  const linux = process.platform === 'linux' ? ['--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'] : [];
+  return withChrome(['--use-webgpu-adapter=swiftshader', ...linux], runInPage(plans));
 }
 
 test('a 4-bit group-sum kernel gives the CPU\'s integers bit for bit on WebGPU, and a broken plan or kernel never agrees', { skip: CHROME ? false : 'no Chrome or Chromium: set PRISM_CHROME' }, async (t) => {
