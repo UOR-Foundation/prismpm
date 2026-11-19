@@ -5,7 +5,7 @@
 // With --store DIR, module results are kept in a store keyed by BLAKE3 label (src/store.mjs): an empty store is a
 // cold run, a filled one a warm run, where each module is checked again by the kernel instead of elaborated.
 // With --timings FILE, the run's times and peak memory are written there.
-//   node gate/run-wasm.mjs MANIFEST_DIR [--store DIR] [--timings FILE] Module=path ...
+//   node gate/run-wasm.mjs MANIFEST_DIR [--store DIR] [--timings FILE] [--budget-gib N] Module=path ...
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULT_BUDGET, openEngine, widthOf } from "../src/prover.mjs";
@@ -14,7 +14,7 @@ import { cachedCheck, storeResult } from "../src/store.mjs";
 const args = process.argv.slice(2);
 const dir = args.shift();
 const option = (name) => { const i = args.indexOf(name); if (i < 0) return null; const [, v] = args.splice(i, 2); return v; };
-const storeDir = option("--store"), timingsFile = option("--timings");
+const storeDir = option("--store"), timingsFile = option("--timings"), budgetGiB = option("--budget-gib");
 const specs = args;
 
 const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
@@ -33,7 +33,8 @@ const modules = [];
 // (src/prover.mjs). Half, because one module adds over a gigabyte and the engine traps at its ceiling, not at the
 // budget: eight modules in one engine reached 8 GiB and trapped. A restart drops /out, which later modules of the
 // same project import from, so what every earlier module wrote there is kept here and written back.
-const budget = DEFAULT_BUDGET[widthOf(manifest)] / 2;
+// --budget-gib N sets it for a host with less memory than the engine's own ceiling.
+const budget = budgetGiB ? Number(budgetGiB) * 2 ** 30 : DEFAULT_BUDGET[widthOf(manifest)] / 2;
 const EXTS = [".olean", ".olean.server", ".olean.private", ".ir"];
 const outPath = (module, ext) => `/out/${module.replaceAll(".", "/")}${ext}`;
 const written = new Map(); // /out path -> bytes, for every module so far

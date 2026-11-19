@@ -207,7 +207,7 @@ jobs:
           set +e
           sudo systemd-run --scope --quiet -p MemoryMax=4G -p MemorySwapMax=0 --uid="$(id -u)" --gid="$(id -g)" -- \
             "$(command -v node)" "$PWD/gate/run-wasm.mjs" "$g/manifest" --store "$g/store-node22" \
-            --timings "$g/timing-node22-cap4g.json" "${specs[@]}" > "$g/wasm-node22.jsonl"
+            --timings "$g/timing-node22-cap4g.json" --budget-gib 1.5 "${specs[@]}" > "$g/wasm-node22.jsonl"
           code=$?
           set -e
           echo "exit $code" | tee "$g/node22-cap4g-exit.txt"
