@@ -42,6 +42,18 @@ const emitAll = (text, change) => { const em = emitter(loadLibrary(k.libraryText
   check(same === 29, `${same} of them rest on exactly the axioms of Lean's own proof (the others must fall back)`);
 }
 {
+  // A Prism app: a loan approval's three guarantees, Boolean statements over a record with an if-chain inside.
+  const LX = "examples/loan-approval", declared = declaredAxioms(read(`${LX}/axioms.txt`)), text = read(`${LX}/LoanApprovalProofs.lean.txt`);
+  const em = emitter(loadLibrary(k.libraryText)); let n = 0, all = 0;
+  for (const th of readModule(text)) { all++; try { em.write(em.theorem(th)); n++; } catch {} }
+  const v = k.judge(em.lines()), ax = k.axioms(v.out), same = [...ax].filter(([name, a]) => a.join() === (declared.get(name) || []).join()).length;
+  check(all === 3 && n === 3 && v.exit === 0 && same === 3, `a Prism loan approval app: ${n} of ${all} guarantees proved here with no elaborator, kernel ${v.exit === 0 ? "accepts" : "refuses: " + v.last}, ${same} on exactly the declared axioms`);
+  const forged = emitter(loadLibrary(k.libraryText)), th = readModule(text)[0];
+  th.cert = { steps: [], fin: [1n, 1n] };
+  let refused = false; try { forged.write(forged.theorem(th)); refused = k.judge(forged.lines()).exit !== 0; } catch { refused = true; }
+  check(refused, "a loan guarantee with a forged certificate is refused");
+}
+{
   const packText = read(`${EX}/proofs.ndjson`), names = read(`${EX}/fallback.txt`).split("\n").filter(Boolean);
   const lib = loadLibrary(k.libraryText + packText), em = emitter(lib), t = em.bind(names[0]);
   em.write({ name: t.name, type: em.bind(names[1]).type, value: t.value });
