@@ -14,7 +14,7 @@ self.onmessage = async ({ data: { app } }) => {
     const t0 = now();
     if (!kernel) {
       const wasm = await gunzip("../../kernel/lean-kernel.wasm.gz");
-      baseText = new TextDecoder().decode(await gunzip("./base-library.ndjson.gz"));
+      baseText = new TextDecoder().decode(await gunzip("../../library/base.ndjson.gz"));
       const factory = (await import("../../kernel/lean-kernel.mjs")).default, lines = [];
       const m = await factory({ instantiateWasm: (imports, ok) => { WebAssembly.instantiate(wasm, imports).then((r) => ok(r.instance, r.module)); return {}; }, print: (s) => lines.push(s), printErr: (s) => lines.push(s) });
       if (m.ccall("checker_ready", "number", [], []) !== 0) throw new Error("kernel not ready");
