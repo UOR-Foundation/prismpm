@@ -17,6 +17,7 @@ import { Worker } from "node:worker_threads";
 import { blake3Label, checkEntry, ProverError, readAdmitted } from "./blob.mjs";
 import { gateAdmits } from "./gate.mjs";
 import { libraryLabel, unofficialInit } from "./library.mjs";
+import { checkNpmSection } from "./npm.mjs";
 import { cachedCheck, storeResult } from "./store.mjs";
 import { entrypointsOf, judge, judgedRows } from "./verdict.mjs";
 import { run as runWasi } from "./wasi.mjs";
@@ -54,6 +55,7 @@ export function checkManifest(manifest) {
   if (manifest.gate !== undefined && (typeof manifest.gate !== "string" || !LABEL.test(manifest.gate))) {
     fail("the manifest's gate is not a BLAKE3 label");
   }
+  if (manifest.npm !== undefined) checkNpmSection(manifest);
   return manifest;
 }
 

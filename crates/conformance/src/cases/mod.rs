@@ -461,7 +461,10 @@ pub fn run_at(root: &Path, id: &str) {
         "LP-03" => node_suite::verify_exact(
             root,
             id,
-            &[("sdk/npm/lean-prover/test/encoding.test.mjs", 1)],
+            &[
+                ("sdk/npm/lean-prover/test/encoding.test.mjs", 1),
+                ("sdk/npm/lean-prover/test/npm.test.mjs", 6),
+            ],
             "120000",
         ),
         "LP-04" => node_suite::verify_exact(

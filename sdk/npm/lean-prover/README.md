@@ -61,6 +61,24 @@ The manifest has schema `lean-wasm-prover/1`. Each entry is `{ path, kappa, byte
 
 Module results can be kept in a store keyed by BLAKE3 label (`prove({ project, store })`, `src/store.mjs`). A stored result is reused only after its blobs are relabelled and the kernel checks the module again.
 
+## From npm
+
+An agent's sandbox often reaches only the npm registry, so the same blobs also ship as npm packages (`src/npm.mjs`, specified in `spec/src/NpmShard.lex.tex`):
+- **Shard packages**, `@prism-code/lean-shard-<hex>@1.0.0`. Each holds blobs as `b/<hex>`, the decoded bytes named by their BLAKE3 label. The package itself is named by the label of its listing.
+- **One library package**, `@prism-code/lean-library-<hex>@1.0.0`. `<hex>` is the BLAKE3 label of the `manifest.json` it carries. It also carries the gate's attestation and the official Init listing, and depends on every shard at exactly `1.0.0`.
+
+Because each name is a label, a package never changes. npm checks each tarball's integrity, and the prover still re-derives each blob's label on read. Shards are capped at 64 MiB packed: npm publishes no tarball limit, and this stays well under the per-file limits other registries document.
+
+A host pins one label, the manifest's, and opens the prover with it:
+
+```js
+import { openInstalled } from "@prism-code/lean-prover/npm";
+// after: npm install @prism-code/lean-library-<hex>@1.0.0
+const prover = await openInstalled({ pin, from: "/path/to/project/package.json" });
+```
+
+The gate packs these packages (`gate/npm-pack.sh`) and holds each tarball to the cap. It never publishes them.
+
 ## In a browser
 
 `web/` holds a page and a worker that run the same engine in a tab. The worker fetches the manifest, admits every blob by the BLAKE3 label of its decoded bytes, and caches blobs in the tab's private store (OPFS). The page then elaborates the gate's corpus and compares each module with native Lean, declaration by declaration, with timings.

@@ -215,6 +215,19 @@ jobs:
           path: ${{ runner.temp }}/lean-prover/gate/manifest
           if-no-files-found: warn
           compression-level: 0
+      # The npm packages of the same manifest: shards named by the BLAKE3 label of their content, and the library
+      # package named by the label of its manifest. Packed, not published.
+      - name: Keep the npm packages
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-npm
+          path: |
+            ${{ runner.temp }}/lean-prover/gate/npm/tarballs
+            ${{ runner.temp }}/lean-prover/gate/npm/npm-packages.json
+            ${{ runner.temp }}/lean-prover/gate/npm/npm-sizes.json
+          if-no-files-found: warn
+          compression-level: 0
       - name: Keep the browser corpus
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
