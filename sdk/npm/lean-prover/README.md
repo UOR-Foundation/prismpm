@@ -43,7 +43,8 @@ The answer is `{ accepted, modules: [{ module, accepted, declarations: [{ name, 
   - Emscripten stubs;
   - a cooperative task manager;
   - C++ signatures that match the C Lean emits;
-  - a symbol table in place of `dlsym`.
+  - a symbol table in place of `dlsym`;
+  - full-width pointers from JavaScript in the 64-bit build (`EM_ASM_PTR` where Lean's `io.cpp` used `EM_ASM_INT`), so environment variables read above 4 GiB of heap are not truncated.
 
   It changes exactly one line under Lean's `src/kernel/`, the return type of `lean_kernel_diag_is_enabled`, and `xtask audit` refuses any other kernel change.
 - **The driver** (`Elab.lean`, `SymList.lean`). LexLean owns it; it is admitted only as the bytes its release publishes, pinned by BLAKE3 label. No Lean source is committed here.

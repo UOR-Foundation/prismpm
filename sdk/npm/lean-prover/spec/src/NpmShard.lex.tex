@@ -75,7 +75,7 @@ theorem{
   parameters: [s : Shard],
   statement: ((breaksCap s) = false),
   proof: linear_arithmetic{definitions: [breaksCap, named, publishable]},
-  axioms: [Classical.choice, Quot.sound, propext]
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -90,7 +90,7 @@ theorem{
   parameters: [s : Shard],
   statement: ((breaksNaming s) = false),
   proof: linear_arithmetic{definitions: [breaksNaming, named, servesBlob]},
-  axioms: [Classical.choice, Quot.sound, propext]
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}
