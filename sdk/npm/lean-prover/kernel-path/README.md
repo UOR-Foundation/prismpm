@@ -40,6 +40,9 @@ inequalities with conditionals, proved sound once. A certificate is a list of cu
 kernel evaluates the checker on it. Around that core, lemmas proved once turn each statement form into those
 inequalities or back: Boolean comparisons, equalities, division and remainder by a constant, naturals, bytes, pairs.
 Laws about folds are reduced by fusion lemmas, where induction is done once, to two obligations with no fold in them.
+A Boolean goal `b = false` is refuted from `b = true`: `&&` and `!` are taken apart, `Nat.blt`, `Nat.ble` and
+`Nat.beq` become inequalities, and a disequality or an `if c = true` is split both ways only when the search needs it.
+That is the shape of a Prism app's guarantees: `examples/loan-approval` has three, all proved here with no elaborator.
 
 The search (`src/emit.mjs`) is not trusted. A bug in it can fail to find a proof; it cannot make the kernel accept a
 false one.

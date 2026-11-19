@@ -328,6 +328,20 @@ export function emitter(lib) {
     const atom = (t) => { if (!atomIx.has(t)) { atomIx.set(t, atoms.length); atoms.push(t); } return R.v(atomIx.get(t)); };
     const fact = (a, b, proof) => facts.push({ pair: [a, b], proof });
     const lemma = (name, ...args) => apps(c0(RX + name), ...args);
+    // Booleans and natural-number comparisons, as Lean writes them.
+    const BoolT = () => c0("Bool");
+    const eqB = (x, v) => apps(E.const("Eq", [u1]), BoolT(), x, c0(v ? "Bool.true" : "Bool.false"));
+    const ltN = (x, y) => apps(E.const("LT.lt", [L.zero]), NatC(), c0("instLTNat"), x, y), leN = (x, y) => apps(E.const("LE.le", [L.zero]), NatC(), c0("instLENat"), x, y);
+    const eqN = (x, y) => apps(E.const("Eq", [u1]), NatC(), x, y);
+    // Case splits a fact needs, taken only if the search fails without them: `or` proves P ∨ N, and `also(h)` lists
+    // what else each side gives, as [proposition, proof] pairs.
+    const splits = [];
+    const split = (or, P, N, alsoP = () => [], alsoN = () => []) => splits.push({ kind: "or", or, P, N, alsoP, alsoN });
+    // What an unknown is known to satisfy by itself (a natural is non-negative, a byte is in range, an `if` may be
+    // split) holds on every branch of a case split, wherever it was first met: kept here, given to every search.
+    const intrinsic = [], intrinsicSplits = [];
+    const factI = (a, b, proof) => { const f = { pair: [a, b], proof }; facts.push(f); intrinsic.push(f); };
+    const splitI = (...args) => { split(...args); intrinsicSplits.push(splits[splits.length - 1]); };
     const yes = () => apps(E.const("Eq.refl", [u1]), c0("Bool"), c0("Bool.true")), no = () => apps(E.const("Eq.refl", [u1]), c0("Bool"), c0("Bool.false"));
     const litOf = (t, ty) => { const [h, a] = spine(t); return h.k === "const" && h.name === "OfNat.ofNat" && a.length === 3 && a[0] === c0(ty) && a[1].k === "nat" ? BigInt(a[1].n) : null; };
     const negLitOf = (t, ty) => { const [h, a] = spine(t); return h.k === "const" && h.name === "Neg.neg" && a.length === 3 && a[0] === c0(ty) && litOf(a[2], ty) !== null ? -litOf(a[2], ty) : null; };
@@ -419,7 +433,7 @@ export function emitter(lib) {
         if (l.op === "lit") return R.mul(l.n, r); if (r.op === "lit") return R.mulr(l, r.n);
       }
       const fo = asFold(n);
-      if (fo && isType(fo.acc, "Nat") && !atomIx.has(view)) { const v = atom(view); fact(R.k(0n), v, lemma("nat_nonneg", n)); foldFacts(n, fo, "Nat"); return v; }
+      if (fo && isType(fo.acc, "Nat") && !atomIx.has(view)) { const v = atom(view); factI(R.k(0n), v, lemma("nat_nonneg", n)); foldFacts(n, fo, "Nat"); return v; }
       const isDiv = h.k === "const" && ((h.name === "LexLeanRuntime.quotient" && a.length === 5) || (h.name === "HDiv.hDiv" && a.length === 6)), isMod = h.k === "const" && ((h.name === "LexLeanRuntime.remainder" && a.length === 5) || (h.name === "HMod.hMod" && a.length === 6));
       if ((isDiv || isMod) && isType(a[0], "Nat")) {
         const runtime = a.length === 5, l = runtime ? a[2] : a[4], kT = runtime ? a[3] : a[5], k = intR(ofNat(kT));
@@ -430,14 +444,26 @@ export function emitter(lib) {
             const dT = apps(c0("Nat.div"), l, kT), mT = apps(c0("Nat.mod"), l, kT), q = atom(ofNat(dT)), m = atom(ofNat(mT));
             sites.set(id, { nat: true, q, m });
             const L = intR(ofNat(l)), kq = R.add(R.mul(k.n, q), m);
-            fact(R.k(0n), q, lemma("nat_nonneg", dT)); fact(R.k(0n), m, lemma("nat_nonneg", mT));
+            factI(R.k(0n), q, lemma("nat_nonneg", dT)); factI(R.k(0n), m, lemma("nat_nonneg", mT));
             fact(L, kq, lemma("nat_divmod_le", l, kT)); fact(kq, L, lemma("nat_divmod_ge", l, kT));
             fact(m, R.k(k.n - 1n), lemma("nat_mod_hi", l, kT, yes()));
           }
           return isDiv ? sites.get(id).q : sites.get(id).m;
         }
       }
-      if (!atomIx.has(view)) { const v = atom(view); fact(R.k(0n), v, lemma("nat_nonneg", n)); return v; }
+      // `if c = true then t else e` with c a Boolean: an unknown, and c is taken both ways when the search needs it.
+      if (h.k === "const" && h.name === "ite" && a.length === 5 && isType(a[0], "Nat") && !atomIx.has(view)) {
+        const [eq, ea] = spine(a[1]);
+        if (eq.k === "const" && eq.name === "Eq" && ea.length === 3 && isType(ea[0], "Bool") && ea[2] === c0("Bool.true")) {
+          const v = atom(view), c = ea[1];
+          factI(R.k(0n), v, lemma("nat_nonneg", n));
+          splitI(lemma("bool_cases", c), eqB(c, true), eqB(c, false),
+            (hc) => [[eqN(n, a[3]), lemma("ite_t", NatC(), c, a[3], a[4], hc)]],
+            (hc) => [[eqN(n, a[4]), lemma("ite_f", NatC(), c, a[3], a[4], hc)]]);
+          return v;
+        }
+      }
+      if (!atomIx.has(view)) { const v = atom(view); factI(R.k(0n), v, lemma("nat_nonneg", n)); return v; }
       return atom(view);
     }
     // A byte x, read as an integer: its range is known.
@@ -445,7 +471,7 @@ export function emitter(lib) {
       const [lo, min, hi, max] = ranges[ty];
       let lit = litOf(x, ty); if (lit === null) lit = negLitOf(x, ty);
       if (lit !== null) return lit >= min && lit <= max ? R.k(lit) : fail("unsupported: a literal out of range");
-      if (!atomIx.has(view)) { const v = atom(view); fact(R.k(min), v, lemma(lo, x)); fact(v, R.k(max), lemma(hi, x)); return v; }
+      if (!atomIx.has(view)) { const v = atom(view); factI(R.k(min), v, lemma(lo, x)); factI(v, R.k(max), lemma(hi, x)); return v; }
       return atom(view);
     }
     const views = { Int: (t) => t, Nat: (t) => E.app(c0("Int.ofNat"), t), UInt8: (t) => E.app(c0("Int.ofNat"), E.app(c0("UInt8.toNat"), t)), Int8: (t) => E.app(c0("Int8.toInt"), t) };
@@ -488,6 +514,24 @@ export function emitter(lib) {
         hypothesis(eqAt(ty[0], part("Prod.fst", ty, a[1]), part("Prod.fst", ty, a[2])), lemma("pair_fst", ty[0], ty[1], a[1], a[2], h));
         return hypothesis(eqAt(ty[1], part("Prod.snd", ty, a[1]), part("Prod.snd", ty, a[2])), lemma("pair_snd", ty[0], ty[1], a[1], a[2], h));
       }
+      // A Boolean fact: `&&` and `!` taken apart, natural-number comparisons read as inequalities, a disequality or a
+      // false `&&` split. Any other Boolean fact says nothing the checker can use, and is kept out.
+      if (g.k === "const" && g.name === "Eq" && a.length === 3 && isType(a[0], "Bool") && (a[2] === c0("Bool.true") || a[2] === c0("Bool.false"))) {
+        const truth = a[2] === c0("Bool.true"), [e, b] = spine(a[1]);
+        if (e.k !== "const") return;
+        if (e.name === "Bool.and" && b.length === 2) {
+          if (truth) { hypothesis(eqB(b[0], true), lemma("band_l", b[0], b[1], h)); return hypothesis(eqB(b[1], true), lemma("band_r", b[0], b[1], h)); }
+          return split(lemma("band_f", b[0], b[1], h), eqB(b[0], false), eqB(b[1], false));
+        }
+        if (e.name === "Bool.not" && b.length === 1) return hypothesis(eqB(b[0], !truth), lemma(truth ? "bnot_t" : "bnot_f", b[0], h));
+        if (e.name === "Nat.blt" && b.length === 2) return hypothesis(truth ? ltN(b[0], b[1]) : leN(b[1], b[0]), lemma(truth ? "nat_blt_t" : "nat_blt_f", b[0], b[1], h));
+        if (e.name === "Nat.ble" && b.length === 2) return hypothesis(truth ? leN(b[0], b[1]) : ltN(b[1], b[0]), lemma(truth ? "nat_ble_t" : "nat_ble_f", b[0], b[1], h));
+        if (e.name === "Nat.beq" && b.length === 2) {
+          if (truth) return hypothesis(eqN(b[0], b[1]), lemma("nat_beq_t", b[0], b[1], h));
+          return split(lemma("nat_beq_f", b[0], b[1], h), ltN(b[0], b[1]), ltN(b[1], b[0]));
+        }
+        return;
+      }
       fail("unsupported: this form of hypothesis");
     }
     // What the goal needs, before any searching: its inequalities are reified so that every atom is known.
@@ -507,6 +551,8 @@ export function emitter(lib) {
         const ty = pairOf(a[0]);
         return { parts: [plan(eqAt(ty[0], part("Prod.fst", ty, a[1]), part("Prod.fst", ty, a[2]))), plan(eqAt(ty[1], part("Prod.snd", ty, a[1]), part("Prod.snd", ty, a[2])))], join: (x, y) => lemma("pair_ext", ty[0], ty[1], a[1], a[2], x, y) };
       }
+      // `b = false`, for a Boolean b: refuted from b = true.
+      if (g.k === "const" && g.name === "Eq" && a.length === 3 && isType(a[0], "Bool") && a[2] === c0("Bool.false")) return { boolFalse: a[1] };
       fail("unsupported: this form of goal");
     }
     const hyps = [];
@@ -601,10 +647,13 @@ export function emitter(lib) {
       ? apps(c0(RX + "Cert.leaf"), list(stepT, c.leaf.steps.map((s) => apps(E.const("Prod.mk", [L.zero, L.zero]), natList, NatT(), nats(s.ks), E.nat(s.g)))), nats(c.leaf.fin))
       : apps(c0(RX + "Cert.split"), quoteCert(c.t), quoteCert(c.f));
     const tree = (xs) => { if (!xs.length) return c0(RX + "Env.leaf"); const rest = xs.slice(1); return apps(c0(RX + "Env.node"), tree(rest.filter((_, i) => i % 2 === 0)), xs[0], tree(rest.filter((_, i) => i % 2 === 1))); };
-    const rho = tree(atoms);
+    // The environment is written once all atoms are known: a case split may meet new ones. Until then it is a
+    // placeholder, replaced at the end; an atom keeps its index, so every leaf reads the same values.
+    const rho = E.fvar("ρ", c0(RX + "Env"));
     const denote = (e) => apps(c0(RX + "Expr.denote"), rho, quote(e));
     // One inequality from the facts in hand. If no certificate is found, the sign of a dividend is taken both ways.
-    function core(pair, known, unsplit) {
+    function core(pair, known, unsplit, taken = new Set()) {
+      known = [...known, ...intrinsic.filter((f) => !known.includes(f))];
       let cert;
       try {
         cert = search(known.map((f) => f.pair), pair);
@@ -616,6 +665,21 @@ export function emitter(lib) {
       }
       catch (e) {
         if (!unsplit.length || th.cert) throw e;
+        if (unsplit[0].kind === "or") {
+          // A Boolean case split: each side adds its own facts, and may need further splits of its own.
+          const [s, ...rest] = unsplit, hp = E.fvar("h", s.P), hn = E.fvar("h", s.N);
+          const side = (P, hv, also) => {
+            const f0 = facts.length, s0 = splits.length;
+            hypothesis(P, hv);
+            for (const [Q, q] of also(hv)) hypothesis(Q, q);
+            const more = facts.splice(f0), next = splits.splice(s0), path = new Set([...taken, s]);
+            const queue = [...next, ...rest];
+            for (const t of intrinsicSplits) if (!path.has(t) && !queue.includes(t)) queue.push(t);
+            return core(pair, [...known, ...more], queue, path);
+          };
+          const pos = side(s.P, hp, s.alsoP), neg = side(s.N, hn, s.alsoN);
+          return apps(c0("Or.elim"), s.P, s.N, T.le(denote(pair[0]), denote(pair[1])), s.or, E.lam("h", s.P, abstract(pos, hp)), E.lam("h", s.N, abstract(neg, hn)));
+        }
         const [s, ...rest] = unsplit, zero = T.lit(0n), P = T.le(zero, s.e), N = T.le(s.e, zero), hp = E.fvar("h", P), hn = E.fvar("h", N);
         const pos = core(pair, [...known, { pair: [R.k(0n), s.E], proof: hp }, { pair: [R.k(0n), s.r], proof: lemma("rem_nonneg", s.e, s.kTerm, hp) }], rest);
         const neg = core(pair, [...known, { pair: [s.E, R.k(0n)], proof: hn }, { pair: [s.r, R.k(0n)], proof: lemma("rem_nonpos", s.e, s.kTerm, hn) }], rest);
@@ -647,12 +711,21 @@ export function emitter(lib) {
     }
     const build = (p) => {
       if (p.closed) return p.closed;
+      if (p.boolFalse) {
+        // From b = true, the facts it gives refute 1 <= 0.
+        const P = eqB(p.boolFalse, true), hv = E.fvar("h", P);
+        const f0 = facts.length, s0 = splits.length;
+        hypothesis(P, hv);
+        const mine = facts.splice(f0), more = splits.splice(s0);
+        const absurd = lemma("one_le_zero_false", core([R.k(1n), R.k(0n)], [...facts, ...mine], [...more, ...signSites]));
+        return lemma("bfalse_of", p.boolFalse, E.lam("h", P, abstract(absurd, hv)));
+      }
       if (p.and) return apps(c0("And.intro"), p.args[0], p.args[1], build(p.and[0]), build(p.and[1]));
       if (p.deferred) return fusion(p.P, p.deferred);
       if (p.parts) return p.join(build(p.parts[0]), build(p.parts[1]));
       try { return p.wrap(p.cores.map((c) => core(c, facts, signSites))); } catch (e) { if (th.cert) throw e; return fusion(p.P, e); }
     };
-    const proof = build(goalPlan);
+    const proof = map(build(goalPlan), (n) => (n === rho ? tree(atoms) : null));
     let value = under(proof, fvs.length);
     for (let i = fvs.length - 1; i >= 0; i--) value = E.lam(fvs[i].name, under(fvs[i].type, i), value);
     if (!th.sub) lib.decls.set(th.name, { levelParams: [], type: S });
@@ -754,6 +827,7 @@ export function emitter(lib) {
       case "lam": o = { lam: { name: nameIx(e.name), type: exprIx(e.type), body: exprIx(e.body), binderInfo: e.bi } }; break;
       case "pi": o = { forallE: { name: nameIx(e.name), type: exprIx(e.type), body: exprIx(e.body), binderInfo: e.bi } }; break;
       case "nat": o = { natVal: String(e.n) }; break;
+      case "proj": o = { proj: { typeName: nameIx(e.typeName), idx: e.idx, struct: exprIx(e.struct) } }; break;
       default: fail(`cannot write ${e.k}: an unsolved goal or a local escaped`);
     }
     const ix = ++nIe; out.push(JSON.stringify({ ie: ix, ...o })); newExpr.set(e, ix); return ix;

@@ -32,14 +32,14 @@
    "bytes": 62389
   },
   "library/library.ndjson": {
-   "kappa": "blake3:0051b2367c634a30c6bd4e84956b2c5827550fe5107b669fe4bb6c33c00519fd",
-   "bytes": 7651174,
+   "kappa": "blake3:5f37645d4994cca8cef25c08f6942c945823070d63fad02cce6e05b4dd125c3e",
+   "bytes": 7705586,
    "file": "library/library.ndjson.gz",
    "encoding": "gzip"
   },
   "src/emit.mjs": {
-   "kappa": "blake3:4bbec77d590bbaccedcad064622e82bab0eb7717cc27499985fe95112226f7f4",
-   "bytes": 56366
+   "kappa": "blake3:f33bac4a27c7e339acf468fb977f85b78f9986f11c180acda178bf993fc34f64",
+   "bytes": 62127
   },
   "src/store.mjs": {
    "kappa": "blake3:f0ac5293141ef20523abeeb37197a2de21d4d2e33486be715cad02f5f4586115",
