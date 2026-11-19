@@ -70,6 +70,11 @@ export LEAN_SYSROOT LEAN_PATH
 LEAN_SYSROOT=$("$LEAN_BIN/lean" --print-prefix)
 LEAN_PATH=$rt
 
+# The manifest and its blobs, as soon as the engine and the library exist, so a browser trial has them even
+# if a later step fails.
+node "$pkg/scripts/make-manifest.mjs" --sysroot "$LEAN_SYSROOT" --runtime "$rt" --engine "$WORK/dist" \
+  --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
+
 # The corpus: each project rendered natively, its modules in elaboration order.
 corpus_dirs=()
 n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["corpus"]))' "$pkg/engine.lock.json")
@@ -93,9 +98,13 @@ ELAB=$WORK/driver/.lake/build/bin/elab
 mapfile -t specs < "$out/corpus.txt"
 "$ELAB" --resident "$out/native-out" "${specs[@]}" > "$out/native.jsonl"
 
-# The manifest, then the engine on the same modules in the same order.
-node "$pkg/scripts/make-manifest.mjs" --sysroot "$LEAN_SYSROOT" --runtime "$rt" --engine "$WORK/dist" \
-  --lexlean "$ll/lexlean.wasm" --semantics "$semantics" --out "$out/manifest"
+# The browser corpus: each module's rendered Lean as <Module>.lean, their order, and native Lean's answers.
+mkdir -p "$out/browser-corpus"
+for spec in "${specs[@]}"; do cp "${spec#*=}" "$out/browser-corpus/${spec%%=*}.lean"; done
+node -e 'console.log(JSON.stringify(require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter(Boolean).map((l) => l.slice(0, l.indexOf("=")))))' "$out/corpus.txt" > "$out/browser-corpus/modules.json"
+cp "$out/native.jsonl" "$out/browser-corpus/native.jsonl"
+
+# The engine on the same modules in the same order.
 # The official release's Init files by label, as elan installed them from the release, for the library check.
 node --input-type=module -e '
   import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"; import { join, relative } from "node:path";

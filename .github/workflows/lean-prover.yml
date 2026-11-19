@@ -159,6 +159,12 @@ jobs:
             ${{ runner.temp }}/lean-prover/dist
             ${{ runner.temp }}/lean-prover/driver/.lake/build/bin/elab
           key: lean-prover-engine-${{ steps.label.outputs.label }}
+      - name: Keep the engine
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-engine
+          path: ${{ runner.temp }}/lean-prover/dist
+          if-no-files-found: error
 
   gate:
     name: corpus gate (WASM equals native)
@@ -197,6 +203,23 @@ jobs:
           mapfile -t specs < "$WORK/gate/corpus.txt"
           node gate/run-wasm.mjs "$WORK/gate/manifest" "${specs[@]}" > "$WORK/gate/wasm-node22.jsonl"
           node gate/agree.mjs "$WORK/gate/native.jsonl" "$WORK/gate/wasm-node22.jsonl" | tee "$WORK/gate/agree-node22.txt"
+      # The manifest (lean-wasm-prover/1) and every blob gzip-encoded under the BLAKE3 label of its decoded bytes:
+      # the engine, its loader, LexLean's WASI build, Init and LexLean's runtime. A tab or a Node host loads it as is.
+      - name: Keep the manifest and its blobs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-library
+          path: ${{ runner.temp }}/lean-prover/gate/manifest
+          if-no-files-found: warn
+          compression-level: 0
+      - name: Keep the browser corpus
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-prover-browser-corpus
+          path: ${{ runner.temp }}/lean-prover/gate/browser-corpus
+          if-no-files-found: warn
       - name: Keep the gate's evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

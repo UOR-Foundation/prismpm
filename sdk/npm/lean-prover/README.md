@@ -61,6 +61,18 @@ The manifest has schema `lean-wasm-prover/1`. Each entry is `{ path, kappa, byte
 
 Module results can be kept in a store keyed by BLAKE3 label (`prove({ project, store })`, `src/store.mjs`). A stored result is reused only after its blobs are relabelled and the kernel checks the module again.
 
+## In a browser
+
+`web/` holds a page and a worker that run the same engine in a tab. The worker fetches the manifest, admits every blob by the BLAKE3 label of its decoded bytes, and caches blobs in the tab's private store (OPFS). The page then elaborates the gate's corpus and compares each module with native Lean, declaration by declaration, with timings.
+
+CI's gate job keeps the two folders the page needs, as artifacts:
+- `lean-prover-library`: the manifest and its blobs;
+- `lean-prover-browser-corpus`: the rendered modules, their order, and native Lean's answers.
+
+```sh
+node web/serve.mjs path/to/lean-prover-library path/to/lean-prover-browser-corpus
+```
+
 ## Building the engine
 
 ```sh

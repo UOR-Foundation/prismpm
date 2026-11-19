@@ -90,12 +90,13 @@ async function open(base) {
   startPool();
   let t = now();
   const manifest = await (await fetch(`${base}/manifest.json`)).json();
-  const [glue, wasm] = await Promise.all([fetchChecked(base, manifest.engine["lean-elab.mjs"]), fetchChecked(base, manifest.engine["lean-elab.wasm"])]);
+  if (manifest.schema !== "lean-wasm-prover/1") return { ok: false, refusal: `the manifest is not lean-wasm-prover/1` };
+  const [glue, wasm] = await Promise.all([fetchChecked(base, manifest.engine.loader), fetchChecked(base, manifest.engine.wasm)]);
   timings.engineMs = Math.round(now() - t);
   t = now();
   // Every library file, fetched in parallel and checked by BLAKE3 label, then written where Lean's search path looks.
   const files = [];
-  const queue = [...manifest.files];
+  const queue = [...manifest.library];
   let mb = 0;
   await Promise.all(Array.from({ length: 16 }, async () => {
     for (let e; (e = queue.shift()); ) { files.push([e.path, await fetchChecked(base, e)]); mb += e.bytes / 1048576; }

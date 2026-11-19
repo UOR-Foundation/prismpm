@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Elaborator in a tab</title>
+<title>Lean prover in a tab</title>
 <style>
   :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --ok: #1a7f37; --bad: #c62828; --line: #e3e3e3; }
   @media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #e8e8e8; --muted: #9a9a9a; --ok: #4cc06a; --bad: #ff6b6b; --line: #2c2c2c; } }
@@ -19,13 +19,14 @@
 <p id="status">Opening the worker…</p>
 <table><thead><tr><th>Module</th><th>Result</th><th>Declarations</th><th>Time</th></tr></thead><tbody id="rows"></tbody></table>
 <script type="module">
-const MODULES = ["Spike.Tactics", "Leap.Leap", "PrismForgeKernel.InTabKernel", "FoldLaws.Folds", "FoldLaws.Kernels", "FoldLaws.Main"];
+// The gate's corpus, in elaboration order, and native Lean's answers for it (gate/run-gate.sh writes both).
+const MODULES = await (await fetch("/corpus/modules.json")).json();
 const status = document.getElementById("status"), rows = document.getElementById("rows");
 const worker = new Worker("./elab-worker.mjs", { type: "module" });
 let pending = null;
 worker.onmessage = ({ data }) => { const p = pending; pending = null; p?.(data); };
 const ask = (msg, transfer) => new Promise((r) => { pending = r; worker.postMessage(msg, transfer ?? []); });
-const native = Object.fromEntries((await (await fetch("/native.jsonl")).text()).split("\n").filter((l) => l.startsWith("{")).map((l) => { const j = JSON.parse(l); return [j.module, j]; }));
+const native = Object.fromEntries((await (await fetch("/corpus/native.jsonl")).text()).split("\n").filter((l) => l.startsWith("{")).map((l) => { const j = JSON.parse(l); return [j.module, j]; }));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const opened = await ask({ op: "open", base: "/lib" });
 window.result = { opened, modules: [] };
