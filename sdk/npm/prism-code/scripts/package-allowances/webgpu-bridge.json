@@ -1,0 +1,4 @@
+{
+  "kib": 11,
+  "reason": "The WebGPU bridge (step S5d, DK-48): src/webgpu.mjs admits a guest's kernel plan by the rules of model/webgpu-bridge, dispatches it on WebGPU and reads back its u32 buffers, about 9 KiB, and its types, about 1.7 KiB."
+}

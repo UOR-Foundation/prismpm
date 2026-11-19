@@ -591,6 +591,26 @@ HOLOVIEW mounting needs an intent service worker and is not in this release.
 browsers/edge hosts. The `browser` field excludes `/node` for bundlers;
 browser `load` fetches paths as URLs.
 
+## WebGPU bridge (experimental)
+
+A guest never calls the GPU; it answers a plan, and the host runs it.
+`prism-code/webgpu` runs WGSL emitted by LexLean's `Kernel` module on WebGPU
+and reads back its u32 buffers, so CPU and GPU integers can be compared word
+for word. The rules it admits a plan, a readback and a verdict by are
+`model/webgpu-bridge`, which Lean proves (DK-48).
+
+```js
+import { runPlan, compare, kernelAddress } from 'prism-code/webgpu';
+const plan = { wgsl, kernel: kernelAddress(wgsl), invocations, buffers }; // one u32 array per @binding
+const { outputs } = await runPlan(plan); // Map: read_write binding -> Uint32Array
+compare({ ran: true, planOk: true, readbackOk: true, cpu, gpu: outputs.get(3) }).verdict; // 'agree'
+```
+
+Layout: every buffer is `array<u32>` at `@group(0) @binding(i)`, entry `main`,
+`@workgroup_size(n)` along x, invocation index `global_invocation_id.x`, stores
+guarded by `arrayLength`. Refusals: `webgpu.plan-refused` (nothing dispatched),
+`webgpu.readback-refused`, `webgpu.unavailable`.
+
 ## Plugins and providers (experimental)
 
 `prism-<name>` on PATH runs as `prism-code <name>`, preserving args/exit.
