@@ -163,5 +163,56 @@ theorem{
   proof: linear_arithmetic{definitions: [breaksCacheBound, cacheAfterInsert]},
   axioms: [Quot.sound, propext]
 }
+
+structure{
+  name: Manifest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: engineWidth, type: Nat}, {name: libraryWidth, type: Nat}, {name: gateWidth, type: Nat}]
+}
+
+definition{
+  name: widthsMatch,
+  parameters: [m : Manifest],
+  result: Bool,
+  body: (((project m engineWidth) =? (project m libraryWidth)) && ((project m gateWidth) =? (project m engineWidth)))
+}
+
+definition{
+  name: breaksWidthMatch,
+  parameters: [m : Manifest],
+  result: Bool,
+  body: ((widthsMatch m) && ((not ((project m libraryWidth) =? (project m engineWidth))) || (not ((project m gateWidth) =? (project m engineWidth)))))
+}
+
+theorem{
+  name: anEngineNeverReadsALibraryOrGateOfAnotherWidth,
+  parameters: [m : Manifest],
+  statement: ((breaksWidthMatch m) = false),
+  proof: linear_arithmetic{definitions: [breaksWidthMatch, widthsMatch]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: storedCopies,
+  parameters: [a : Blob, b : Blob],
+  result: Nat,
+  body: (if ((project a decodedLabel) =? (project b decodedLabel)) then 1 else 2)
+}
+
+definition{
+  name: breaksSharing,
+  parameters: [a : Blob, b : Blob],
+  result: Bool,
+  body: ((((project a decodedLabel) =? (project b decodedLabel)) && (not ((storedCopies a b) =? 1))) || ((not ((project a decodedLabel) =? (project b decodedLabel))) && ((storedCopies a b) =? 1)))
+}
+
+theorem{
+  name: twoBuildsShareABlobExactlyWhenItsLabelIsTheSame,
+  parameters: [a : Blob, b : Blob],
+  statement: ((breaksSharing a b) = false),
+  proof: linear_arithmetic{definitions: [breaksSharing, storedCopies]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

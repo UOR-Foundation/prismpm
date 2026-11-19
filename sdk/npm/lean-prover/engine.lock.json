@@ -67,6 +67,11 @@
     "build/gen-symtab.py",
     "build/wasm-entry.c"
   ],
+  "engine32_inputs": [
+    "build/build-engine32.sh",
+    "build/build-init32.sh",
+    "build/sysroot32.sh"
+  ],
   "corpus": [
     {
       "name": "tactics",

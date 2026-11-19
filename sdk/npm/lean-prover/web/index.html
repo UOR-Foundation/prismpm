@@ -28,25 +28,37 @@ worker.onmessage = ({ data }) => { const p = pending; pending = null; p?.(data);
 const ask = (msg, transfer) => new Promise((r) => { pending = r; worker.postMessage(msg, transfer ?? []); });
 const native = Object.fromEntries((await (await fetch("/corpus/native.jsonl")).text()).split("\n").filter((l) => l.startsWith("{")).map((l) => { const j = JSON.parse(l); return [j.module, j]; }));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const opened = await ask({ op: "open", base: "/lib" });
-window.result = { opened, modules: [] };
+// ?width=auto (default), 64 or 32; ?run=NAME posts the result to /report/NAME when done (gate/browsers.mjs).
+const params = new URLSearchParams(location.search);
+const started = performance.now();
+const opened = await ask({ op: "open", base: "/lib", base32: "/lib32", width: params.get("width") ?? "auto" });
+window.result = { userAgent: navigator.userAgent, opened, modules: [] };
+const report = async () => {
+  if (!params.get("run")) return;
+  try { await fetch(`/report/${encodeURIComponent(params.get("run"))}`, { method: "POST", body: JSON.stringify(window.result) }); } catch {}
+};
+if (!opened.ok) { window.result.done = true; await report(); }
 if (!opened.ok) { status.textContent = "Refused: " + opened.refusal; status.className = "bad"; throw new Error(opened.refusal); }
 const t = opened.timings;
-status.textContent = `Open: ${opened.files} library files, ${opened.mb} MB, each checked by its BLAKE3 label (${t.storeHits} from this tab's store, ${t.storeMisses} fetched). Engine ${t.engineMs} ms, library ${t.libraryMs} ms (reading ${t.fetchMs} ms, decoding ${t.decodeMs} ms and hashing ${t.hashMs} ms, summed), instantiate ${t.instantiateMs} ms, initialize ${t.initializeMs} ms. Heap ${opened.heapMB} MB.`;
+status.textContent = `Open (${opened.width}-bit): ${opened.files} library files, ${opened.mb} MB, each checked by its BLAKE3 label (${t.storeHits} from this tab's store, ${t.storeMisses} fetched). Engine ${t.engineMs} ms, library ${t.libraryMs} ms (reading ${t.fetchMs} ms, decoding ${t.decodeMs} ms and hashing ${t.hashMs} ms, summed), instantiate ${t.instantiateMs} ms, initialize ${t.initializeMs} ms. Heap ${opened.heapMB} MB.`;
 for (const m of MODULES) {
   const text = await (await fetch(`/corpus/${m}.lean`)).text();
   await ask({ op: "source", path: `/src/${m}.lean`, text });
   const r = await ask({ op: "elaborate", id: m, module: m, path: `/src/${m}.lean` });
   const a = r.answer ?? {}, n = native[m] ?? {};
   const agree = !r.error && a.elaborated && a.replayRefused === null && same(a.decls, n.decls);
-  window.result.modules.push({ module: m, agree, error: r.error ?? null, declarations: a.declarations, elabMs: a.elabMs, replayMs: a.replayMs, totalMs: r.ms, heapMB: r.heapMB });
+  window.result.modules.push({ module: m, agree, error: r.error ?? null, declarations: a.declarations, elabMs: a.elabMs, replayMs: a.replayMs, totalMs: r.ms, heapMB: r.heapMB, peakHeapMB: r.peakHeapMB });
   const tr = rows.insertRow();
   tr.insertCell().innerHTML = `<code>${m}</code>`;
   const c = tr.insertCell(); c.textContent = r.error ? r.error : agree ? "agrees with native" : "differs from native"; c.className = agree ? "ok" : "bad";
   tr.insertCell().textContent = a.declarations ?? "–";
   tr.insertCell().textContent = `${r.ms} ms (elaborate ${a.elabMs ?? "–"}, kernel ${a.replayMs ?? "–"})`;
 }
+window.result.totalMs = Math.round(performance.now() - started);
+window.result.agree = window.result.modules.length === MODULES.length && window.result.modules.every((m) => m.agree);
+window.result.peakHeapMB = Math.max(opened.peakHeapMB ?? 0, ...window.result.modules.map((m) => m.peakHeapMB ?? 0));
 window.result.done = true;
+await report();
 </script>
 </body>
 </html>

@@ -7,6 +7,7 @@
 //   { op: "write", path, bytes }                          -> { ok }
 //   { op: "read", path }                                  -> { bytes } | { bytes: null }
 //   { op: "request", request }                            -> { answer }   the driver's JSON (`serve` in driver/Elab.lean)
+//   { op: "heap" }                                        -> { heapBytes }  the engine's memory, which never shrinks
 import { parentPort } from "node:worker_threads";
 
 let lean = null;
@@ -50,7 +51,8 @@ parentPort.on("message", async ({ id, ...data }) => {
       reply = { bytes };
     } else if (data.op === "request") {
       reply = { answer: JSON.parse(lean.ccall("elab_request", "string", ["string"], [JSON.stringify(data.request)])) };
-    } else reply = { error: `unknown op ${data.op}` };
+    } else if (data.op === "heap") reply = { heapBytes: lean.HEAPU8.length };
+    else reply = { error: `unknown op ${data.op}` };
     parentPort.postMessage({ id, ...reply });
   } catch (e) {
     parentPort.postMessage({ id, error: "the engine failed: " + (e && e.message ? e.message : String(e)) });

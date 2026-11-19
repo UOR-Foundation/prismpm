@@ -16,5 +16,13 @@ export function gateAdmits(manifest, attestation) {
   }
   if (attestation.library !== libraryLabel(manifest)) return { admitted: false, why: "the gate admitted another library" };
   if (attestation.lexlean?.wasm !== manifest.lexlean.wasm.kappa) return { admitted: false, why: "the gate admitted another LexLean" };
+  // BlobLabel.widthsMatch: the engine, its library and its gate are of one width.
+  const width = manifest.width ?? 64;
+  if ((attestation.width ?? 64) !== width) return { admitted: false, why: `the gate admitted a ${attestation.width ?? 64}-bit build, not a ${width}-bit one` };
+  // A 32-bit Init is its own build's: admitted only when every Init declaration equals the release's.
+  if (width === 32) {
+    const init = attestation.init;
+    if (!init || !(init.declarations > 0) || init.disagreements !== 0) return { admitted: false, why: "the gate did not attest that the 32-bit Init equals the release's" };
+  }
   return { admitted: true };
 }

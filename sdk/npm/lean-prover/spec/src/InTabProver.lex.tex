@@ -88,5 +88,147 @@ theorem{
   proof: reflexivity{},
   axioms: []
 }
+
+structure{
+  name: Host,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: memory64, type: Nat}, {name: heapBytes, type: Nat}, {name: budgetBytes, type: Nat}]
+}
+
+structure{
+  name: Build,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: width, type: Nat}, {name: gateAdmitted, type: Nat}]
+}
+
+definition{name: width32, parameters: [], result: Nat, body: 32}
+
+definition{name: width64, parameters: [], result: Nat, body: 64}
+
+definition{name: noBuild, parameters: [], result: Nat, body: 0}
+
+definition{
+  name: runsOn,
+  parameters: [h : Host, w : Nat],
+  result: Bool,
+  body: ((w =? (width32)) || (((project h memory64) =? 1) && (w =? (width64))))
+}
+
+definition{
+  name: usable,
+  parameters: [h : Host, b : Build],
+  result: Bool,
+  body: ((runsOn h (project b width)) && ((project b gateAdmitted) =? 1))
+}
+
+definition{
+  name: chosenWidth,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  result: Nat,
+  body: (if (usable h wide) then (project wide width) else (if (usable h narrow) then (project narrow width) else (noBuild)))
+}
+
+definition{
+  name: breaksChoice,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  result: Bool,
+  body: ((not ((chosenWidth h wide narrow) =? (noBuild))) && (not (runsOn h (chosenWidth h wide narrow))))
+}
+
+theorem{
+  name: theChosenBuildRunsOnTheHost,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  statement: ((breaksChoice h wide narrow) = false),
+  proof: linear_arithmetic{definitions: [breaksChoice, chosenWidth, noBuild, runsOn, usable, width32, width64]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksGate,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  result: Bool,
+  body: ((((chosenWidth h wide narrow) =? (project wide width)) && (usable h wide)) && (not ((project wide gateAdmitted) =? 1)))
+}
+
+theorem{
+  name: onlyAGatedBuildIsChosen,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  statement: ((breaksGate h wide narrow) = false),
+  proof: linear_arithmetic{definitions: [breaksGate, chosenWidth, noBuild, runsOn, usable, width32, width64]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: breaksNarrowGate,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  result: Bool,
+  body: (((not (usable h wide)) && (usable h narrow)) && (not ((project narrow gateAdmitted) =? 1)))
+}
+
+theorem{
+  name: aNarrowBuildIsUsedOnlyWhenGated,
+  parameters: [h : Host, wide : Build, narrow : Build],
+  statement: ((breaksNarrowGate h wide narrow) = false),
+  proof: linear_arithmetic{definitions: [breaksNarrowGate, runsOn, usable, width32, width64]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: proverVerdictAt,
+  parameters: [e : InTabKernel::Evidence, elaboratorCode : Nat, w : Nat],
+  result: Nat,
+  body: (proverVerdictFor e elaboratorCode)
+}
+
+theorem{
+  name: theWidthNeverEntersTheVerdict,
+  parameters: [e : InTabKernel::Evidence, elaboratorCode : Nat, w : Nat],
+  statement: ((proverVerdictAt e elaboratorCode w) = (proverVerdictFor e elaboratorCode)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{name: keepEngine, parameters: [], result: Nat, body: 0}
+
+definition{name: restartEngine, parameters: [], result: Nat, body: 1}
+
+definition{
+  name: afterRequest,
+  parameters: [h : Host],
+  result: Nat,
+  body: (if ((project h budgetBytes) <? (project h heapBytes)) then (restartEngine) else (keepEngine))
+}
+
+definition{
+  name: breaksBudget,
+  parameters: [h : Host],
+  result: Bool,
+  body: (((afterRequest h) =? (keepEngine)) && ((project h budgetBytes) <? (project h heapBytes)))
+}
+
+theorem{
+  name: aKeptEngineIsWithinItsBudget,
+  parameters: [h : Host],
+  statement: ((breaksBudget h) = false),
+  proof: linear_arithmetic{definitions: [afterRequest, breaksBudget, keepEngine, restartEngine]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: verdictAfterRestart,
+  parameters: [e : InTabKernel::Evidence, elaboratorCode : Nat, h : Host],
+  result: Nat,
+  body: (proverVerdictFor e elaboratorCode)
+}
+
+theorem{
+  name: aRestartNeverChangesTheVerdict,
+  parameters: [e : InTabKernel::Evidence, elaboratorCode : Nat, h : Host],
+  statement: ((verdictAfterRestart e elaboratorCode h) = (proverVerdictFor e elaboratorCode)),
+  proof: reflexivity{},
+  axioms: []
+}
 \end{semanticmodule}
 \end{lexlean}

@@ -73,6 +73,14 @@ CI's gate job keeps the two folders the page needs, as artifacts:
 node web/serve.mjs path/to/lean-prover-library path/to/lean-prover-browser-corpus
 ```
 
+## Every browser: the 32-bit build
+
+Why: the engine is 64-bit WebAssembly (memory64), which Chrome and Edge 133, Firefox 134 and Node 22 run, but Safari only from 27.3 (in beta on 2026-11-19), and so no iOS browser today. A second build of the same objects, 32-bit, runs everywhere WebAssembly exceptions and `DecompressionStream("gzip")` do (Safari 16.4 and later).
+
+How: an `.olean` is a heap image with the writer's pointer width, so a 32-bit engine cannot read the release's Init. `build/build-engine32.sh` links the 32-bit engine and `lean32`, Lean's own command line under Node, from the same pinned objects; `lean32` compiles Init with the release's Lake (`build/build-init32.sh`), as upstream's 32-bit WebAssembly build did. Big numbers use Lean's own code there, not GMP. The gate (`WIDTH=32 gate/run-gate.sh`) admits that Init only when every Init declaration has the release's kind, type hash, value hash and axioms and a fresh kernel replays it (`gate/init-check.mjs`), then runs the corpus as for 64-bit.
+
+What: each build has its own manifest, pin and gate; a manifest carries `width: 32` for the 32-bit one. `chooseBuild` and `openFor` take both and open the 64-bit build where the host has 64-bit memory and its gate admits it, else the 32-bit one (`spec/src/InTabProver.lex.tex`, `chosenWidth`). Blobs are shared exactly when their labels are equal: LexLean's WASI build is shared, while the engines and Init differ by width. Because WebAssembly memory never shrinks, the prover restarts its engine when memory passes a budget after a request (3 GiB for 32-bit, 6 GiB for 64-bit, or `budgetBytes`); the module store answers what the restart dropped, checked on read. In a tab, `web/index.html?width=auto|64|32` picks the same way, and `gate/browsers.mjs` and `gate/safari.mjs` record each browser engine's result, cold and warm time and peak memory.
+
 ## Building the engine
 
 ```sh

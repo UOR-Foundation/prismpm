@@ -7,7 +7,8 @@
 // /rt. With --opened FILE, only the files listed there (one absolute path per line, from an open log) are taken.
 //
 //   node scripts/make-manifest.mjs --sysroot DIR --runtime DIR --engine DIR --lexlean FILE --semantics ID
-//        --out DIR [--opened FILE] [--gate LABEL]
+//        --out DIR [--opened FILE] [--gate LABEL] [--width 32]
+// --width 32: the 32-bit engine (build-wasm.sh WIDTH=32), with --sysroot naming the sysroot whose Init lean32 compiled.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -43,6 +44,7 @@ library.sort((a, b) => (a.path < b.path ? -1 : 1));
 
 const manifest = {
   schema: MANIFEST_SCHEMA,
+  ...(args.width === "32" ? { width: 32 } : {}),
   lean: LEAN.version,
   lean_commit: LEAN.commit,
   engine: { loader: place(readFileSync(join(args.engine, "lean-elab.mjs"))), wasm: place(readFileSync(join(args.engine, "lean-elab.wasm"))) },
