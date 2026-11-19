@@ -1,3 +1,40 @@
+diff --git a/src/runtime/io.cpp b/src/runtime/io.cpp
+index a4cac03..e736714 100644
+--- a/src/runtime/io.cpp
++++ b/src/runtime/io.cpp
+@@ -17,6 +17,14 @@ Authors: Leonardo de Moura, Sebastian Ullrich
+ #else
+ #if defined(LEAN_EMSCRIPTEN)
+ #include <emscripten.h>
++// A pointer JavaScript returns from the heap. EM_ASM_INT gives 32 bits, which truncates an address above 4 GiB in the
++// 64-bit (MEMORY64) build; EM_ASM_PTR gives a whole pointer. An alias, because a directive may not sit inside the
++// arguments of the macro call.
++#if defined(__wasm64__)
++#define LEAN_EM_ASM_PTR EM_ASM_PTR
++#else
++#define LEAN_EM_ASM_PTR EM_ASM_INT
++#endif
+ #endif
+ // Linux include files
+ #include <unistd.h> // NOLINT
+@@ -969,7 +977,7 @@ extern "C" LEAN_EXPORT obj_res lean_io_getenv(b_obj_arg env_var) {
+ #if defined(LEAN_EMSCRIPTEN)
+     // HACK(WN): getenv doesn't seem to work in Emscripten even though it should
+     // see https://emscripten.org/docs/porting/connecting_cpp_and_javascript/Interacting-with-code.html#interacting-with-code-environment-variables
+-    char* val = reinterpret_cast<char*>(EM_ASM_INT({
++    char* val = reinterpret_cast<char*>(LEAN_EM_ASM_PTR({
+         var envVar = UTF8ToString($0);
+         var val = ENV[envVar];
+         if (val) {
+@@ -1374,7 +1382,7 @@ extern "C" LEAN_EXPORT obj_res lean_io_app_path() {
+     return io_result_mk_ok(mk_string(buf2));
+ #elif defined(LEAN_EMSCRIPTEN)
+     // See https://emscripten.org/docs/api_reference/emscripten.h.html#c.EM_ASM_INT
+-    char* appPath = reinterpret_cast<char*>(EM_ASM_INT({
++    char* appPath = reinterpret_cast<char*>(LEAN_EM_ASM_PTR({
+         if ((typeof process === "undefined") || (process.release.name !== "node")) {
+             return 0;
+         }
 diff --git a/src/runtime/uv/event_loop.cpp b/src/runtime/uv/event_loop.cpp
 index fa85439..cf73ed4 100644
 --- a/src/runtime/uv/event_loop.cpp

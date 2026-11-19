@@ -8,7 +8,7 @@
   },
   "patch": {
     "path": "upstream/lean-wasm-elaborator.patch",
-    "kappa": "blake3:2b217dc69fb868224024344d0baca013d3cebe52520d4c1d3fbb7c1e12b67cf7"
+    "kappa": "blake3:88df3dbd352dd0248278657fd76e7170be870815fedf5f64e5319cefae735661"
   },
   "driver": {
     "note": "LexLean-owned; admitted only as the exact bytes a LexLean release publishes (SPEC \u00a79, model/dependencies.toml lean-prover-driver). Until that release exists the bytes are fetched from the foundry commit the prototype ran, and admitted by the same labels.",
