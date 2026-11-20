@@ -59,6 +59,8 @@ node tools/serve-audit.mjs <a rule app's .prism/site folder, or a folder holding
 # then open http://localhost:4180/audit/
 ```
 
+Published: `.github/workflows/ide-audit-pages.yml` assembles the page with `tools/build-audit-site.mjs` (the page, prism-code's `src` as the page imports it, the rule judge archive, and `site.json` naming every file with its SHA-256 and the commit) and deploys it to this repository's GitHub Pages on each change on `main`, at `https://uor-foundation.github.io/prismpm/audit/`. Opened with no app, the page asks for an address; `?app=https://owner.github.io/app/` opens that app.
+
 The server also gives the page this checkout's prism-code and the rule judge archive (`test/fixtures/kernel/kernel.holo`), so the page does not rely on the app's copies.
 
 Tried by hand in one browser:
@@ -98,7 +100,7 @@ Run on 2026-11-20 with prism-code 0.10.0 from this checkout.
 
 The one refusal is the SDK's own judgement, not the page's: `prism-code vectors` on that holo exits 2 with the same message, and `prism-code check` reports `world.contract`. That app ships prism-code 0.9.1, which loads it.
 
-What this does not cover: a holo app is reached by its address, so the page has to be opened with that address; no app links to it. A rule app is audited only when served from the page's own origin. The page itself is not published anywhere.
+What this does not cover: a holo app is reached by its address, so the page has to be opened with that address; no app links to it. A rule app is audited only when served from the page's own origin, so the published page audits holo apps only.
 
 What the published apps showed: none of the 13 holos in this repository and neither published holo carries a proof statement, so every one is at level P0. For the two published apps GitHub holds signed build provenance (`gh attestation verify` passes, predicate `https://slsa.dev/provenance/v1`), which says which workflow built the bytes. The statement that Lean proved a named theorem exists only as text in the app's `app.json`. The audit view therefore shows those theorems as claimed and tested, never proved. Marking them proved needs the build to put its proof statement in the holo (`prism-code attest --statement`), which is outside this folder.
 

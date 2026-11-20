@@ -22,6 +22,7 @@
   .status { font-weight: 600; white-space: nowrap; }
   [data-status="proved"], .ok { color: var(--ok); } [data-status="refused"], .bad { color: var(--bad); }
   [data-status="tested"], [data-status="unknown"] { color: var(--warn); }
+  input { font: inherit; padding: .2rem .4rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; max-width: 100%; }
   button { font: inherit; padding: .2rem .7rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 </style>
 </head>
@@ -30,6 +31,10 @@
   <h1 id="title">Prism audit</h1>
   <p class="dim">App: <span id="app" class="mono"></span></p>
   <p id="summary">Reading the app…</p>
+  <form id="open" hidden>
+    <p>Paste the address of a published Prism app. Its files are fetched and checked here, in this tab.</p>
+    <p><input id="address" name="app" type="url" required placeholder="https://owner.github.io/app/" size="46"> <button type="submit">Audit</button></p>
+  </form>
 
   <h2>Guarantees</h2>
   <p class="dim">Proved means Lean accepted it for exactly this app: its kernel in this tab for a rule app, a checked proof statement for a holo. Tested means only the examples back it.</p>

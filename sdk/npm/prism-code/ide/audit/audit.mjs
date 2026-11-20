@@ -302,6 +302,15 @@ async function main() {
   if (recordBytes) return auditRuleApp(recordBytes, lib);
   const holoBytes = await bytesOrNull(appBase + 'app.holo');
   if (holoBytes) return auditHolo(holoBytes, lib);
+  // Opened with no app named and none beside the page: ask for one. The form is a plain GET, so the address
+  // ends up in this page's own URL as ?app=.
+  if (!params.get('app')) {
+    $('summary').textContent = 'No app is open.';
+    $('open').hidden = false;
+    for (const h of document.querySelectorAll('main > h2, main > .scroll, main > p.dim, main > section')) h.hidden = true;
+    state.kind = 'none';
+    return;
+  }
   throw new Error('no app.rule-app.json and no app.holo at ' + appBase);
 }
 
