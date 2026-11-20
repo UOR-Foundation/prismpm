@@ -1,0 +1,36 @@
+/**
+ * The LexLean an agent needs to write a Prism app, on one card: the forms the starters use, the rules LexLean holds
+ * them to, and the one proof the kernel finds for a guarantee. LexLean's vocabulary is closed, so a guessed form is
+ * refused; this card is what prism_init hands the agent before its first edit. Every form here is a starter's. Its
+ * examples, put in the decision-app starter's two modules as written, check and are proved by prism_build (one
+ * theorem, 2026-11-20); test/card.test.mjs holds the card's rules to the starters' own text.
+ */
+export const LEXLEAN_CARD = `LexLean, as a Prism app uses it. Edit the starter; keep its header lines as they are.
+
+Module: \\begin{lexlean}{Name} … \\begin{semanticmodule} … \\end{semanticmodule} \\end{lexlean}. A proofs module imports the model with \\importmodule{Name} and refers to it as Name::thing.
+
+Constant: definition{name: answerFree, parameters: [], result: Nat, body: 0}
+Choices are Nat constants like this one: one per vehicle, answer or state.
+
+Record: structure{name: Request, type_parameters: [], parameters: [], fields: [{name: hours, type: Nat}, {name: vehicle, type: Nat}]}
+
+Function: definition{name: judge, parameters: [request : Request], result: Nat, body: (if ((project request hours) =? 0) then (answerFree) else (answerStandard))}
+- A field: (project request hours). A call: (judge request), (Name::judge request) from another module.
+- Comparisons give Bool: =? <? <=?   Logic: && || (not x)   Branch: (if c then a else b)
+- Types: Nat, Int, Bool, Bytes, (Option Nat), (List Nat). Write Bool and Nat, never Boolean or Natural.
+- Every compound expression is parenthesized. A definition uses only definitions above it.
+
+Guarantee, in the proofs module (the model here is App): say what would break it, then prove that never happens.
+definition{name: breaksFreeShort, parameters: [request : App::Request], result: Bool, body: (((project request hours) <=? 0) && (not ((App::judge request) =? (App::answerFree))))}
+theorem{
+  name: freeShort,
+  parameters: [request : App::Request],
+  statement: ((breaksFreeShort request) = false),
+  proof: linear_arithmetic{definitions: [App::answerFree, App::answerStandard, App::judge, breaksFreeShort]},
+  axioms: [Quot.sound, propext]
+}
+- definitions lists every definition the proof unfolds, the breaks definition included, without repeats, sorted as text: App::… before breaksFreeShort.
+- A guarantee about every request bounds it: (((project request hours) <=? 24) && …) inside the breaks body.
+- Lean's kernel proves linear_arithmetic, decide and reflexivity proofs here; any other proof kind is reported not proved.
+
+After every edit: prism_build. It returns the first problem with the exact fix, or every theorem with whether Lean proved it.`;

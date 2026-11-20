@@ -2,7 +2,7 @@
   "schema": "prism/skill-pins/1",
   "skills": {
     "prism": {
-      "markdown": "blake3:8c665745cf2c45f1bee7339ee91e7d6153d4a6339e91988cee9a5f385b3bf0ca"
+      "markdown": "blake3:9d22b1f05777555a46de22ebf510d74f1bbfc37d50a1e12c68d4b61972dab646"
     }
   },
   "gate": "blake3:2b38c170aa150d36059cea16ee197a479856487988cb53582807952fec18faf6"

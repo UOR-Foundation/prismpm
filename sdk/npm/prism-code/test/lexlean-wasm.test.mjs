@@ -1,5 +1,5 @@
 // LexLean's front end as WebAssembly (docs/proposals/canonical-serverless-build.md, Phase 3): pinned bytes only, the
-// front end chosen before the hosted verifier but never over the user's choice of it, and, with the real module, a rule app
+// front end on every route, with no hosted verifier to fall back to, and, with the real module, a rule app
 // checked, read from its semantic snapshot and proved by Lean's kernel on this machine with no Docker and no server.
 // The real module is 19 MB and is not in the repository: PRISM_LEXLEAN_WASM names it, and with no module the
 // end-to-end case says it did not run.
@@ -19,19 +19,21 @@ import { kernelProve } from '../src/journey/kernel-prove.mjs';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 const scratch = () => mkdtempSync(join(tmpdir(), 'prism-lexlean-wasm-'));
 
-test('the front end is LexLean as WebAssembly, and the hosted verifier only when the user asked for it', () => {
+test('the front end is LexLean as WebAssembly, always: PRISM_CODE_TIER=hosted is ignored, and with no LexLean here the step is refused', () => {
   const yes = () => true;
   const no = () => false;
   const offline = { PRISM_CODE_TIER: 'offline' };
-  assert.equal(frontendWhere({ env: { PRISM_CODE_TIER: 'hosted' }, hasWasm: yes }), 'hosted');
+  const hosted = { PRISM_CODE_TIER: 'hosted' };
   assert.equal(frontendWhere({ env: {}, hasWasm: yes }), 'wasm');
   assert.equal(frontendWhere({ env: offline, hasWasm: yes }), 'wasm');
-  assert.throws(() => frontendWhere({ env: {}, hasWasm: no }), { code: 'build.frontend-unavailable' }, 'with no LexLean here, nothing is sent unless the user asked');
+  assert.equal(frontendWhere({ env: hosted, hasWasm: yes }), 'wasm');
+  assert.throws(() => frontendWhere({ env: {}, hasWasm: no }), { code: 'build.frontend-unavailable' }, 'with no LexLean here, nothing is sent');
   assert.throws(() => frontendWhere({ env: offline, hasWasm: no }), { code: 'build.frontend-unavailable' });
-  // An app's own theorems are proved by Lean's kernel in this process, offline too; the hosted verifier only on request.
-  assert.equal(proverWhere({ env: {} }), 'kernel');
+  assert.throws(() => frontendWhere({ env: hosted, hasWasm: no }), { code: 'build.frontend-unavailable' });
+  // An app's own theorems are proved by Lean's kernel in this process, whatever is set.
+  assert.equal(proverWhere(), 'kernel');
   assert.equal(proverWhere({ env: offline }), 'kernel');
-  assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'hosted' } }), 'hosted');
+  assert.equal(proverWhere({ env: hosted }), 'kernel');
 });
 
 test('planted defect: a module whose bytes are not the pinned ones is refused, kept or named', async () => {

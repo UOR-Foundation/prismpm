@@ -10,7 +10,7 @@ import { build } from '../src/journey/engine.mjs';
 import { RULE_JUDGE_HOLO, admits, answerKind, greatestAt, kernelChecked, leastAt, rulesAt } from '../src/journey/rule-app.mjs';
 import { browserClosure, writeRuleAppSite } from '../src/journey/rule-app-site.mjs';
 import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
-import { standIn, startedApp } from './support/hosted-stand-in.mjs';
+import { snapshotOf, startedApp } from './support/started-app.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
 // LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
@@ -18,7 +18,7 @@ process.env.PRISM_LEXLEAN_FETCH = '0';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 
 // The env a step is given is the whole environment it sees: it names this test's home, never the user's.
-const HOSTED = { PRISM_CODE_TIER: 'hosted', PRISM_HOME: process.env.PRISM_HOME };
+const HOME = { PRISM_HOME: process.env.PRISM_HOME };
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
 test('the files a page needs are the ones a browser can run: nothing that needs Node itself', () => {
@@ -34,7 +34,7 @@ test('the files a page needs are the ones a browser can run: nothing that needs 
 
 test('a build writes the page beside the app, and the page carries the record, the judge and the package\'s own rules', { timeout: 120000 }, async () => {
   const { dir, session } = startedApp('rule-app');
-  const r = await build(dir, session, { env: HOSTED, client: standIn({ snapshot: ruleAppSnapshot() }).client });
+  const r = await build(dir, session, { env: HOME, snapshot: snapshotOf(ruleAppSnapshot()).snapshot, wasm: () => true });
   assert.equal(r.ok, true, r.message);
   assert.equal(r.site, join(dir, '.prism', 'site'));
   assert.equal(session.status.ruleApp.site, r.site);
@@ -82,8 +82,9 @@ test('a title cannot write markup into the page, and an app whose guarantee fail
   // The second rule now makes a motorcycle premium, so the first guarantee is false.
   const { dir: app, session } = startedApp('rule-app');
   const broken = ruleAppSnapshot({ ...PARKING, rules: PARKING.rules.map((rule, i) => (i === 1 ? { ...rule, answer: 2 } : rule)) }, { id: 'broken' });
-  const r = await build(app, session, { env: HOSTED, client: standIn({ snapshot: broken }).client });
+  const r = await build(app, session, { env: HOME, snapshot: snapshotOf(broken).snapshot, wasm: () => true });
   assert.equal(r.ok, false);
+  assert.match(r.message, /guarantee 1 \(never premium\) is false/);
   assert.equal(existsSync(join(app, '.prism', 'site')), false);
 });
 

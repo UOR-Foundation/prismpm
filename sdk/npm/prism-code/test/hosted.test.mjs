@@ -1,5 +1,6 @@
-// The hosted tiers: which projects the prism-app profile can take, the MCP exchange with a stand-in server,
-// the coverage rule that keeps an answer about other modules from passing, and where the CLI routes a tier.
+// The hosted client (src/hosted.mjs) as a module: which projects the prism-app profile can take, the MCP exchange
+// with a stand-in server, and the coverage rule that keeps an answer about other modules from passing. And where the
+// CLI routes a tier: always in this process; no route reaches the hosted verifier, and --hosted is refused.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -138,7 +139,7 @@ test('a 502 is tried again, and a hosted check returns the command result', asyn
   assert.equal(seen[0].name, 'lexlean_profiles');
 });
 
-test('routing from app/: the tiers run on the LexLean project there, need no lockfile, and only --hosted names the hosted verifier (dry run)', () => {
+test('routing from app/: the tiers run on the LexLean project there, need no lockfile, and --hosted is refused (dry run)', () => {
   // A template instance: prismpm.lock at the root, the LexLean project in app/, where the user runs the tiers.
   const dir = scratch();
   mkdirSync(join(dir, '.git'));
@@ -156,8 +157,12 @@ test('routing from app/: the tiers run on the LexLean project there, need no loc
   assert.equal(check.status, 0, check.stderr);
   assert.equal(check.stdout, 'wasm check .\n');
   assert.doesNotMatch(check.stderr + check.stdout, /hosted|mcp\.uor\.foundation|prismpm-sdk/);
-  assert.equal(run('verify', '--lean', '--hosted').stdout, 'hosted prove .\n');
-  assert.equal(run('build', '--check', '--hosted').stdout, 'hosted check .\n');
+  for (const args of [['verify', '--lean', '--hosted'], ['build', '--check', '--hosted']]) {
+    const r = run(...args);
+    assert.equal(r.status, 64, args.join(' '));
+    assert.equal(r.stdout, '', args.join(' '));
+    assert.match(r.stderr, /no longer takes --hosted/, args.join(' '));
+  }
 
   // With no lockfile anywhere, the tiers still run: they need no image.
   const repo = scratch();
@@ -191,7 +196,7 @@ test('--help after a verb prints that verb and touches no Docker and no lockfile
   for (const [args, shows] of [
     [['build', '--help'], /^  prism-code build --check .*\n[\s\S]*  prism-code build --remote github /],
     [['build', '--remote', 'github', '--help'], /--allow-dirty/],
-    [['build', '--check', '-h'], /^  prism-code build --check \[--project <dir>\] \[--hosted\]\n[\s\S]*lexlean check of\s+the LexLean project as WebAssembly, in this process: syntax and\s+types, not proofs\. No Docker\./],
+    [['build', '--check', '-h'], /^  prism-code build --check \[--project <dir>\]\n[\s\S]*lexlean check of\s+the LexLean project as WebAssembly, in this process: syntax and\s+types, not proofs\. No Docker, no server, nothing sent/],
     [['verify', '--help'], /^  prism-code verify \[args\][\s\S]*  prism-code verify --lean /],
     [['setup', '--help'], /^  prism-code setup [\s\S]*Options for setup: {4}--agent <id>[\s\S]*--pull /],
     [['axioms', '--help'], /^  prism-code axioms /],
@@ -204,14 +209,15 @@ test('--help after a verb prints that verb and touches no Docker and no lockfile
   }
   assert.doesNotMatch(run('build', '--help').stdout, /unstable-author/, 'the author route is gone');
   assert.doesNotMatch(run('build', '--check', '--help').stdout, /prismpm check|SDK image|--local/, 'build --check runs no image');
-  assert.match(run('verify', '--help').stdout, /  prism-code verify --lean \[--project <dir>\] \[--all\] \[--hosted\]\n\s+prove every theorem of the project's LexLean model with Lean's own\s+kernel, as WebAssembly, in this process/);
+  assert.match(run('verify', '--help').stdout, /  prism-code verify --lean \[--project <dir>\] \[--all\]\n\s+prove every theorem of the project's LexLean model with Lean's own\s+kernel, as WebAssembly, in this process/);
+  for (const verb of [['build', '--help'], ['verify', '--help']]) assert.doesNotMatch(run(...verb).stdout, /--hosted|hosted verifier/, `${verb[0]} no longer takes --hosted`);
   assert.doesNotMatch(run('setup', '--help').stdout, /--hosted/, 'setup no longer takes --hosted');
   const author = run('build', '--unstable-author');
   assert.equal(author.status, 64, 'G8 planted defect: an agent writing the model is refused');
   assert.match(author.stderr, /unknown option --unstable-author/);
 });
 
-test('routing: every tier runs in this process unless --hosted asks; --local and lexlean\'s own flags are usage (dry run)', () => {
+test('routing: every tier runs in this process; --hosted, --local and lexlean\'s own flags are usage (dry run)', () => {
   const dir = scratch();
   cpSync(template, join(dir, 'app'), { recursive: true });
   writeFileSync(join(dir, 'prismpm.lock'), JSON.stringify({ sdk_image: IMAGE }));
@@ -225,29 +231,31 @@ test('routing: every tier runs in this process unless --hosted asks; --local and
   assert.doesNotMatch(lean.stderr + lean.stdout, /hosted|mcp\.uor\.foundation|prismpm-sdk/);
   assert.equal(run('verify', '--lean', '--all').stdout, 'kernel prove app\n');
 
-  // --hosted is the user's own opt-in, and it is PRISM_CODE_TIER=hosted for the journey's step.
+  // There is no hosted route: --hosted is refused, and PRISM_CODE_TIER=hosted changes nothing.
   const hosted = run('verify', '--lean', '--hosted');
-  assert.equal(hosted.status, 0, hosted.stderr);
-  assert.equal(hosted.stdout, 'hosted prove app\n');
-  assert.equal(run('verify', '--lean', '--hosted', '--all').stdout, 'hosted prove app\n');
-  for (const args of [['verify', '--lean', '--local'], ['verify', '--lean', '--hosted', '--local'], ['verify', '--lean', '--trace'], ['verify', '--lean', '--hosted', '--trace']]) {
+  assert.equal(hosted.status, 64);
+  assert.match(hosted.stderr, /^verify --lean no longer takes --hosted: Prism is serverless/);
+  const tier = spawnSync(process.execPath, [bin, 'verify', '--lean'], { cwd: dir, env: { ...env, PRISM_CODE_TIER: 'hosted' }, encoding: 'utf8' });
+  assert.equal(tier.stdout, 'kernel prove app\n');
+  for (const args of [['verify', '--lean', '--local'], ['verify', '--lean', '--hosted', '--all'], ['verify', '--lean', '--hosted', '--local'], ['verify', '--lean', '--trace'], ['verify', '--lean', '--hosted', '--trace']]) {
     const r = run(...args);
     assert.equal(r.status, 64, args.join(' '));
     assert.equal(r.stdout, '', args.join(' '));
   }
-  assert.match(run('verify', '--lean', '--trace').stderr, /^verify --lean takes only --project, --all and --hosted, not --trace/);
+  assert.match(run('verify', '--lean', '--trace').stderr, /^verify --lean takes only --project and --all, not --trace/);
 
   const check = run('build', '--check');
   assert.equal(check.status, 0, check.stderr);
   assert.equal(check.stdout, 'wasm check app\n');
   assert.doesNotMatch(check.stderr + check.stdout, /hosted|mcp\.uor\.foundation|prismpm/);
   const hostedCheck = run('build', '--check', '--hosted');
-  assert.equal(hostedCheck.status, 0, hostedCheck.stderr);
-  assert.equal(hostedCheck.stdout, 'hosted check app\n');
+  assert.equal(hostedCheck.status, 64);
+  assert.equal(hostedCheck.stdout, '');
+  assert.match(hostedCheck.stderr, /^build --check no longer takes --hosted: Prism is serverless/);
   assert.equal(run('build', '--check', '--local').status, 64);
   const verbose = run('build', '--check', '--verbose');
   assert.equal(verbose.status, 64);
-  assert.match(verbose.stderr, /^build --check takes only --project and --hosted, not --verbose/);
+  assert.match(verbose.stderr, /^build --check takes only --project, not --verbose/);
   assert.match(run('verify').stdout, / prismpm verify\n$/, 'a full verify always needs the image');
   assert.match(run('build').stdout, / prismpm build\n$/, 'a full build always needs the image');
 });

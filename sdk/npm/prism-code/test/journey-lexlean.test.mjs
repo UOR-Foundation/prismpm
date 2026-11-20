@@ -1,7 +1,7 @@
 // The journey with one source of truth: an app's LexLean model, started from a content-addressed starter and
-// written by the agent. There is no spec file, and no step runs a local image. With no LexLean as WebAssembly, the
-// hosted verifier checks and proves, unless the user is offline (PRISM_CODE_TIER=offline): then every step names
-// what is missing and nothing is sent. The hosted verifier here is a stand-in: nothing leaves the machine.
+// written by the agent. There is no spec file, no step runs a local image, and there is no server: with no LexLean
+// as WebAssembly every step is refused and names what is missing, and nothing is sent. The semantic snapshot here
+// comes from the journey's `snapshot` option, a stand-in for LexLean that answers in this process.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -14,7 +14,7 @@ import { build, check, prove, tryRequest } from '../src/journey/engine.mjs';
 import { INSTRUCTIONS, TOOLS, createServer } from '../src/journey/mcp.mjs';
 import { ruleTable } from '../src/journey/rule-table.mjs';
 import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
-import { standIn, startedApp } from './support/hosted-stand-in.mjs';
+import { snapshotOf, startedApp } from './support/started-app.mjs';
 
 process.env.PRISM_HOME = mkdtempSync(join(tmpdir(), 'prism-home-'));
 // LexLean as WebAssembly is never fetched by these tests; a test that needs it names it with PRISM_LEXLEAN_WASM.
@@ -23,6 +23,8 @@ process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', impor
 
 const STARTERS = fileURLToPath(new URL('../templates/starters/', import.meta.url));
 // The env a step is given is the whole environment it sees: it names this test's home, never the user's.
+const HOME = { PRISM_HOME: process.env.PRISM_HOME };
+// The old opt-in to the hosted verifier: it is ignored now.
 const HOSTED = { PRISM_CODE_TIER: 'hosted', PRISM_HOME: process.env.PRISM_HOME };
 const OFFLINE = { PRISM_CODE_TIER: 'offline', PRISM_HOME: process.env.PRISM_HOME };
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -65,53 +67,77 @@ test('planted defect: a starter whose bytes are not the ones its index names is 
   assert.equal(existsSync(join(dir, 'src')), false);
 });
 
-test('offline, with no LexLean as WebAssembly, every step fails with build.frontend-unavailable naming Phase 3, and the hosted verifier is never asked', async () => {
+test('offline, with no LexLean as WebAssembly, every step fails with build.frontend-unavailable naming Phase 3, and no snapshot is taken', async () => {
   for (const starter of ['rule-app', 'decision-app']) {
     const { dir, session } = startedApp(starter);
-    const hosted = standIn({ snapshot: ruleAppSnapshot() });
+    const lexlean = snapshotOf(ruleAppSnapshot());
     for (const step of [check, prove, build]) {
-      const r = await step(dir, session, { env: OFFLINE, client: hosted.client, wasm: () => false });
+      const r = await step(dir, session, { env: OFFLINE, snapshot: lexlean.snapshot, wasm: () => false });
       assert.equal(r.ok, false, `${starter} ${step.name}`);
       assert.equal(r.code, 'build.frontend-unavailable', `${starter} ${step.name}`);
       assert.match(r.message, /Phase 3/);
-      assert.match(r.message, /PRISM_CODE_TIER=offline sends nothing/);
+      assert.match(r.message, /PRISM_CODE_TIER=offline fetches nothing/);
     }
-    assert.deepEqual(hosted.calls, [], 'nothing was sent');
+    assert.deepEqual(lexlean.asked, [], 'no snapshot was taken');
   }
+});
+
+test('PRISM_CODE_TIER=hosted is ignored: with no LexLean as WebAssembly every step is refused, and nothing is fetched or sent', async () => {
+  const fetched = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    throw new Error('nothing may be fetched');
+  };
+  try {
+    for (const starter of ['rule-app', 'decision-app']) {
+      const { dir, session } = startedApp(starter);
+      for (const step of [check, prove, build]) {
+        const r = await step(dir, session, { env: HOSTED, wasm: () => false });
+        assert.equal(r.ok, false, `${starter} ${step.name}`);
+        assert.equal(r.code, 'build.frontend-unavailable', `${starter} ${step.name}`);
+        assert.ok(!/hosted/i.test(r.message), r.message);
+      }
+    }
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.deepEqual(fetched, []);
 });
 
 test('with nothing set and no LexLean as WebAssembly here, a rule app is refused, never sent, and an app that needs a holo is refused before anything is sent', { timeout: 120000 }, async () => {
   const rule = startedApp('rule-app');
-  const hosted = standIn({ snapshot: ruleAppSnapshot() });
-  const r = await prove(rule.dir, rule.session, { env: {}, client: hosted.client, wasm: () => false });
+  const lexlean = snapshotOf(ruleAppSnapshot());
+  const r = await prove(rule.dir, rule.session, { env: {}, snapshot: lexlean.snapshot, wasm: () => false });
   assert.equal(r.ok, false);
   assert.equal(r.code, 'build.frontend-unavailable');
-  assert.deepEqual(hosted.calls, [], 'only PRISM_CODE_TIER=hosted sends a model');
+  assert.deepEqual(lexlean.asked, [], 'no snapshot was taken');
   const other = startedApp('decision-app');
-  const none = standIn({ snapshot: ruleAppSnapshot() });
-  const b = await build(other.dir, other.session, { env: {}, client: none.client, wasm: () => false });
+  const none = snapshotOf(ruleAppSnapshot());
+  const b = await build(other.dir, other.session, { env: {}, snapshot: none.snapshot, wasm: () => false });
   assert.equal(b.code, 'build.frontend-unavailable');
   assert.match(b.message, /no step runs that without an image yet/);
-  assert.deepEqual(none.calls, [], 'nothing was sent');
+  assert.deepEqual(none.asked, [], 'no snapshot was taken');
 });
 
-test('a rule app on the hosted opt-in: its table comes from the semantic snapshot, and Lean\'s kernel here checks every guarantee', { timeout: 120000 }, async () => {
-  const { dir, session } = startedApp('rule-app');
-  const hosted = standIn({ snapshot: ruleAppSnapshot() });
-  const r = await prove(dir, session, { env: HOSTED, client: hosted.client });
-  assert.equal(r.ok, true, r.message);
-  assert.equal(r.where, 'kernel');
-  assert.deepEqual(r.guarantees.map((g) => g.status), ['proved', 'proved', 'proved']);
-  assert.equal(r.semanticId, ruleTable(ruleAppSnapshot()).semanticId);
-  assert.deepEqual(hosted.calls.map((c) => c.tool), ['lexlean_profiles', 'lexlean_draft_write', 'lexlean_snapshot']);
-  assert.ok(hosted.calls[1].arguments.files.some((f) => f.path === 'src/App.lex.tex'));
+test('a rule app: its table comes from the semantic snapshot of its folder, and Lean\'s kernel here checks every guarantee, PRISM_CODE_TIER=hosted or not', { timeout: 120000 }, async () => {
+  for (const env of [HOME, HOSTED]) {
+    const { dir, session } = startedApp('rule-app');
+    const lexlean = snapshotOf(ruleAppSnapshot());
+    const r = await prove(dir, session, { env, snapshot: lexlean.snapshot, wasm: () => true });
+    assert.equal(r.ok, true, r.message);
+    assert.equal(r.where, 'kernel');
+    assert.deepEqual(r.guarantees.map((g) => g.status), ['proved', 'proved', 'proved']);
+    assert.equal(r.semanticId, ruleTable(ruleAppSnapshot()).semanticId);
+    assert.deepEqual(lexlean.asked, [dir]);
+  }
 });
 
 test('planted defect: a guarantee the rules break is refused with the request that breaks it, before the kernel is opened', async () => {
   const { dir, session } = startedApp('rule-app');
   const broken = ruleAppSnapshot({ ...PARKING, rules: PARKING.rules.map((r, i) => (i === 1 ? { ...r, answer: 2 } : r)) }, { id: 'broken' });
   const kernel = { judge: () => assert.fail('the kernel was opened'), check: () => assert.fail('the kernel was opened') };
-  const r = await prove(dir, session, { env: HOSTED, client: standIn({ snapshot: broken }).client, kernel });
+  const r = await prove(dir, session, { env: HOME, snapshot: snapshotOf(broken).snapshot, wasm: () => true, kernel });
   assert.equal(r.ok, false);
   assert.match(r.message, /guarantee 1 \(never premium\) is false: the request `\d+ motorcycle` meets its conditions and the rules answer premium \(rule 2\)/);
 });
@@ -120,7 +146,7 @@ test('a rule app builds as the verified rule judge and the model\'s numbers, and
   const { dir, session } = startedApp('rule-app');
   const before = await tryRequest(dir, session, '0 car');
   assert.deepEqual([before.ok, before.code], [false, 'try.unbuilt']);
-  const r = await build(dir, session, { env: HOSTED, client: standIn({ snapshot: ruleAppSnapshot() }).client });
+  const r = await build(dir, session, { env: HOME, snapshot: snapshotOf(ruleAppSnapshot()).snapshot, wasm: () => true });
   assert.equal(r.ok, true, r.message);
   assert.deepEqual(r.vectors, { passed: 2, total: 2 });
   assert.equal(r.semanticId, ruleTable(ruleAppSnapshot()).semanticId);
@@ -131,7 +157,7 @@ test('a rule app builds as the verified rule judge and the model\'s numbers, and
 
 test('publishing to GitHub is refused as unavailable until the claims are written from the snapshot', async () => {
   const { dir, session } = startedApp('decision-app');
-  const r = await build(dir, session, { remote: 'github', env: HOSTED });
+  const r = await build(dir, session, { remote: 'github', env: HOME });
   assert.deepEqual([r.ok, r.code], [false, 'build.publish-unavailable']);
 });
 
@@ -152,10 +178,13 @@ test('a snapshot that is not a rule app\'s is refused by name, never guessed at'
   assert.throws(() => ruleTable(lambda), { code: 'rule-table.term' });
 });
 
-test('the server offers the LexLean path and no other: six tools, no spec, and what runs without Docker said plainly', async () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['prism_start', 'prism_check', 'prism_prove', 'prism_build', 'prism_try', 'prism_status']);
+test('the server offers the LexLean path and no other: four tools named as Docker names them, no spec, and what runs without Docker said plainly', async () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['prism_init', 'prism_build', 'prism_run', 'prism_inspect']);
+  assert.deepEqual(TOOLS.find((t) => t.name === 'prism_run').inputSchema.required, ['request']);
   assert.ok(!/spec\.json|prism\/spec|prism_spec|prism_answer/.test(JSON.stringify(TOOLS) + INSTRUCTIONS));
-  assert.match(INSTRUCTIONS, /No step needs Docker or an image\. LexLean runs as WebAssembly/);
+  for (const name of ['prism_init', 'prism_build', 'prism_run', 'prism_inspect']) assert.ok(INSTRUCTIONS.includes(name), name);
+  assert.match(INSTRUCTIONS, /No step needs Docker, an image or a server\. LexLean runs as WebAssembly/);
+  assert.ok(!/hosted/i.test(JSON.stringify(TOOLS) + INSTRUCTIONS));
   assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER yourself/);
   const sent = [];
   const server = createServer({ cwd: mkdtempSync(join(tmpdir(), 'prism-mcp-')), send: (m) => sent.push(m) });
@@ -163,13 +192,21 @@ test('the server offers the LexLean path and no other: six tools, no spec, and w
     await server.handle({ jsonrpc: '2.0', id: sent.length + 1, method: 'tools/call', params: { name, arguments: args } });
     return sent.at(-1).result;
   };
-  const list = (await call('prism_start')).structuredContent;
+  const list = (await call('prism_init')).structuredContent;
   assert.deepEqual(list.starters.map((s) => s.starter), ['rule-app', 'decision-app', 'stateful-app']);
+  assert.match(list.next, /call prism_init again/);
   assert.match(list.nextSteps[0], /Phase 3/);
-  assert.equal((await call('prism_prove')).structuredContent.state, 'blocked');
-  assert.match((await call('prism_start', { spec: {} })).content[0].text, /does not take `spec`/);
-  const started = (await call('prism_start', { starter: 'rule-app' })).structuredContent;
+  assert.equal((await call('prism_build')).structuredContent.state, 'blocked');
+  assert.match((await call('prism_run')).content[0].text, /prism_run needs `request`/);
+  assert.match((await call('prism_init', { spec: {} })).content[0].text, /does not take `spec`/);
+  const started = (await call('prism_init', { starter: 'rule-app' })).structuredContent;
   assert.equal(started.model, 'src/App.lex.tex');
+  assert.match(started.next, /then call prism_build\.$/);
+  const inspected = (await call('prism_inspect')).structuredContent;
+  assert.deepEqual([inspected.starter, inspected.files, inspected.audit], ['rule-app', ['src/App.lex.tex', 'src/Foundation/Bytes.lex.tex', 'src/Foundation/View/Text/V1/Model.lex.tex'], null]);
+  // The older names are still answered by name, unlisted.
   const status = (await call('prism_status')).structuredContent;
-  assert.deepEqual([status.starter, status.files], ['rule-app', ['src/App.lex.tex', 'src/Foundation/Bytes.lex.tex', 'src/Foundation/View/Text/V1/Model.lex.tex']]);
+  assert.deepEqual(status.files, inspected.files);
+  assert.equal((await call('prism_start')).structuredContent.greeting, 'Welcome back.');
+  assert.match((await call('prism_try', { request: '0 car' })).content[0].text, /try\.unbuilt/);
 });

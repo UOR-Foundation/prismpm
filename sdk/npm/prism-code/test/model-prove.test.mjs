@@ -22,10 +22,10 @@ const storeDir = () => mkdtempSync(join(tmpdir(), 'kappa-'));
 const snapshot = (name) => JSON.parse(readFileSync(join(kernelPath, 'test', 'model', `${name}-snapshot.json`), 'utf8'));
 const noFetch = async (url) => { throw new Error(`a request was made: ${url}`); };
 
-test('an app is proved in this process by default, and on the hosted verifier only when the user asks', () => {
-  assert.equal(proverWhere({ env: {} }), 'kernel');
+test('an app is always proved in this process: PRISM_CODE_TIER=hosted no longer names a hosted verifier', () => {
+  assert.equal(proverWhere(), 'kernel');
   assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'offline' } }), 'kernel');
-  assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'hosted' } }), 'hosted');
+  assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'hosted' } }), 'kernel');
 });
 
 test('the lowering and proof finder here are byte for byte the ones the sealed browser prover runs', { skip: !here && 'no lean-prover package beside this one' }, () => {

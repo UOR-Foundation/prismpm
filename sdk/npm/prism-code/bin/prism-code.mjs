@@ -153,11 +153,10 @@ Usage:
                                                     fetch a holo and write it only after it verifies: digests, archive,
                                                     verdict, attestations; the verify-attestation flags add a signer policy;
                                                     a verified holo is also kept in the local image store
-  prism-code build --check [--project <dir>] [--hosted]
+  prism-code build --check [--project <dir>]
                                                     validate the model, write nothing: prism.toml, then lexlean check of
                                                     the LexLean project as WebAssembly, in this process: syntax and
-                                                    types, not proofs. No Docker. Only --hosted sends src/ to the hosted
-                                                    verifier (stored unlisted, not private)
+                                                    types, not proofs. No Docker, no server, nothing sent
   prism-code build [args]                           prismpm build (needs the Docker socket)
   prism-code build --remote github [--repo <owner/name>] [--ref <commit>] [--timeout <s>] [--allow-dirty] [--policy <file>] [--json]
                                                     the repository's own GitHub Actions builds one commit (pushed to
@@ -166,13 +165,12 @@ Usage:
                                                     verdict and every vector, before anything lands under .prism/build/.
                                                     No Docker here. Token: GITHUB_TOKEN, GH_TOKEN or gh (experimental)
   prism-code verify [args]                          prismpm verify (needs the Docker socket)
-  prism-code verify --lean [--project <dir>] [--all] [--hosted]
+  prism-code verify --lean [--project <dir>] [--all]
                                                     prove every theorem of the project's LexLean model with Lean's own
                                                     kernel, as WebAssembly, in this process: the model's semantic
                                                     snapshot lowered to kernel declarations, a proof found for each
                                                     theorem, and the kernel judging all of it within the declared axioms.
-                                                    Seconds, no Docker, nothing sent. Only --hosted uses the hosted
-                                                    verifier, which stores src/ unlisted, not privately (experimental)
+                                                    Seconds; no Docker, no server, nothing sent (experimental)
   prism-code conformance [args]                     prismpm conformance
   prism-code axioms [--write] [--json] [--project <dir>]
                                                     the axiom set Lean observes for every definition and theorem, in one
@@ -932,16 +930,16 @@ function takeProject(args) {
 /**
  * The model tiers run the journey's own steps (journey/engine.mjs), so the CLI and `prism_prove` give one answer:
  * LexLean as WebAssembly checks the model, and Lean's kernel, as WebAssembly, proves every theorem in this process.
- * No Docker and no image. `--hosted` is the user's explicit choice of the hosted verifier, as PRISM_CODE_TIER=hosted.
+ * No Docker, no image and no server: nothing about the app is sent anywhere.
  */
 async function modelTier(verb, args) {
   if (args.includes('--local')) return { code: usage(`${verb} no longer takes --local: it runs in this process, LexLean and Lean's kernel as WebAssembly, with no Docker`) };
-  const hostedAsked = args.includes('--hosted');
-  const taken = takeProject(args.filter((a) => a !== '--hosted'));
+  if (args.includes('--hosted')) return { code: usage(`${verb} no longer takes --hosted: Prism is serverless, and it runs LexLean and Lean's kernel as WebAssembly on this machine`) };
+  const taken = takeProject(args);
   if (taken.problem) return { code: usage(taken.problem) };
   const cwd = process.cwd();
   const dir = lexleanProjectDir(cwd, await modelSource(cwd), taken.explicit);
-  const env = hostedAsked ? { ...process.env, PRISM_CODE_TIER: 'hosted' } : process.env;
+  const env = process.env;
   return { cwd, dir, rest: taken.rest, env };
 }
 
@@ -961,9 +959,9 @@ async function commandLean(args) {
   const tier = await modelTier('verify --lean', args);
   if (tier.code !== undefined) return tier.code;
   const unknown = tier.rest.filter((a) => a !== '--all');
-  if (unknown.length > 0) return usage(`verify --lean takes only --project, --all and --hosted, not ${unknown.join(' ')}`);
+  if (unknown.length > 0) return usage(`verify --lean takes only --project and --all, not ${unknown.join(' ')}`);
   if (process.env.PRISM_CODE_DRY_RUN) {
-    process.stdout.write(`${tier.env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : 'kernel'} prove ${tier.dir}\n`);
+    process.stdout.write(`kernel prove ${tier.dir}\n`);
     return 0;
   }
   const { prove } = await import('../src/journey/engine.mjs');
@@ -975,7 +973,7 @@ async function commandLean(args) {
 async function commandTierCheck(args) {
   const tier = await modelTier('build --check', args);
   if (tier.code !== undefined) return tier.code;
-  if (tier.rest.length > 0) return usage(`build --check takes only --project and --hosted, not ${tier.rest.join(' ')}`);
+  if (tier.rest.length > 0) return usage(`build --check takes only --project, not ${tier.rest.join(' ')}`);
   let failed = false;
   if (existsSync(resolve(tier.cwd, 'prism.toml'))) {
     try {
@@ -989,7 +987,7 @@ async function commandTierCheck(args) {
     }
   }
   if (process.env.PRISM_CODE_DRY_RUN) {
-    process.stdout.write(`${tier.env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : 'wasm'} check ${tier.dir}\n`);
+    process.stdout.write(`wasm check ${tier.dir}\n`);
     return failed ? 1 : 0;
   }
   const { check } = await import('../src/journey/engine.mjs');

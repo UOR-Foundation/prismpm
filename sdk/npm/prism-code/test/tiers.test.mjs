@@ -69,7 +69,9 @@ test('verify --lean proves the LexLean project with Lean\'s kernel in this proce
   assert.equal(r.stdout, 'kernel prove app\n');
   assert.doesNotMatch(r.stdout + r.stderr, /docker|lexlean verify|prismpm/);
   assert.equal(run('verify', '--lean', '--project', 'app').stdout, 'kernel prove app\n');
-  assert.equal(run('verify', '--lean', '--hosted').stdout, 'hosted prove app\n', '--hosted is the user\'s own opt-in');
+  const hosted = run('verify', '--lean', '--hosted');
+  assert.equal(hosted.status, 64, 'there is no hosted verifier to opt in to');
+  assert.match(hosted.stderr, /^verify --lean no longer takes --hosted/);
   assert.equal(run('verify', '--lean', '--trace').status, 64, 'lexlean\'s own flags are usage');
   assert.ok(run('verify').stdout.includes(`${IMAGE} prismpm verify`), 'a full verify still runs in the image');
   const bare = spawnSync(process.execPath, [bin, 'verify', '--lean'], { cwd: scratch(), env, encoding: 'utf8' });
@@ -109,9 +111,9 @@ test('verify --lean and build --check without a dry run go through the journey\'
   assert.doesNotMatch(lean.stdout + lean.stderr + check.stdout + check.stderr, /docker run|prismpm\.lock not found|on the hosted verifier/);
 });
 
-test('verify --lean and build --check without --hosted send nothing, even with no LexLean as WebAssembly here', async () => {
-  // The help says "nothing sent. Only --hosted uses the hosted verifier". A stand-in for the hosted verifier records
-  // every request; with no LexLean as WebAssembly and no PRISM_CODE_TIER, none may reach it.
+test('verify --lean and build --check send nothing, even with no LexLean as WebAssembly here', async () => {
+  // The help says "no server, nothing sent". A stand-in server records every request; with no LexLean as WebAssembly
+  // and no PRISM_CODE_TIER, none may reach it.
   const seen = [];
   const server = createServer((req, res) => {
     seen.push(`${req.method} ${req.url}`);
@@ -134,7 +136,7 @@ test('verify --lean and build --check without --hosted send nothing, even with n
   try {
     for (const verb of [['verify', '--lean'], ['build', '--check']]) {
       const r = await run(...verb);
-      assert.deepEqual(seen, [], `${verb.join(' ')} sent the project to the hosted verifier without --hosted:\n${r.out}`);
+      assert.deepEqual(seen, [], `${verb.join(' ')} sent the project to a server:\n${r.out}`);
       assert.doesNotMatch(r.out, /on the hosted verifier/, verb.join(' '));
     }
   } finally {

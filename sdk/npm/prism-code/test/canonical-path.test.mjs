@@ -42,13 +42,17 @@ test('setup gives every agent the local Prism server and never the hosted one; -
 
 test('setup ends by telling the user that no step needs Docker, then to ask an agent for an app', () => {
   const plan = JSON.parse(run(['setup', '--dry-run', '--agents-only', '--json'], { env: agentHome() }).out);
-  assert.match(plan.next.join(' '), /No step needs Docker or an image\. LexLean runs as WebAssembly.*Phase 3.*Phase 4/);
+  assert.match(plan.next.join(' '), /No step needs Docker, an image or a server\. LexLean runs as WebAssembly.*Phase 3.*Phase 4.*Nothing about the app is sent anywhere/);
+  assert.doesNotMatch(plan.next.join(' '), /hosted/);
   assert.match(plan.next.at(-1), /build me a Prism app/);
 });
 
-test('the MCP instructions every agent receives name the LexLean model, that no step needs Docker, and leave the tier to the user', () => {
+test('the MCP instructions every agent receives name the LexLean model and the four tools, that no step needs Docker or a server, and leave the tier to the user', () => {
   assert.match(INSTRUCTIONS, /one source of truth is its LexLean model in prism\/src\//);
-  assert.match(INSTRUCTIONS, /No step needs Docker or an image\. LexLean runs as WebAssembly/);
+  assert.match(INSTRUCTIONS, /For Prism or \/prism, call prism_init\./);
+  for (const name of ['prism_build', 'prism_run', 'prism_inspect']) assert.ok(INSTRUCTIONS.includes(name), name);
+  assert.doesNotMatch(INSTRUCTIONS, /prism_start|prism_check|prism_prove|prism_try|prism_status/);
+  assert.match(INSTRUCTIONS, /No step needs Docker, an image or a server\. LexLean runs as WebAssembly/);
   assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER yourself/);
   assert.ok(INSTRUCTIONS.split(/\s+/).length < 200, 'the instructions stay short enough to be read');
 });
@@ -59,6 +63,9 @@ test('the skill setup installs teaches the canonical path and no other, and says
   assert.match(skill, /\*\*What runs without Docker\.\*\*/);
   assert.match(skill, /PRISM_LEXLEAN_WASM/);
   assert.match(skill, /build\.frontend-unavailable/);
+  // The four tools, and no hosted verifier or opt-in to one.
+  for (const name of ['prism_init', 'prism_build', 'prism_run', 'prism_inspect']) assert.ok(skill.includes(`\`${name}\``), name);
+  assert.doesNotMatch(skill, /PRISM_CODE_TIER=hosted|hosted verifier|--hosted\]/);
   // The routes that competed with it: a spec file, an agent drafting on the hosted server, and a repository made by hand.
   assert.doesNotMatch(skill, /spec\.json|prism\/spec\/|prism_spec|prism_answer/);
   assert.doesNotMatch(skill, /lexlean_draft_assemble|lexlean_draft_write/);
