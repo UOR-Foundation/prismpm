@@ -1,0 +1,21 @@
+// What the edit page is told about a LexLean project: the files a check reads, and the file that is opened.
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+// Everything but build outputs, caches, and this repository's notes and generators.
+const SKIPPED = new Set(['.lexlean', '.lake', '.prism', '.git', 'target', 'node_modules', 'tools']);
+
+/** { files: ['lexlean.toml', 'src/App.lex.tex', ...], entry: 'src/App.lex.tex' } for the project in `dir`. */
+export function projectListing(dir) {
+  const files = [];
+  const visit = (at, rel) => {
+    for (const entry of readdirSync(at, { withFileTypes: true })) {
+      if (entry.isDirectory()) { if (!SKIPPED.has(entry.name)) visit(join(at, entry.name), rel + entry.name + '/'); }
+      else if (entry.isFile() && !/\.(md|json)$/.test(entry.name) || entry.name === 'lake-manifest.json') files.push(rel + entry.name);
+    }
+  };
+  visit(dir, '');
+  const entry = /entrypoints\s*=\s*\[\s*"([^"]+)"/.exec(readFileSync(join(dir, 'lexlean.toml'), 'utf8'))?.[1];
+  if (!entry) throw new Error(`${join(dir, 'lexlean.toml')} names no entrypoint`);
+  return { files: files.sort(), entry };
+}

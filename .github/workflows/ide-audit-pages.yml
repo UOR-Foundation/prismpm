@@ -7,6 +7,12 @@ name: IDE audit page
 # The site is files copied from this checkout by ide/tools/build-audit-site.mjs: the page, prism-code's src as the
 # page imports it, and the rule judge archive. Nothing is compiled and nothing is fetched.
 #
+# Beside it, at <pages>/edit/, is the edit page (sdk/npm/prism-code/ide/edit), and at <pages>/edit/ide/ the same
+# loop in the VS Code workbench: a LexLean model is opened, checked by LexLean and its guarantees judged by Lean's
+# kernel, in the visitor's tab. ide/tools/build-edit-site.mjs assembles it. For this part two things are fetched,
+# by prism-code itself and admitted only by the labels it pins (the LexLean executable and the kernel),
+# and one thing is compiled: the workbench, from the packages ide/package-lock.json pins.
+#
 # A Pages site holds one deployment. factory.yml can also deploy here, on a manual run with the repository
 # variable FACTORY_PAGES set to true. That is not set today. Whoever sets it must first make one of the two
 # workflows publish both, or the later deployment replaces the earlier.
@@ -17,7 +23,16 @@ on:
     branches: [main]
     paths:
       - sdk/npm/prism-code/ide/audit/**
+      - sdk/npm/prism-code/ide/edit/**
+      - sdk/npm/prism-code/ide/src/**
+      - sdk/npm/prism-code/ide/model.html
+      - sdk/npm/prism-code/ide/vite.config.js
+      - sdk/npm/prism-code/ide/vite.model.config.js
+      - sdk/npm/prism-code/ide/package-lock.json
       - sdk/npm/prism-code/ide/tools/build-audit-site.mjs
+      - sdk/npm/prism-code/ide/tools/build-edit-site.mjs
+      - sdk/npm/prism-code/ide/tools/edit-project.mjs
+      - sdk/npm/prism-code/model/ide-capability-gate/**
       - sdk/npm/prism-code/src/**
       - sdk/npm/prism-code/test/fixtures/kernel/**
       - .github/workflows/ide-audit-pages.yml
@@ -33,7 +48,7 @@ jobs:
   build:
     name: Assemble the audit site
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: sdk/npm/prism-code
@@ -69,6 +84,42 @@ jobs:
           got = 'sha256:' + hashlib.sha256(open(f'{site}/audit/judge/kernel.holo', 'rb').read()).hexdigest()
           assert got == want, f'the judge archive is {got}, the audit-status record names {want}'
           PY
+      # The workbench is the one thing compiled, from the packages the lock pins. No install script runs.
+      - name: Build the workbench editor
+        working-directory: sdk/npm/prism-code/ide
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx vite build -c vite.model.config.js
+      # The model the page opens when it is given no other is the capability gate's.
+      - name: Add the edit page
+        run: node ide/tools/build-edit-site.mjs "$RUNNER_TEMP/audit-site" model/ide-capability-gate "$GITHUB_SHA"
+      - name: The edit page has what it needs, and its executables are the pinned ones
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$RUNNER_TEMP/audit-site"
+          for f in audit/index.html edit/index.html edit/edit.mjs edit/lexlean-worker.mjs edit/prove-worker.mjs edit/pin.json edit/lexlean.wasm.gz                    edit/kernel/manifest.json edit/project.json edit/project/lexlean.toml edit/prism-code/journey/rule-table.mjs                    edit/prism-code/journey/wasi-memory.mjs edit/ide/index.html edit/site.json; do
+            test -s "$site/$f" || { echo "missing: $f"; exit 1; }
+          done
+          # What is published decodes to what prism-code pins: LexLean by its BLAKE3 label, the kernel by its manifest.
+          node --input-type=module - "$site/edit" <<'JS'
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          import { gunzipSync } from 'node:zlib';
+          import { kappa } from './src/blake3.mjs';
+          import { LEXLEAN_WASM } from './src/journey/lexlean-wasm.mjs';
+          const site = process.argv[2];
+          const bytes = (file) => gunzipSync(readFileSync(`${site}/${file}`));
+          const got = kappa(bytes('lexlean.wasm.gz'));
+          if (got !== LEXLEAN_WASM.kappa) throw new Error(`lexlean.wasm.gz decodes to ${got}, not the pinned ${LEXLEAN_WASM.kappa}`);
+          const manifest = JSON.parse(readFileSync(`${site}/kernel/manifest.json`, 'utf8'));
+          for (const part of [manifest.glue, manifest.wasm, manifest.library]) {
+            // The kernel's manifest names its three files by SHA-256, which is what the page's worker checks.
+            const have = createHash('sha256').update(bytes(`kernel/${part.file}`)).digest('hex');
+            if (have !== part.sha256) throw new Error(`kernel/${part.file} decodes to sha256:${have}, not the pinned sha256:${part.sha256}`);
+          }
+          console.log('LexLean and the kernel are the pinned ones');
+          JS
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:

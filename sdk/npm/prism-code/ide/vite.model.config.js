@@ -4,6 +4,8 @@ import { defineConfig, mergeConfig } from 'vite';
 import base from './vite.config.js';
 
 export default mergeConfig(base, defineConfig({
+  // Relative addresses, so the build works in whatever folder it is published.
+  base: './',
   publicDir: false,
   build: { outDir: 'dist-model', emptyOutDir: true, rollupOptions: { input: 'model.html' } },
 }));

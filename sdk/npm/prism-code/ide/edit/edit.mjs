@@ -16,9 +16,27 @@ const $ = (id) => document.getElementById(id);
 const state = (window.prismEdit = { ready: false, checks: 0, last: null, error: null, engine: null });
 const PAUSE_MS = 350;
 
-const listing = await (await fetch('./project.json', { cache: 'no-store' })).json();
+// ?project=<address of a folder> opens the model published there: its project.json lists its files, which are
+// fetched from that folder. Without it, the model that came with the page is opened.
+const asked = new URLSearchParams(location.search).get('project');
+const PROJECT = asked ? new URL(asked.replace(/\/?$/, '/'), location.href).href : null;
 const files = {};
-await Promise.all(listing.files.map(async (path) => { files['/' + path] = await (await fetch('./project/' + path, { cache: 'no-store' })).text(); }));
+let listing;
+try {
+  listing = await (await fetch(PROJECT ? PROJECT + 'project.json' : './project.json', { cache: 'no-store' })).json();
+  await Promise.all(listing.files.map(async (path) => {
+    const response = await fetch((PROJECT ?? './project/') + path, { cache: 'no-store' });
+    if (!response.ok) throw new Error(path + ' answered ' + response.status);
+    files['/' + path] = await response.text();
+  }));
+} catch (error) {
+  // A browser gives no reason when another site's files may not be read, so the likely ones are named.
+  state.error = String(error?.message ?? error);
+  state.ready = true;
+  $('status').textContent = `The model at ${PROJECT ?? './project/'} could not be opened (${state.error}). It needs a project.json listing its files, and its host must let other sites read them.`;
+  $('status').dataset.state = 'bad';
+  throw error;
+}
 const entry = '/' + listing.entry;
 const original = files[entry];
 $('file').textContent = listing.entry;

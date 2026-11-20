@@ -38,11 +38,28 @@ const state = (window.prismModel = { ready: false, checks: 0, last: null, proof:
 const say = (text, kind) => { strip.textContent = text; strip.dataset.state = kind ?? ''; };
 
 // The edit page's files, served beside this page. Plain URLs, so the bundler leaves the workers as they are.
-const EDIT = new URL('/edit/', location.origin).href;
-const json = async (path) => (await fetch(EDIT + path, { cache: 'no-store' })).json();
-const [listing, pin] = await Promise.all([json('project.json'), json('pin.json')]);
+// This page lives in the edit page's folder, at ide/, wherever that folder is published.
+const EDIT = new URL('../', location.href).href;
+const json = async (url) => (await fetch(url, { cache: 'no-store' })).json();
+// ?project=<address of a folder> opens the model published there: its project.json lists its files, which are
+// fetched from that folder. Without it, the model that came with the page is opened.
+const asked = new URLSearchParams(location.search).get('project');
+const PROJECT = asked ? new URL(asked.replace(/\/?$/, '/'), location.href).href : null;
 const files = {};
-await Promise.all(listing.files.map(async (path) => { files['/' + path] = await (await fetch(EDIT + 'project/' + path, { cache: 'no-store' })).text(); }));
+let listing, pin;
+try {
+  [listing, pin] = await Promise.all([json(PROJECT ? PROJECT + 'project.json' : EDIT + 'project.json'), json(EDIT + 'pin.json')]);
+  await Promise.all(listing.files.map(async (path) => {
+    const response = await fetch((PROJECT ?? EDIT + 'project/') + path, { cache: 'no-store' });
+    if (!response.ok) throw new Error(path + ' answered ' + response.status);
+    files['/' + path] = await response.text();
+  }));
+} catch (error) {
+  // A browser gives no reason when another site's files may not be read, so the likely ones are named.
+  state.error = String(error?.message ?? error);
+  say(`The model at ${PROJECT ?? EDIT + 'project/'} could not be opened (${state.error}). It needs a project.json listing its files, and its host must let other sites read them.`, 'bad');
+  throw error;
+}
 const entry = '/' + listing.entry;
 const { ruleTable, tableWords, counterexample, OPS } = await import(/* @vite-ignore */ EDIT + 'prism-code/journey/rule-table.mjs');
 
