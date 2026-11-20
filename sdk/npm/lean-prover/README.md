@@ -93,6 +93,8 @@ The project is accepted only if every theorem is proved and uses only axioms it 
 
 Every byte is named by the seal, `web/seal.json` (`lean-prover-seal/2`, written by `scripts/make-seal.mjs`): code, kernel, base library and LexLean, by BLAKE3 label (Hologram's WebAssembly BLAKE3), and the hasher itself by SHA-256. `?seal=LABEL` pins it. A verdict is kept in the origin's private storage (the file system, or IndexedDB where that does not work) under the label of the seal and every project file, and a returning visit is answered from it after re-hashing.
 
+A kernel that has read the base library is kept as an image of its memory, filed under its label, and later kernels resume from it in tens of milliseconds. The image only saves time: a kernel resumed from it must answer before it judges anything, and when it does not, or the image cannot be laid over a fresh kernel's memory, the image is set aside (the judge says why) and the library is read again. `kernel-path/test/model/sealed-browsers.mjs` plants an image 16 MiB larger than a fresh kernel's memory, which must resume, and a labelled image with its first 8 MiB cleared, which must be set aside.
+
 ```sh
 node scripts/make-seal.mjs --lexlean path/to/lexlean.wasm --lexlean-url /corpus/lexlean.wasm
 node web/serve.mjs LIBDIR CORPUSDIR 8794 path/to/project     # then open /sealed.html?seal=LABEL
