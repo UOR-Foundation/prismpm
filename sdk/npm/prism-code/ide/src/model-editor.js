@@ -83,6 +83,28 @@ function compare(table, edited) {
   matchLine.hidden = false;
 }
 
+// The reader's changes from an earlier visit, kept in this browser under BLAKE3 labels for exactly this model.
+const { baseLabel, openDrafts } = await import(/* @vite-ignore */ EDIT + 'drafts.mjs');
+const drafts = await openDrafts();
+const base = baseLabel(listing.entry, files);
+const kept = await drafts.load(base);
+// A path the model no longer has is not restored: the draft is for this model, so there should be none.
+const restored = Object.fromEntries(Object.entries(kept.restored).filter(([path]) => path in files));
+const draftLine = document.getElementById('draft');
+const draftText = document.getElementById('draftText');
+state.draft = { base, off: drafts.off, restored: Object.keys(restored), dropped: kept.dropped, kept: Object.keys(restored) };
+function sayDraft(paths) {
+  state.draft.kept = paths;
+  const names = paths.map((path) => path.replace(/^\//, '')).join(', ');
+  const lost = kept.dropped.length ? ` ${kept.dropped.length} earlier change${kept.dropped.length === 1 ? ' was' : 's were'} not restored: the stored text is no longer what its label names.` : '';
+  draftLine.hidden = paths.length === 0 && !lost;
+  draftText.textContent = (paths.length === 0 ? '' : drafts.off
+    ? `Changed: ${names}. This browser keeps nothing for this page, so a reload loses the change${paths.length === 1 ? '' : 's'}.`
+    : `Changed and kept in this browser: ${names}.`) + lost;
+  document.getElementById('draftDiscard').hidden = paths.length === 0;
+}
+document.getElementById('draftDiscard').addEventListener('click', async () => { await drafts.discard(base); location.reload(); });
+
 // One request at a time to each worker, matched by id.
 function channel(url, onNote) {
   const worker = new Worker(url, { type: 'module' });
@@ -108,7 +130,8 @@ try {
   // The project, as files the workbench can open. The model's entrypoint is the one that gets edited.
   const provider = new RegisteredFileSystemProvider(false);
   const uriOf = (path) => URI.file('/workspace' + path);
-  for (const [path, text] of Object.entries(files)) provider.registerFile(new RegisteredMemoryFile(uriOf(path), text));
+  // A file the reader changed on an earlier visit opens as they left it; `files` stays the model as fetched.
+  for (const [path, text] of Object.entries(files)) provider.registerFile(new RegisteredMemoryFile(uriOf(path), restored[path] ?? text));
   registerFileSystemOverlay(1, provider);
   // LexLean's colours reach the editor as semantic tokens, so they are on whatever the theme would choose.
   // ?theme=<a theme's name> opens the page in that theme; without it, the workbench's own choice stands.
@@ -158,7 +181,17 @@ try {
 
   // The model as it stands in the editor: each file as fetched, or as the reader has changed it. A file that was
   // opened and changed keeps its change after its editor is closed, for as long as the tab is open.
-  const current = {};
+  const current = { ...restored };
+  sayDraft(Object.keys(current).filter((path) => current[path] !== files[path]).sort());
+  let saving = null;
+  const keep = () => {
+    clearTimeout(saving);
+    saving = setTimeout(async () => {
+      const changed = Object.fromEntries(Object.entries(current).filter(([path, text]) => text !== files[path]));
+      await drafts.save(base, changed);
+      sayDraft(Object.keys(changed).sort());
+    }, 400);
+  };
   const pathOf = (uri) => (uri.scheme === 'file' && uri.path.startsWith('/workspace/') ? uri.path.slice('/workspace'.length) : null);
   const rooted = (path) => '/' + path.replace(/^\//, '');
   window.prismModel.changed = () => Object.keys(current).filter((path) => current[path] !== files[path]);
@@ -245,7 +278,7 @@ try {
     const path = pathOf(m.uri);
     if (path === null || !(path in files)) return;
     if (m.getLanguageId() !== LEXLEAN && path.endsWith('.lex.tex')) monaco.editor.setModelLanguage(m, LEXLEAN);
-    m.onDidChangeContent(() => { current[path] = m.getValue(); clearTimeout(timer); timer = setTimeout(run, PAUSE_MS); });
+    m.onDidChangeContent(() => { current[path] = m.getValue(); keep(); clearTimeout(timer); timer = setTimeout(run, PAUSE_MS); });
   };
   monaco.editor.getModels().forEach(watch);
   monaco.editor.onDidCreateModel(watch);
