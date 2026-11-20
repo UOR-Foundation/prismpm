@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>LexLean models on the kernel path</title></head>
+<body><pre id="out">Checking…</pre>
+<script type="module">
+// Each app in turn, in one worker: the first pays for starting the kernel, the rest reuse it.
+const apps = (new URLSearchParams(location.search).get("apps") || "loan,seat,verdant").split(",");
+const w = new Worker("./check-worker.mjs", { type: "module" }), out = document.getElementById("out"), results = [];
+window.results = null;
+const next = () => apps.length ? w.postMessage({ app: apps.shift() }) : (window.results = results);
+w.onmessage = ({ data }) => { results.push(data); out.textContent = results.map((r) => JSON.stringify(r)).join("\n"); next(); };
+w.onerror = (e) => { results.push({ ok: false, error: "worker: " + (e.message ?? e) }); window.results = results; };
+next();
+</script></body></html>

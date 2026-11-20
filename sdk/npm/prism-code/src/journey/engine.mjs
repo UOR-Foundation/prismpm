@@ -4,14 +4,15 @@
  * nothing here runs a local image.
  *
  * Where each step runs is frontend.mjs: LexLean as WebAssembly on this
- * machine checks the model and takes its semantic snapshot, and the hosted
- * verifier proves any other app's theorems unless the user is offline.
+ * machine checks the model and takes its semantic snapshot, and Lean's kernel
+ * proves any other app's theorems in this process (model-prove.mjs). The
+ * hosted verifier runs only when the user sets PRISM_CODE_TIER=hosted.
  *
  * A rule app (the `rule-app` starter) is checked by Lean's kernel in this
  * process from the model's semantic snapshot, and becomes the verified rule
- * judge with the model's numbers (rule-app.mjs). Any other app is proved on
- * the hosted verifier, and is not built into a holo here: that needs Lean's
- * export, Rust and WebAssembly, which no step runs without an image yet.
+ * judge with the model's numbers (rule-app.mjs). Any other app is proved by
+ * the kernel path, and is not built into a holo here: that needs Rust and
+ * WebAssembly, which no step runs without an image yet.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -100,17 +101,20 @@ async function checkUnheld(dir, session, { log = () => {}, env = process.env, cl
  * this process from its semantic snapshot; any other app's theorems are proved
  * by `lexlean verify`. Returns `{ ok, where, guarantees | message, diagnostics }`.
  */
-async function proveUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, wasm = null } = {}) {
+async function proveUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, modelKernel = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
+  let frontend;
   try {
-    where = frontendWhere({ env, hasWasm: wasm });
-    // A rule app is proved by Lean's kernel in this process; any other app's theorems by `lexlean verify`, which needs Lean.
+    where = frontend = frontendWhere({ env, hasWasm: wasm });
+    // A rule app is proved by the rule judge's lemma in this process; any other app's theorems by the kernel path, or
+    // by `lexlean verify` on the hosted verifier when the user asked for it.
     if (!isRuleApp(session)) where = proverWhere({ env });
   } catch (error) {
     return failure(error);
   }
   if (isRuleApp(session)) return proveRuleApp(dir, session, { log, where, client, gaps, kernel, env });
+  if (where === 'kernel') return proveModel(dir, session, { log, frontend, client, gaps, kernel: modelKernel, env });
   const started = Date.now();
   const h = await hostedOf(client, gaps);
   log(`Asking Lean to prove the model on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted: not searchable, but readable by anyone with the draft's ID.`);
@@ -128,6 +132,37 @@ async function proveUnheld(dir, session, { log = () => {}, env = process.env, cl
   if (outcome.state === 'verified') return proved(dir, session, { where, seconds, attestation: outcome.record.attestation_id });
   const diagnostics = outcome.diagnostics.map(fromHosted);
   return { ok: false, where, seconds, diagnostics: shown(diagnostics), message: repair(diagnostics) };
+}
+
+/**
+ * Any app: its semantic snapshot lowered to kernel declarations, a proof found for each theorem, and Lean's kernel
+ * judging all of it in this process (model-prove.mjs). Nothing is sent anywhere when LexLean runs here.
+ */
+async function proveModel(dir, session, { log, frontend, client, gaps, kernel, env }) {
+  const started = Date.now();
+  let snapshot;
+  try {
+    snapshot = await snapshotOf(dir, { where: frontend, client, gaps, log, env });
+  } catch (error) {
+    return { ...failure(error), where: 'kernel', ...(error.diagnostics ? { diagnostics: shown(error.diagnostics), message: repair(error.diagnostics) } : {}) };
+  }
+  const { modelProve } = await import('./model-prove.mjs');
+  log("Asking Lean's kernel, in this process, to check every theorem of the model.");
+  let result;
+  try {
+    result = await modelProve(snapshot, { log, kernel, env });
+  } catch (error) {
+    return { ok: false, where: 'kernel', code: error.code ?? 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app.` };
+  }
+  const seconds = Math.round((Date.now() - started) / 100) / 10;
+  const short = (name) => name.slice(name.lastIndexOf('.') + 1);
+  const theorems = result.theorems.map((t) => ({ theorem: short(t.name), proof: t.proof, status: t.status, axioms: t.axioms }));
+  if (result.refusal) return { ok: false, where: 'kernel', seconds, theorems, message: `The model could not be put to Lean's kernel: ${result.refusal}. This is a limit of this prover, not a verdict on the app; PRISM_CODE_TIER=hosted proves it on the hosted verifier, which stores the model unlisted.` };
+  const missed = result.theorems.filter((t) => !t.status.startsWith('proved'));
+  if (missed.length) return { ok: false, where: 'kernel', seconds, theorems, message: `${missed.length} of ${result.theorems.length} theorems are not proved: ${missed.slice(0, 3).map((t) => `${short(t.name)} (${t.status.replace(/^not proved: /, '')})`).join('; ')}.` };
+  const fewer = result.theorems.filter((t) => t.status !== 'proved').length;
+  session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where: 'kernel', seconds, semanticId: snapshot.semantic_id ? `sha256:${snapshot.semantic_id}` : null };
+  return { ok: true, where: 'kernel', seconds, theorems, message: `Lean's kernel, in this process, accepted a proof of every one of the model's ${result.theorems.length} theorems over ${result.declarations} declarations, in ${seconds} s, each within its declared axioms${fewer ? ` (${fewer} on fewer than declared)` : ''}. ${result.remembered ? `${result.remembered} were remembered from earlier proofs on this machine, by their content, and ${result.judged} judged now. ` : ''}Nothing was sent anywhere.` };
 }
 
 /** Record that Lean proved this model as it is on disk. */

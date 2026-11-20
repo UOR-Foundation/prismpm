@@ -82,23 +82,23 @@ The gate packs these packages (`gate/npm-pack.sh`) and holds each tarball to the
 
 ## In a browser
 
-`web/` holds a page and a worker that run the same engine in a tab. The worker fetches the manifest, admits every blob by the BLAKE3 label of its decoded bytes, and caches blobs in the tab's private store (OPFS). The page then elaborates the gate's corpus and compares each module with native Lean, declaration by declaration, with timings.
+`web/sealed.html` proves a whole LexLean project in a tab with no Lean elaborator, no server and no install. It runs the kernel path (`kernel-path/`), in a worker:
 
-CI's gate job keeps the two folders the page needs, as artifacts:
-- `lean-prover-library`: the manifest and its blobs;
-- `lean-prover-browser-corpus`: the rendered modules, their order, and native Lean's answers.
+1. LexLean's WASI build checks the project and gives its semantic model (`lexlean snapshot --all`).
+2. `kernel-path/src/lower.mjs` lowers the model to Lean kernel declarations: structures, inductives, definitions (structural recursion through the kernel's own recursors) and each theorem's statement.
+3. `kernel-path/src/emit.mjs` finds a proof of each theorem (proof kinds `linear_arithmetic`, `decide`, `reflexivity`; any other is refused by name).
+4. Lean 4.32.2's kernel (WebAssembly, 2.2 MB) judges every declaration and proof over a small base library (`kernel-path/library/base.ndjson.gz`, 1.2 MB), and reports each theorem's axioms.
+
+The project is accepted only if every theorem is proved and uses only axioms it declared, all among Lean's three standard ones. A proof found here may use fewer axioms than LexLean's own Lean text (an arithmetic proof without `Classical.choice`); that is accepted and shown.
+
+Every byte is named by the seal, `web/seal.json` (`lean-prover-seal/2`, written by `scripts/make-seal.mjs`): code, kernel, base library and LexLean, by BLAKE3 label (Hologram's WebAssembly BLAKE3), and the hasher itself by SHA-256. `?seal=LABEL` pins it. A verdict is kept in the origin's private storage (the file system, or IndexedDB where that does not work) under the label of the seal and every project file, and a returning visit is answered from it after re-hashing.
 
 ```sh
-node web/serve.mjs path/to/lean-prover-library path/to/lean-prover-browser-corpus
+node scripts/make-seal.mjs --lexlean path/to/lexlean.wasm --lexlean-url /corpus/lexlean.wasm
+node web/serve.mjs LIBDIR CORPUSDIR 8794 path/to/project     # then open /sealed.html?seal=LABEL
 ```
 
-`web/project.html` proves a whole LexLean project in the tab, the way `prove` does in Node, with the same verdict code (`src/verdict.mjs`): LexLean's WASI build checks the project and renders its modules (`lexlean lean-modules`), Lean elaborates each one, the kernel replays every declaration, and the axiom audit is applied. Nothing is sent anywhere. Give the project folder as the fourth argument:
-
-```sh
-node web/serve.mjs LIBDIR CORPUSDIR 8794 path/to/project     # then open /project.html
-```
-
-The render needs a LexLean build with `lean-modules` (LexLean pull request 578). Until a release has it, `?lexlean=URL` names an unreleased WASI build; it is not pinned, and the page reports its BLAKE3 label.
+Measured in Chromium, Firefox and WebKit (Playwright, Windows): a loan app and a seat-booking app built with the Prism SDK, and verdant-engine (1,031 declarations, 72 theorems), each proved on a first visit in 2 to 6 s with at most 111 MiB of kernel memory, and answered from the store in under 0.1 s of work on a returning visit. The elaborator in a tab overflowed the stack on the last two in every browser.
 
 ## Building the engine
 

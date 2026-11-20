@@ -1,202 +1,86 @@
-// The sealed engine worker: Lean 4.32.2's elaborator and kernel, LexLean's front end, and nothing else.
+// The sealed prover's coordinator: the lowering and the proof finder, and the memory of what has been judged. LexLean
+// runs beside it (lexlean-worker.mjs) and hands it the semantic model. No elaborator: LexLean's semantic model is lowered straight to kernel declarations
+// (kernel-path/src/lower.mjs), and the work is written as batches any number of judges check at once
+// (kernel-path/src/plan.mjs, web/judge-worker.mjs).
 //
-// Every byte it runs or reads is named by a BLAKE3 label the seal fixes (web/seal.json, checked by sealed.html):
-// the manifest by the seal, then the engine, the library and LexLean by the manifest or the seal. Labels are
-// computed with Hologram's BLAKE3 (WebAssembly, about 40 times faster than JavaScript here); a byte whose label
-// does not match is never used.
+// Every theorem carries a Merkle key: the BLAKE3 label of its statement and of everything it reaches. A theorem the
+// kernel accepted under this seal and key is not judged again; an edit changes the keys of the theorems that reach
+// what was edited, and no other. Every byte is named by the seal and admitted by its label (sealed-store.mjs).
 //
-// Lean is started only when the app first asks for it. Library files are kept, decoded, in the origin's private
-// file system under their labels, so a later visit reads and re-hashes them but neither downloads nor decompresses.
-//
-//   { op: "init", hologramJs, hologramWasm, seal }            -> { ok }
-//   { op: "open" }                                            -> { ok, timings, files, mb, heapMB } | { ok: false, refusal }
-//   { op: "render", files }                                   -> { ok, rendered } | { ok: false, diagnostics }
-//   { op: "write", path, bytes }                              -> { ok }
-//   { op: "request", request }                                -> { answer, ms, heapMB, printed }
-//   { op: "opened" }                                          -> { opened }
-import { run as runWasi } from "../src/wasi.mjs";
+//   { op: "init", hologramJs, hologramWasm, seal, sealLabel } -> { ok, evidence }; the base library is read at once
+//   { op: "model", text }       -> { ok, theorems, todo, declarations, timings } | { ok: false, stage, diagnostics }
+//   { op: "files", batches, n } -> { files: [{ names, text }] }       the files for these batches
+//   { op: "split", names, n }   -> { batches }                         names in at most n groups, by remembered cost
+//   { op: "record", results }   -> { ok }                              [{ key, axioms, ms }] the kernel accepted
+import { loadLibrary } from "../kernel-path/src/emit.mjs";
+import { plan } from "../kernel-path/src/plan.mjs";
+import { admitted, openDir } from "./sealed-store.mjs";
 
 const now = () => performance.now();
-Error.stackTraceLimit = 100000; // so an overflow reports its whole depth
-let holo = null, seal = null, manifest = null, lean = null, memory = null, lexlean = null; // lean: the current instance
-const log = [], opened = new Set();
-const heapMB = () => (memory ? Math.round(Number(memory.buffer.byteLength) / 1048576) : null);
-const spent = { fetchMs: 0, decodeMs: 0, hashMs: 0, storeHits: 0, fetched: 0 };
-
-let store = null;
-async function openStore() {
-  try { store = await (await navigator.storage.getDirectory()).getDirectoryHandle("lean-sealed", { create: true }); } catch { store = null; }
-}
-const fromStore = async (hex) => { try { return new Uint8Array(await (await (await store.getFileHandle(hex)).getFile()).arrayBuffer()); } catch { return null; } };
-const toStore = async (hex, bytes) => { try { const w = await (await store.getFileHandle(hex, { create: true })).createWritable(); await w.write(bytes); await w.close(); } catch {} };
-
-const decode = async (encoded, encoding) => (encoding !== "gzip" ? encoded
-  : new Uint8Array(await new Response(new Blob([encoded]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()));
-
-/** The decoded bytes of `url`, admitted only when their BLAKE3 label is `label`. Stored decoded, re-hashed on every read. */
-async function admitted(label, url, encoding) {
-  const hex = label.slice(7);
-  let t = now(), bytes = store ? await fromStore(hex) : null;
-  spent.fetchMs += now() - t;
-  if (bytes) {
-    t = now(); const ok = holo.address(bytes) === label; spent.hashMs += now() - t;
-    if (ok) { spent.storeHits++; return bytes; }
-    try { await store.removeEntry(hex); } catch {}
-  }
-  t = now();
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url}: ${res.status}`);
-  const encoded = new Uint8Array(await res.arrayBuffer());
-  spent.fetchMs += now() - t; t = now();
-  bytes = await decode(encoded, encoding);
-  spent.decodeMs += now() - t; t = now();
-  const got = holo.address(bytes);
-  spent.hashMs += now() - t;
-  if (got !== label) throw new Error(`refused ${url}: its bytes are ${got}, not ${label}`);
-  spent.fetched++;
-  if (store) await toStore(hex, bytes);
-  return bytes;
-}
-
-async function init({ hologramJs, hologramWasm, seal: s }) {
-  holo = await import(hologramJs);
-  holo.initSync({ module: hologramWasm });
-  seal = s;
-  await openStore();
-  // The manifest is admitted by the seal's label for it; everything it names is admitted by its own labels.
-  const bytes = await admitted(seal.manifest.kappa, seal.manifest.url);
-  manifest = JSON.parse(new TextDecoder().decode(bytes));
-  if (manifest.schema !== "lean-wasm-prover/1") throw new Error("the manifest is not lean-wasm-prover/1");
-  return { ok: true, semantics: manifest.lexlean?.semantics_id ?? null, evidence: { manifest: seal.manifest.kappa, engine: manifest.engine.wasm.kappa, loader: manifest.engine.loader.kappa, lexlean: seal.lexlean.kappa, gate: manifest.gate ?? null } };
-}
-
-async function open() {
-  const timings = {};
-  let t = now();
-  const base = seal.manifest.url.slice(0, seal.manifest.url.lastIndexOf("/"));
-  const blob = (e) => admitted(e.kappa, `${base}/blobs/${e.kappa.slice(7)}`, e.encoding);
-  const [glue, wasm] = await Promise.all([blob(manifest.engine.loader), blob(manifest.engine.wasm)]);
-  timings.engineMs = Math.round(now() - t);
-  t = now();
-  const files = [], queue = [...manifest.library];
-  let mb = 0;
-  await Promise.all(Array.from({ length: 16 }, async () => {
-    for (let e; (e = queue.shift()); ) { files.push([e.path, await blob(e)]); mb += e.bytes / 1048576; }
-  }));
-  timings.libraryMs = Math.round(now() - t);
-  Object.assign(timings, { fetchMs: Math.round(spent.fetchMs), decodeMs: Math.round(spent.decodeMs), hashMs: Math.round(spent.hashMs), storeHits: spent.storeHits, fetched: spent.fetched });
-  t = now();
-  const url = URL.createObjectURL(new Blob([glue], { type: "text/javascript" }));
-  try { factory = (await import(url)).default; } finally { URL.revokeObjectURL(url); }
-  compiled = await WebAssembly.compile(wasm);
-  library = files;
-  const r = await boot([]);
-  if (!r.ok) return r;
-  return { ok: true, timings: { ...timings, ...r.timings }, files: manifest.library.length, mb: Math.round(mb), heapMB: heapMB() };
-}
-
-// A fresh Lean instance over the admitted library: WebAssembly memory never shrinks, and Lean keeps one copy of the
-// library per import set, so the only way to give memory back is a new instance. The old one is dropped whole.
-// `out` is what earlier modules wrote under /out, which later modules import.
-let factory = null, compiled = null, library = null;
-async function boot(out) {
-  const timings = {};
-  let t = now();
-  lean = null; memory = null;
-  const next = await factory({
-    instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; raw = instance.exports; done(instance, compiled); }); return {}; },
-    print: (s) => log.push(s), printErr: (s) => log.push(s),
-  });
-  // The file system owns each admitted array instead of copying it: one copy of the library outside Lean's heap,
-  // shared by every instance.
-  for (const [path, bytes] of [...library, ...out]) {
-    next.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
-    next.FS.writeFile(path, bytes, { canOwn: true });
-  }
-  const fsOpen = next.FS.open;
-  next.FS.open = (path, ...rest) => { if (typeof path === "string") opened.add(path); return fsOpen.call(next.FS, path, ...rest); };
-  next.ENV.LEAN_SYSROOT = "/lean";
-  next.ENV.LEAN_PATH = "/rt";
-  next.FS.mkdirTree("/src"); next.FS.mkdirTree("/out");
-  timings.instantiateMs = Math.round(now() - t);
-  t = now();
-  if (next.ccall("elab_ready", "number", [], []) !== 0) return { ok: false, refusal: "Lean did not initialize: " + log.join(" ") };
-  timings.initializeMs = Math.round(now() - t);
-  lean = next;
-  return { ok: true, timings };
-}
-
-// One driver request. Lean's elaborator recurses deeply, and a browser gives a worker's own call stack little room
-// (Chromium about 10,000 frames of a small test function, Firefox about 3,000). A call made through
-// WebAssembly.promising (JSPI) runs on a separate stack the engine sizes itself, and measured deeper in every
-// browser tried: Chromium 2x, Firefox 4.3x, WebKit 9.7x. So every request goes that way where JSPI exists, and
-// directly elsewhere. The request and the answer cross as UTF-8 in Lean's memory, exactly as ccall passes them.
-import { probe } from "./stack-probe.mjs";
-let raw = null, stacks = null;
 const enc = new TextEncoder(), dec = new TextDecoder();
-// eslint-disable-next-line no-unused-vars
-async function request(json) {
-  stacks ??= await probe();
-  if (!(stacks.promising > stacks.direct)) return { text: lean.ccall("elab_request", "string", ["string"], [json]), jspi: false };
-  const bytes = enc.encode(json);
-  const ptr = raw.malloc(BigInt(bytes.length + 1));
-  new Uint8Array(memory.buffer, Number(ptr), bytes.length + 1).set([...bytes, 0]);
-  let out;
-  try { out = await WebAssembly.promising(raw.elab_request)(ptr); } finally { raw.free(ptr); }
-  const heap = new Uint8Array(memory.buffer), start = Number(out);
-  let end = start; while (heap[end] !== 0) end++;
-  return { text: dec.decode(heap.subarray(start, end)), jspi: true };
+let holo = null, seal = null, sealLabel = null, assets = null, verdicts = null, library = null, current = null;
+
+async function init(data) {
+  holo = await import(data.hologramJs);
+  holo.initSync({ module: data.hologramWasm });
+  seal = data.seal; sealLabel = data.sealLabel;
+  [assets, verdicts] = await Promise.all([openDir("lean-sealed"), openDir("lean-verdicts")]);
+  // The base library, read for the lowering while LexLean runs beside this worker, and the theorem verdicts.
+  warm = Promise.all([admitted(holo, assets, seal.base).then((base) => { library = loadLibrary(dec.decode(base)); }), loadVerdicts()]);
+  warm.catch(() => {});
+  return { ok: true, evidence: { kernel: seal.kernel.wasm.kappa, loader: seal.kernel.loader.kappa, base: seal.base.kappa, lexlean: seal.lexlean.kappa } };
+}
+let warm = null;
+
+const hash = (s) => holo.address(enc.encode(s));
+// The theorem verdicts under this seal, in one small file: { key: { axioms, ms } }, read once and written whole. It is
+// filed with its own label in front, so a damaged or altered file reads as empty.
+let known = new Map();
+const knownName = () => hash(`lean-prover/theorem-verdicts/1\n${sealLabel}`).slice(7);
+async function loadVerdicts() {
+  const b = verdicts ? await verdicts.get(knownName()).catch(() => null) : null;
+  if (!b) return;
+  const text = dec.decode(b), cut = text.indexOf("\n");
+  if (cut > 0 && hash(text.slice(cut + 1)) === text.slice(0, cut)) known = new Map(Object.entries(JSON.parse(text.slice(cut + 1))));
+}
+async function saveVerdicts() {
+  const body = JSON.stringify(Object.fromEntries(known));
+  await verdicts?.put(knownName(), enc.encode(hash(body) + "\n" + body)).catch(() => {});
 }
 
-const EXTS = [".olean", ".olean.server", ".olean.private", ".ir"];
-const outPath = (module, ext) => `/out/${module.replaceAll(".", "/")}${ext}`;
+async function model(text) {
+  const timings = {};
+  let t = now();
+  await warm;
+  timings.waitedMs = Math.round(now() - t);
+  t = now();
+  const snapshot = JSON.parse(text);
+  try { current = plan(snapshot, library, { hash }); } catch (e) { return { ok: false, stage: "lower", diagnostics: e.message }; }
+  timings.lowerMs = Math.round(now() - t);
+  t = now();
+  // Remembered verdicts stand in for judging: the same statement over the same definitions, under the same seal.
+  const costs = new Map();
+  const theorems = current.theorems.map((th) => {
+    const row = { name: th.name, key: th.key, proof: th.proof, declared: th.declared, status: th.status, axioms: null, remembered: false };
+    const v = row.status ? null : known.get(th.key);
+    if (v) { row.axioms = v.axioms; row.remembered = true; costs.set(th.key, v.ms); }
+    return row;
+  });
+  current.costs = costs;
+  timings.recallMs = Math.round(now() - t);
+  const todo = theorems.filter((r) => !r.status && !r.remembered).map((r) => r.name);
+  return { ok: true, theorems, todo, declarations: current.declarations, timings };
+}
 
-// The same handler serves a worker and, as a fallback, the page itself (see sealed-app.mjs).
-export async function handle(data) {
-  const reply = (r) => ({ id: data.id, ...r });
+self.onmessage = async ({ data }) => {
+  const reply = (r) => self.postMessage({ id: data.id, ...r });
   try {
     if (data.op === "init") return reply(await init(data));
-    if (!holo) return reply({ error: "the worker is not initialized" });
-    if (data.op === "open") return reply(lean ? { ok: true, already: true, heapMB: heapMB() } : await open());
-    if (data.op === "render") {
-      lexlean ??= await WebAssembly.compile(await admitted(seal.lexlean.kappa, seal.lexlean.url));
-      const { exit, stdout, stderr } = runWasi(lexlean, { args: ["lexlean", "lean-modules", "--all"], files: new Map(data.files) });
-      return reply(exit !== 0 ? { ok: false, diagnostics: stderr || stdout } : { ok: true, rendered: JSON.parse(stdout) });
-    }
-    if (data.op === "runtime") return reply({ bytes: seal.runtime ? await admitted(seal.runtime.kappa, seal.runtime.url) : null });
-    if (!lean) return reply({ error: "Lean is not open" });
-    if (data.op === "write") {
-      lean.FS.mkdirTree(data.path.slice(0, data.path.lastIndexOf("/")));
-      lean.FS.writeFile(data.path, data.bytes);
-      return reply({ ok: true });
-    }
-    if (data.op === "stacks") return reply({ stacks: stacks ??= await probe() });
-    if (data.op === "opened") return reply({ opened: [...opened] });
-    // A module's four build files, as Lean wrote them under /out, or null if any is missing.
-    if (data.op === "artifacts") {
-      const files = [];
-      for (const ext of EXTS) { try { files.push([outPath(data.module, ext), lean.FS.readFile(outPath(data.module, ext))]); } catch { return reply({ files: null }); } }
-      return reply({ files });
-    }
-    // A fresh instance, with `files` (earlier modules' build files) written under /out.
-    if (data.op === "reset") { const t = now(), r = await boot(data.files ?? []); return reply({ ...r, ms: Math.round(now() - t), heapMB: heapMB() }); }
-    // Build files remembered from an earlier session, so later modules can import them.
-    if (data.op === "place") {
-      for (const [path, bytes] of data.files) { lean.FS.mkdirTree(path.slice(0, path.lastIndexOf("/"))); lean.FS.writeFile(path, bytes); }
-      return reply({ ok: true });
-    }
-    if (data.op === "request") {
-      const t = now(), from = log.length;
-      const r = await request(JSON.stringify(data.request)), answer = JSON.parse(r.text);
-      return reply({ answer, jspi: r.jspi, ms: Math.round(now() - t), heapMB: heapMB(), printed: log.slice(from).join(" | ").slice(-4000) });
-    }
-    return reply({ error: `unknown op ${data.op}` });
-  } catch (e) {
-    // A stack overflow says where it happened: the most frequent frames of the trace, for diagnosis.
-    let frames = null;
-    const lines = e?.stack ? String(e.stack).split(/\r?\n/) : [];
-    if (e instanceof RangeError && lines.length) { const counts = {}; for (const l of lines.slice(1)) { const k = l.trim().replace(/:0x[0-9a-f]+\)?$/, ""); counts[k] = (counts[k] ?? 0) + 1; } frames = Object.entries(counts).sort((x, y) => y[1] - x[1]).slice(0, 12); }
-    return reply({ error: "the worker failed: " + (e && e.message ? e.message : String(e)), overflow: e instanceof RangeError || /too much recursion|call stack/i.test(String(e?.message)), frames, depth: lines.length ? lines.length - 1 : null });
-  }
-}
-if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) self.onmessage = async ({ data }) => self.postMessage(await handle(data));
+    if (!holo) return reply({ error: "the coordinator is not initialized" });
+    if (data.op === "model") return reply(await model(data.text));
+    if (data.op === "split") return reply({ batches: current.batches(data.names, data.n, (key) => current.costs.get(key) ?? null) });
+    if (data.op === "files") return reply({ files: data.batches.map((names) => ({ names, text: current.file(names) })) });
+    if (data.op === "record") { for (const r of data.results) { current?.costs.set(r.key, r.ms); known.set(r.key, { axioms: r.axioms, ms: r.ms }); } await saveVerdicts(); return reply({ ok: true }); }
+    reply({ error: `unknown op ${data.op}` });
+  } catch (e) { reply({ error: "the coordinator failed: " + (e?.message ?? e) }); }
+};

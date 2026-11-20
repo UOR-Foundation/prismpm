@@ -28,9 +28,10 @@ test('the front end is the user\'s choice of the hosted verifier, else LexLean a
   assert.equal(frontendWhere({ env: offline, hasWasm: yes }), 'wasm');
   assert.equal(frontendWhere({ env: {}, hasWasm: no }), 'hosted');
   assert.throws(() => frontendWhere({ env: offline, hasWasm: no }), { code: 'build.frontend-unavailable' });
-  // Proving an app's own theorems needs Lean, which the WebAssembly front end does not carry.
-  assert.equal(proverWhere({ env: {} }), 'hosted');
-  assert.throws(() => proverWhere({ env: offline }), (e) => e.code === 'build.frontend-unavailable' && /Phase 4/.test(e.message));
+  // An app's own theorems are proved by Lean's kernel in this process, offline too; the hosted verifier only on request.
+  assert.equal(proverWhere({ env: {} }), 'kernel');
+  assert.equal(proverWhere({ env: offline }), 'kernel');
+  assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'hosted' } }), 'hosted');
 });
 
 test('planted defect: a module whose bytes are not the pinned ones is refused, kept or named', async () => {
