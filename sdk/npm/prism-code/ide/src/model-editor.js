@@ -8,6 +8,9 @@
 //   A guarantee a request breaks -> an error marker on the line that states the guarantees, naming the request
 //   Everything proved            -> no marker; the strip above the workbench says how many
 //
+// Every file of the model is in the workbench's Explorer and can be opened and changed. A check reads all of them
+// as they stand in the editor, and a diagnostic is marked in the file it is about.
+//
 // The page is served beside ../edit by tools/serve-edit.mjs, which gives it the project, the LexLean executable and
 // the kernel. No extension runs here, so the capability gate of main.js has nothing to judge and is not loaded.
 
@@ -26,6 +29,9 @@ import getStorageOverride from '@codingame/monaco-vscode-storage-service-overrid
 import getLifecycleOverride from '@codingame/monaco-vscode-lifecycle-service-override';
 import getNotificationsOverride from '@codingame/monaco-vscode-notifications-service-override';
 import getDialogsOverride from '@codingame/monaco-vscode-dialogs-service-override';
+import getExplorerOverride from '@codingame/monaco-vscode-explorer-service-override';
+import getKeybindingsOverride from '@codingame/monaco-vscode-keybindings-service-override';
+import getQuickAccessOverride from '@codingame/monaco-vscode-quickaccess-service-override';
 import '@codingame/monaco-vscode-theme-defaults-default-extension';
 import extHostWorkerUrl from '@codingame/monaco-vscode-api/workers/extensionHost.worker?worker&url';
 import editorWorkerUrl from '@codingame/monaco-vscode-api/workers/editor.worker?worker&url';
@@ -67,10 +73,10 @@ const { appRecord, tableFacts, differences, verdict } = await import(/* @vite-ig
 const beside = await appRecord(PROJECT);
 const original = files[entry];
 const matchLine = document.getElementById('match');
-function compare(table, text) {
+function compare(table, edited) {
   if (!PROJECT) { matchLine.hidden = true; state.app = null; return; }
   const differs = beside && table ? differences(tableFacts(table, { tableWords, tableShape }), beside.record) : [];
-  const said = !beside ? verdict(null, [], false) : !table ? { state: 'unread', text: `This model is not read as a rule table here, so it is not compared with the app at ${beside.app}.` } : verdict(beside, differs, text !== original);
+  const said = !beside ? verdict(null, [], false) : !table ? { state: 'unread', text: `This model is not read as a rule table here, so it is not compared with the app at ${beside.app}.` } : verdict(beside, differs, edited);
   state.app = { found: !!beside, state: said.state, differs };
   matchLine.textContent = said.text;
   matchLine.dataset.state = said.state;
@@ -113,7 +119,12 @@ try {
     ...getExtensionsOverride({ enableWorkerExtensionHost: true }), ...getFilesOverride(), ...getConfigurationOverride(),
     ...getWorkbenchOverride(), ...getModelOverride(), ...getLanguagesOverride(), ...getThemeOverride(), ...getMarkersOverride(),
     ...getStorageOverride(), ...getLifecycleOverride(), ...getNotificationsOverride(), ...getDialogsOverride(),
-  }, document.getElementById('workbench'));
+    // The Explorer, so every file of the model can be opened; the keyboard shortcuts and the command palette.
+    ...getExplorerOverride(), ...getKeybindingsOverride(), ...getQuickAccessOverride(),
+  }, document.getElementById('workbench'), {
+    // The model is the one folder of the workspace. It lives in this tab's memory: nothing is written anywhere.
+    workspaceProvider: { trusted: true, workspace: { folderUri: URI.file('/workspace') }, open: async () => false },
+  });
 
   // LexLean's name, brackets and colours, before the file is opened, so the editor takes it for LexLean.
   registerLexLean(monaco);
@@ -145,33 +156,49 @@ try {
   window.prismModel.setText = (text) => model.setValue(text); // for a test to type with
   window.prismModel.text = () => model.getValue();
 
+  // The model as it stands in the editor: each file as fetched, or as the reader has changed it. A file that was
+  // opened and changed keeps its change after its editor is closed, for as long as the tab is open.
+  const current = {};
+  const pathOf = (uri) => (uri.scheme === 'file' && uri.path.startsWith('/workspace/') ? uri.path.slice('/workspace'.length) : null);
+  const rooted = (path) => '/' + path.replace(/^\//, '');
+  window.prismModel.changed = () => Object.keys(current).filter((path) => current[path] !== files[path]);
+  window.prismModel.open = async (path) => { await (await getService(IEditorService)).openEditor({ resource: uriOf(rooted(path)), options: { pinned: true } }); };
+  window.prismModel.setFile = (path, text) => { const m = monaco.editor.getModel(uriOf(rooted(path))); if (!m) throw new Error(path + ' is not open'); m.setValue(text); };
+  window.prismModel.fileText = (path) => current[rooted(path)] ?? files[rooted(path)];
+  window.prismModel.marks = () => markers.read({}).map((m) => ({ file: pathOf(m.resource), line: m.startLineNumber, code: m.code, owner: m.owner }));
+
   let latest = 0;
   async function run() {
     const mine = ++latest;
-    const text = model.getValue();
-    const project = { ...files, [entry]: text };
+    const project = { ...files, ...current, [entry]: model.getValue() };
+    const text = project[entry];
+    const edited = Object.keys(project).some((path) => project[path] !== files[path]);
     say('Checking…');
     const reply = await lexlean.ask({ files: project });
     if (mine !== latest) return;
     state.checks++;
     if (reply.error) { state.last = { error: reply.error }; say('LexLean did not answer: ' + reply.error, 'bad'); state.ready = true; return; }
     const result = reply.result;
-    const own = result.diagnostics.filter((d) => (d.primary?.path ?? '').replace(/^\//, '') === listing.entry);
-    markers.changeOne('lexlean', resource, own.map((d) => ({
-      severity: ERROR, source: 'LexLean', code: d.code, message: d.message,
-      startLineNumber: d.primary.line_start, startColumn: d.primary.column_start, endLineNumber: d.primary.line_end, endColumn: Math.max(d.primary.column_end, d.primary.column_start + 1),
-    })));
+    // Each diagnostic is marked in the file it is about; a file with none has its marks cleared.
+    const fileOf = (d) => rooted(d.primary?.path ?? '');
+    const placed = result.diagnostics.filter((d) => d.primary && fileOf(d) in project);
+    for (const path of Object.keys(project)) {
+      markers.changeOne('lexlean', uriOf(path), placed.filter((d) => fileOf(d) === path).map((d) => ({
+        severity: ERROR, source: 'LexLean', code: d.code, message: d.message,
+        startLineNumber: Math.max(1, d.primary.line_start), startColumn: Math.max(1, d.primary.column_start), endLineNumber: Math.max(1, d.primary.line_end), endColumn: Math.max(d.primary.column_end, d.primary.column_start + 1),
+      })));
+    }
     state.last = { success: result.success, ms: reply.ms, semanticId: result.semantic_id ?? null, diagnostics: result.diagnostics.map((d) => ({ code: d.code, line: d.primary?.line_start, message: d.message })) };
     if (!result.success) {
       // A model that does not check has no meaning to prove anything about.
       markers.changeOne('prism-guarantees', resource, []);
       state.proof = null;
       matchLine.hidden = true;
-      // A problem in another file of the project has no place in this editor, so the strip names the first one.
-      const elsewhere = result.diagnostics.find((d) => !own.includes(d));
-      say(`${result.diagnostics.length} problem${result.diagnostics.length === 1 ? '' : 's'} from LexLean, in ${reply.ms} ms. Guarantees are not judged until the model checks.`
-        + (elsewhere ? ` Not in this file: ${elsewhere.primary?.path ?? 'the project'}: ${elsewhere.code}: ${elsewhere.message}` : ''), 'bad');
-      state.markers = markers.read({ resource }).length;
+      // A problem with no place in a file of the model is named in the strip, since no editor can show it.
+      const elsewhere = result.diagnostics.find((d) => !placed.includes(d));
+      say(`${result.diagnostics.length} problem${result.diagnostics.length === 1 ? '' : 's'} from LexLean, in ${reply.ms} ms, listed under Problems. Guarantees are not judged until the model checks.`
+        + (elsewhere ? ` Not in a file of the model: ${elsewhere.code}: ${elsewhere.message}` : ''), 'bad');
+      state.markers = markers.read({}).length;
       state.ready = true;
       return;
     }
@@ -182,7 +209,7 @@ try {
     try { table = ruleTable(JSON.parse(taken.snapshot)); } catch (e) {
       markers.changeOne('prism-guarantees', resource, []);
       state.proof = { table: false };
-      compare(null, text);
+      compare(null, edited);
       say(`The model checks, in ${reply.ms} ms. It is not a rule table, so its guarantees are not proved in this tab.`, 'ok');
       state.markers = markers.read({ resource }).length;
       state.ready = true;
@@ -191,7 +218,7 @@ try {
     const value = (f, v) => (f.values ? f.values[v] : v);
     const said = (g) => 'When ' + g.when.map(([f, op, v]) => table.fields[f].name + ' ' + OPS[op] + ' ' + value(table.fields[f], v)).join(' and ') + ', the answer is ' + (g.always ? 'always ' : 'never ') + table.answers[g.outcome];
     const found = table.guarantees.map((g) => counterexample(table, g));
-    compare(table, text);
+    compare(table, edited);
     const shaped = tableWords(table);
     const judged = await kernel.ask({ words: shaped.words, guarantees: shaped.guarantees });
     if (mine !== latest) return;
@@ -212,8 +239,16 @@ try {
     state.ready = true;
   }
 
+  // Any file of the model that is open is watched: a change to any of them is a change to the model.
   let timer = null;
-  model.onDidChangeContent(() => { clearTimeout(timer); timer = setTimeout(run, PAUSE_MS); });
+  const watch = (m) => {
+    const path = pathOf(m.uri);
+    if (path === null || !(path in files)) return;
+    if (m.getLanguageId() !== LEXLEAN && path.endsWith('.lex.tex')) monaco.editor.setModelLanguage(m, LEXLEAN);
+    m.onDidChangeContent(() => { current[path] = m.getValue(); clearTimeout(timer); timer = setTimeout(run, PAUSE_MS); });
+  };
+  monaco.editor.getModels().forEach(watch);
+  monaco.editor.onDidCreateModel(watch);
   await run();
 } catch (e) {
   state.error = String(e?.stack ?? e);
