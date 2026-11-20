@@ -145,8 +145,7 @@ jobs:
           text = open(path, encoding='utf8').read()
           sound = '(((wellFormed r) && ((project r scopeDepth) <=? (project r depth))) && (prefixMatches r))'
           assert text.count(sound) == 1, 'the definition the defect replaces is not there'
-          open(path, 'w', encoding='utf8', newline='
-').write(text.replace(sound, '((wellFormed r) && ((project r scopeDepth) <=? (project r depth)))'))
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, '((wellFormed r) && ((project r scopeDepth) <=? (project r depth)))'))
           PY
           ! git diff --quiet -- src/Scope.lex.tex
           set +e
