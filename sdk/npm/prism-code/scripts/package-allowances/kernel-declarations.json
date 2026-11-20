@@ -1,0 +1,4 @@
+{
+  "kib": 8,
+  "reason": "The declarations planner, vendored from lean-prover/kernel-path, and the prover over LexLean's own declarations (about 7 KiB)."
+}
