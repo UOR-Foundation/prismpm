@@ -131,16 +131,25 @@ test('the kernel image only saves time: a process resumes from it, and an image 
   const first = open(), second = open();
   assert.deepEqual(first, { resumed: false, exit: 0, setAside: null }, 'the first process reads the library and keeps an image');
   assert.deepEqual(second, { resumed: true, exit: 0, setAside: null }, `the next resumes from it${second.setAside ? `; it was set aside: ${second.setAside}` : ''}`);
-  // An image that carries its own label but is not a working kernel's memory: the real image with its first 8 MiB
-  // cleared. Resumed as it is, the kernel traps on every check (memory access out of bounds), as CI saw.
   const dir = join(env.PRISM_KAPPA_DIR, 'kernel-path');
   const pointer = readdirSync(dir).find((f) => f.startsWith('image-'));
   const real = readFileSync(join(dir, pointer), 'utf8').split('\n')[1].trim();
   const image = gunzipSync(readFileSync(join(dir, 'images', real.slice(7))));
+  const keep = (bytes) => {
+    const gz = gzipSync(bytes), label = kappa(gz);
+    writeFileSync(join(dir, 'images', label.slice(7)), gz);
+    writeFileSync(join(dir, pointer), `${kappa(new TextEncoder().encode(label))}\n${label}`);
+  };
+  // An image larger than a fresh kernel's memory, as a machine keeps whose library load grew it (80.5 MB on CI against
+  // 64 MB): the kernel must grow to it, which asking malloc for the difference alone did not do.
+  const larger = new Uint8Array(image.length + 16 * 1024 * 1024);
+  larger.set(image);
+  keep(larger);
+  assert.deepEqual(open(), { resumed: true, exit: 0, setAside: null }, 'an image larger than a fresh kernel resumes');
+  // An image that carries its own label but is not a working kernel's memory: the real image with its first 8 MiB
+  // cleared. Resumed as it is, the kernel traps on every check (memory access out of bounds).
   image.fill(0, 0, 8 * 1024 * 1024);
-  const gz = gzipSync(image), label = kappa(gz);
-  writeFileSync(join(dir, 'images', label.slice(7)), gz);
-  writeFileSync(join(dir, pointer), `${kappa(new TextEncoder().encode(label))}\n${label}`);
+  keep(image);
   const third = open();
   assert.deepEqual({ resumed: third.resumed, exit: third.exit }, { resumed: false, exit: 0 }, 'an image that will not resume gives a fresh kernel, never a failed proof');
   assert.match(third.setAside, /did not answer|grew to/, 'and says why it was set aside');

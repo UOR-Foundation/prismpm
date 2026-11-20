@@ -199,8 +199,10 @@ export function openModelKernel({ env = process.env } = {}) {
     let resumed = false, setAside = null;
     if (image) {
       try {
-        const need = image.length - heap().length;
-        if (need > 0 && !module._malloc(need)) throw new Error('the kernel could not grow to its image');
+        // The image is the whole memory of a kernel that loaded its library, which can be larger than a fresh kernel's
+        // (80.5 MB against 64 MB on CI). malloc of only the difference can be met from free space inside the current
+        // memory, which then never grows; asking for the image's whole size makes the runtime grow memory past it.
+        if (image.length > heap().length && !module._malloc(image.length)) throw new Error('the kernel could not grow to its image');
         const now = heap();
         if (now.length < image.length) throw new Error(`the kernel grew to ${now.length} bytes, not its image's ${image.length}`);
         now.set(image);
