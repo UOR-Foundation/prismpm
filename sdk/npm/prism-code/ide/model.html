@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prism model editor</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; flex-direction: column; font: 13px/1.4 system-ui, sans-serif; background: #1e1e1e; color: #ddd; }
+  #strip { padding: .35rem .75rem; border-bottom: 1px solid #333; }
+  #strip[data-state="ok"] { color: #6fcf8f; } #strip[data-state="bad"] { color: #ff8a8a; }
+  #workbench { flex: 1; min-height: 0; position: relative; }
+</style>
+</head>
+<body>
+<div id="strip" role="status">Starting…</div>
+<div id="workbench"></div>
+<script type="module" src="/src/model-editor.js"></script>
+</body>
+</html>
