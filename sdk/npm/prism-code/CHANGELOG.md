@@ -6,6 +6,37 @@ Version 0.1.0 was a canonicalization library with no entry here; its API lives o
 
 To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.md).
 
+## [0.10.2](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.10.1...prism-code-v0.10.2) (2026-11-20)
+
+
+### Features Added
+
+* **lean-prover:** case analysis on an equation hypothesis ([64bb62a](https://github.com/UOR-Foundation/prismpm/commit/64bb62ad7c0203ae062066168565f2e5aef51ced))
+* **lean-prover:** case analysis on an equation hypothesis ([4370034](https://github.com/UOR-Foundation/prismpm/commit/43700342135040b28623a73c40c5c7c0ccf7ca58))
+* **lean-prover:** prove projects from LexLean's own kernel declarations ([8e2792e](https://github.com/UOR-Foundation/prismpm/commit/8e2792eb3037758779db05af971e166720efa329))
+* **lean-prover:** prove projects from LexLean's own kernel declarations ([67ba3a1](https://github.com/UOR-Foundation/prismpm/commit/67ba3a17656fae808cfa9e6b7419591e35c977c6))
+* **prism-code:** four tools named like Docker, exact fixes, and a serverless loop that works on every new app ([6b2c55a](https://github.com/UOR-Foundation/prismpm/commit/6b2c55a8ced640b01a2c1c19096086195beff0ed))
+* **prism-code:** four tools named like Docker, exact fixes, and a serverless loop that works on every new app ([a47336a](https://github.com/UOR-Foundation/prismpm/commit/a47336aad9e931bae8af72b78109ea26ac199da5))
+* **prism-code:** the Prism IDE's capability gate, command table and scope kernel, stated in LexLean and proved by Lean ([616421e](https://github.com/UOR-Foundation/prismpm/commit/616421eced13d0ab305fb2d8464fedf14abae9c4))
+* **prism-code:** the Prism IDE's capability gate, command table and scope kernel, stated in LexLean and proved by Lean ([9d28d69](https://github.com/UOR-Foundation/prismpm/commit/9d28d695b6ad22af2dc6eb12fafbfdd39434ddf7))
+
+
+### Bugs Fixed
+
+* **prism-code:** a kernel image that will not resume gives a fresh kernel, never a failed proof ([2e683f5](https://github.com/UOR-Foundation/prismpm/commit/2e683f58d3b73a47c4113ab1fbf0a61572306a18))
+* **prism-code:** a kernel resumes from an image larger than a fresh kernel's memory ([5c6a112](https://github.com/UOR-Foundation/prismpm/commit/5c6a1123f58f404780dc66c781b447e723a6842e))
+* **prism-code:** prism_build says when an app is proved but not built, and the card states invariants and axioms ([77f3a21](https://github.com/UOR-Foundation/prismpm/commit/77f3a21074fa2d69aee222aa2610b7e206ad4862))
+* **prism-code:** the card teaches the rule-app format, inspect says proved and built for rule apps, and a stale server says to restart ([8e28dd6](https://github.com/UOR-Foundation/prismpm/commit/8e28dd6489105e130ad710253e8dd2e1f88896a4))
+* **prism-code:** the kernel-path store is named by BLAKE3, and a set-aside kernel image says why ([8dfd5b7](https://github.com/UOR-Foundation/prismpm/commit/8dfd5b79b6eae4c3cc127d5cf414f88dc62c2e0a))
+* **prism-code:** the scope kernel's sources are as lexlean fmt writes them, and its record names the attestation ([7f3a6fd](https://github.com/UOR-Foundation/prismpm/commit/7f3a6fd160b51c868f9226087269008b724f7d46))
+
+
+### Other Changes
+
+* **prism-code:** a package allowance for the hints, the card and the four tools ([471932b](https://github.com/UOR-Foundation/prismpm/commit/471932bfd80f7b583795af3c300da2fa1cadbefa))
+* **prism-code:** fetch the kernel files from 67ba3a17656fae808cfa9e6b7419591e35c977c6 ([f01755a](https://github.com/UOR-Foundation/prismpm/commit/f01755a3b47f5704b02dfd5771ba201f71e2edd8))
+* **prism-code:** the allowance covers the kernel image fallback too ([a929c43](https://github.com/UOR-Foundation/prismpm/commit/a929c432075b58f02199c9a7645c1f62e343b51b))
+
 ## [0.10.1](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.10.0...prism-code-v0.10.1) (2026-11-20)
 
 
