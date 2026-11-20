@@ -161,5 +161,43 @@ section("The base library holds every constant written by name");
   const missing = [...cited].filter((n) => !lib.decls.has(n));
   check(cited.size > 50 && missing.length === 0, `${cited.size} constants cited by name, ${missing.length ? `missing: ${missing.join(", ")}` : "every one in the library"}`);
 }
+// LexLean (main, LN-13/LN-15) produces a `decide` proof of a statement over a variable, which the kernel refuses. The
+// suffix used to be judged whole, so that one proof refused every theorem of the project. The fixtures are
+// LexLean's own declarations of the decision-app starter with inv001Holds proved by `decide`: once true, once false.
+section("A refused proof LexLean produced is set aside, and only it");
+{
+  const { judgeDeclarations } = await import("../src/declarations.mjs");
+  const kb = await kernel("library/base.ndjson.gz");
+  const fixture = (n) => {
+    const dir = path.join(root, "test/fixtures/declarations", n);
+    return { meta: JSON.parse(fs.readFileSync(path.join(dir, "declarations.json"), "utf8")), suffix: zlib.gunzipSync(fs.readFileSync(path.join(dir, "declarations.ndjson.gz"))).toString("utf8") };
+  };
+  const judgeAll = (j) => {
+    const todo = j.plan.theorems.filter((t) => !t.status && !t.produced).map((t) => t.name);
+    return { todo, r: todo.length ? kb.judge(j.plan.file(todo)) : { exit: 0 } };
+  };
+  {
+    const { meta, suffix } = fixture("decide-over-variable-true");
+    check(kb.judge(suffix).exit !== 0, "LexLean's suffix, judged whole, is refused (its produced decide proof does not type-check)");
+    const j = judgeDeclarations(meta, suffix, kb.libraryText, kb.judge);
+    check(j.setAside.size === 1 && [...j.setAside.keys()][0].endsWith(".inv001Holds") && j.declarations.exit === 0, `the produced proof alone is set aside, and the kernel accepts the rest: ${[...j.setAside.keys()].join(", ")}`);
+    const { todo, r } = judgeAll(j);
+    check(todo.length === 3 && r.exit === 0, `all 3 true theorems are then proved, inv001Holds by a proof found here (${todo.length} judged, kernel ${r.exit === 0 ? "accepts" : "refuses: " + r.last})`);
+  }
+  {
+    const { meta, suffix } = fixture("decide-over-variable-false");
+    const j = judgeDeclarations(meta, suffix, kb.libraryText, kb.judge);
+    const inv1 = j.plan.theorems.find((t) => t.name.endsWith(".inv001Holds"));
+    const { todo, r } = judgeAll(j);
+    check(j.setAside.size === 1 && inv1.status?.startsWith("not proved") && todo.length === 2 && r.exit === 0, `the false theorem stays not proved, the 2 true ones are proved (${inv1.status?.slice(0, 50)})`);
+  }
+  {
+    // A refused declaration LexLean did not produce as a proof refuses the project, exactly as before.
+    const { meta, suffix } = fixture("decide-over-variable-true");
+    const stub = () => ({ exit: 1, out: ["Refused: while replaying declaration 'PrismParkingFeeTier.ParkingFeeTier.judge':", "(kernel) declaration type mismatch"] });
+    const j = judgeDeclarations(meta, suffix, kb.libraryText, stub);
+    check(j.setAside.size === 0 && j.declarations.exit !== 0 && j.suffix === suffix, "a refused definition is never set aside: the project stays refused");
+  }
+}
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

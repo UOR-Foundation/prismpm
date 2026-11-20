@@ -21,7 +21,7 @@ import { fromFile } from '../node.mjs';
 import { VERSION } from '../version.mjs';
 import { gapLedger } from '../gaps.mjs';
 import { NO_DOCKER_FREE_BUILD, frontendWhere, proverWhere } from './frontend.mjs';
-import { lexleanReady, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
+import { lexleanReady, wasmCheck, wasmDeclare, wasmSnapshot } from './lexlean-wasm.mjs';
 import { collectIfUpgraded, withStoreHeld } from './store-gc.mjs';
 import { sourceDigest } from './project.mjs';
 import { hints } from './hints.mjs';
@@ -111,34 +111,73 @@ async function proveUnheld(dir, session, { log = () => {}, env = process.env, sn
 }
 
 /**
- * Any app: its semantic snapshot lowered to kernel declarations, a proof found for each theorem, and Lean's kernel
- * judging all of it in this process (model-prove.mjs). Nothing is sent anywhere when LexLean runs here.
+ * Any app, in this process, with nothing sent anywhere. LexLean writes the model's kernel declarations itself
+ * (`lexlean declare`, LexLean CL-29): the statements as LexLean means them and the proofs it produced, every proof
+ * form planned (model-prove.mjs, `modelProveDeclared`). A LexLean without `declare` gives the semantic snapshot
+ * instead, lowered here to kernel declarations with a proof found for each theorem (`modelProve`). Either way Lean's
+ * kernel judges all of it.
  */
 async function proveModel(dir, session, { log, frontend, snapshot, gaps, kernel, env }) {
   const started = Date.now();
+  const mp = await import('./model-prove.mjs');
+  if (!snapshot) {
+    let declared = null;
+    try {
+      let k = kernel;
+      if (!k) {
+        await mp.ensureModelKernel({ env, log });
+        k = await mp.openModelKernel({ env });
+      }
+      const d = await wasmDeclare(dir, k.baseText, { env });
+      if (d.ok) declared = { k, document: d.document, ms: d.ms };
+      else if (!d.unsupported) {
+        const diagnostics = (d.check?.diagnostics ?? []).map(fromHosted);
+        return { ...failure(new PrismCodeError('rule-table.refused', 'LexLean refused the model, so it has no declarations')), where: 'kernel', ...(diagnostics.length ? { diagnostics: shown(diagnostics, dir), message: repair(diagnostics, dir) } : {}) };
+      }
+    } catch (error) {
+      if (error instanceof mp.ModelKernelMissing || error.code === 'kernel.unavailable') return { ok: false, where: 'kernel', code: 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app.` };
+      return { ...failure(error), where: 'kernel' };
+    }
+    if (declared) {
+      log(`LexLean declared the model as WebAssembly in ${declared.ms} ms; asking Lean's kernel, in this process, to check every theorem.`);
+      let result;
+      try {
+        result = await mp.modelProveDeclared(declared.document, { log, kernel: declared.k, env });
+      } catch (error) {
+        return { ok: false, where: 'kernel', code: error.code ?? 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app.` };
+      }
+      return modelReport(dir, session, result, { started, semanticId: null, via: 'LexLean\'s own declarations' });
+    }
+    log('This LexLean has no declare command; the model is lowered here from its semantic snapshot.');
+  }
   let model;
   try {
     model = await snapshotOf(dir, { log, env, snapshot });
   } catch (error) {
     return { ...failure(error), where: 'kernel', ...(error.diagnostics ? { diagnostics: shown(error.diagnostics, dir), message: repair(error.diagnostics, dir) } : {}) };
   }
-  const { modelProve } = await import('./model-prove.mjs');
   log("Asking Lean's kernel, in this process, to check every theorem of the model.");
   let result;
   try {
-    result = await modelProve(model, { log, kernel, env });
+    result = await mp.modelProve(model, { log, kernel, env });
   } catch (error) {
     return { ok: false, where: 'kernel', code: error.code ?? 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app.` };
   }
+  return modelReport(dir, session, result, { started, semanticId: model.semantic_id ? `sha256:${model.semantic_id}` : null, via: null });
+}
+
+/** What a model proof says to the user, the same for either way it was planned. */
+function modelReport(dir, session, result, { started, semanticId, via }) {
   const seconds = Math.round((Date.now() - started) / 100) / 10;
   const short = (name) => name.slice(name.lastIndexOf('.') + 1);
-  const theorems = result.theorems.map((t) => ({ theorem: short(t.name), proof: t.proof, status: t.status, axioms: t.axioms }));
+  const theorems = result.theorems.map((t) => ({ theorem: short(t.name), proof: t.proof, status: t.status, axioms: t.axioms, ...(t.setAside ? { setAside: t.setAside } : {}) }));
   if (result.refusal) return { ok: false, where: 'kernel', seconds, theorems, message: `The model could not be put to Lean's kernel: ${result.refusal}. This is a limit of this prover, not a verdict on the app.` };
   const missed = result.theorems.filter((t) => !t.status.startsWith('proved'));
   if (missed.length) return { ok: false, where: 'kernel', seconds, theorems, message: `${missed.length} of ${result.theorems.length} theorems are not proved: ${missed.slice(0, 3).map((t) => `${short(t.name)} (${t.status.replace(/^not proved: /, '')})`).join('; ')}.` };
   const fewer = result.theorems.filter((t) => t.status !== 'proved').length;
-  session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where: 'kernel', seconds, semanticId: model.semantic_id ? `sha256:${model.semantic_id}` : null };
-  return { ok: true, where: 'kernel', seconds, theorems, message: `Lean's kernel, in this process, accepted a proof of every one of the model's ${result.theorems.length} theorems over ${result.declarations} declarations, in ${seconds} s, each within its declared axioms${fewer ? ` (${fewer} on fewer than declared)` : ''}. ${result.remembered ? `${result.remembered} were remembered from earlier proofs on this machine, by their content, and ${result.judged} judged now. ` : ''}Nothing was sent anywhere.` };
+  session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where: 'kernel', seconds, semanticId };
+  const from = via ? ` from ${via}${result.produced ? ` (${result.produced} proved as LexLean wrote them${result.setAside ? `, ${result.setAside} of LexLean's set aside and found here` : ''})` : ''}` : '';
+  return { ok: true, where: 'kernel', seconds, theorems, message: `Lean's kernel, in this process, accepted a proof of every one of the model's ${result.theorems.length} theorems over ${result.declarations} declarations${from}, in ${seconds} s, each within its declared axioms${fewer ? ` (${fewer} on fewer than declared)` : ''}. ${result.remembered ? `${result.remembered} were remembered from earlier proofs on this machine, by their content, and ${result.judged} judged now. ` : ''}Nothing was sent anywhere.` };
 }
 
 /**

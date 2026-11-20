@@ -6,8 +6,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { root, loadLibrary } from "./harness.mjs";
-import { planDeclarations } from "../src/declarations.mjs";
+import { root } from "./harness.mjs";
+import { judgeDeclarations } from "../src/declarations.mjs";
 
 const [baseFile, ...files] = process.argv.slice(2);
 const base = fs.readFileSync(baseFile, "utf8");
@@ -20,15 +20,16 @@ m.FS.writeFile("/b", base); m.ccall("load_library", "number", ["string"], ["/b"]
 let all = 0, proved = 0;
 for (const dir of files) {
   const name = path.basename(dir);
-  let meta, suffix, p;
+  let meta, j, p;
   try {
     meta = JSON.parse(fs.readFileSync(path.join(dir, "declarations.json"), "utf8"));
-    suffix = fs.readFileSync(path.join(dir, "declarations.ndjson"), "utf8");
-    p = planDeclarations(meta, suffix, loadLibrary(base + suffix));
+    j = judgeDeclarations(meta, fs.readFileSync(path.join(dir, "declarations.ndjson"), "utf8"), base, call);
+    p = j.plan;
   } catch (e) { console.log(`${name}: could not read: ${e.message}`); continue; }
   const produced = p.theorems.filter((t) => t.produced).length;
-  const decls = suffix.trim() ? call(suffix) : { exit: 0, out: [] };
-  console.log(`${name}: ${meta.refused.length} declarations refused, ${produced} theorems produced by LexLean; kernel ${decls.exit === 0 ? "accepts all" : "refuses: " + decls.out.slice(-2).join(" | ")}`);
+  const decls = j.declarations;
+  console.log(`${name}: ${meta.refused.length} declarations refused, ${produced} theorems produced by LexLean, ${j.setAside.size} set aside; kernel ${decls.exit === 0 ? "accepts the rest" : "refuses: " + decls.out.slice(-2).join(" | ")}`);
+  for (const [n, why] of j.setAside) console.log(`    set aside ${n.slice(n.lastIndexOf(".") + 1)}: ${why.slice(0, 160)}`);
   if (decls.exit !== 0) { all += p.theorems.length; continue; }
   let todo = p.theorems.filter((t) => !t.status && !t.produced && (!process.env.ONLY || t.name.endsWith("." + process.env.ONLY))).map((t) => t.name), here = 0;
   if (process.env.ONLY) { const r = call(p.file(todo)); console.log(r.out.join("\n").slice(-3000)); }
