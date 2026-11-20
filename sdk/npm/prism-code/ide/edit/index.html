@@ -14,7 +14,8 @@
   h1 { font-size: 1.3rem; margin: 0 0 .25rem; } p { margin: .25rem 0; } .dim { color: var(--dim); }
   .editor { display: flex; border: 1px solid var(--line); border-radius: 4px; margin-top: .75rem; height: 26rem; overflow: hidden; }
   #gutter, #source { font: 13px/1.5 ui-monospace, Consolas, monospace; margin: 0; padding: .5rem; border: 0; tab-size: 2; }
-  #gutter { color: var(--bad); text-align: right; user-select: none; overflow: hidden; white-space: pre; border-right: 1px solid var(--line); min-width: 3.6rem; }
+  #gutter .mark { color: var(--bad); font-weight: 700; }
+  #gutter { color: var(--dim); text-align: right; user-select: none; overflow: hidden; white-space: pre; border-right: 1px solid var(--line); min-width: 3.6rem; }
   #source { flex: 1; resize: none; outline: none; background: transparent; color: inherit; white-space: pre; overflow: auto; }
   #status { font-weight: 600; margin-top: .75rem; } [data-state="ok"] { color: var(--ok); } [data-state="bad"] { color: var(--bad); }
   ul { margin: .25rem 0 0; padding-left: 1.2rem; } li { margin: .15rem 0; }

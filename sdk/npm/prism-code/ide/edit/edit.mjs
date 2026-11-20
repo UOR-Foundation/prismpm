@@ -38,7 +38,12 @@ const check = (project) => new Promise((resolve) => { const id = ++nextId; waiti
 
 function gutter(marks) {
   const lines = $('source').value.split('\n').length;
-  $('gutter').textContent = Array.from({ length: lines }, (_, i) => (marks.has(i + 1) ? '●' : ' ') + String(i + 1).padStart(4)).join('\n');
+  $('gutter').replaceChildren(...Array.from({ length: lines }, (_, i) => {
+    const line = document.createElement('span');
+    line.textContent = (marks.has(i + 1) ? '●' : ' ') + String(i + 1).padStart(4) + '\n';
+    if (marks.has(i + 1)) line.className = 'mark';
+    return line;
+  }));
 }
 function goTo(line, column) {
   const text = $('source').value;
