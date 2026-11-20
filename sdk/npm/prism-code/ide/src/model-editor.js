@@ -74,7 +74,9 @@ try {
   for (const [path, text] of Object.entries(files)) provider.registerFile(new RegisteredMemoryFile(uriOf(path), text));
   registerFileSystemOverlay(1, provider);
   // LexLean's colours reach the editor as semantic tokens, so they are on whatever the theme would choose.
-  await initUserConfiguration(JSON.stringify({ 'editor.semanticHighlighting.enabled': true }));
+  // ?theme=<a theme's name> opens the page in that theme; without it, the workbench's own choice stands.
+  const theme = new URLSearchParams(location.search).get('theme');
+  await initUserConfiguration(JSON.stringify({ 'editor.semanticHighlighting.enabled': true, ...(theme ? { 'workbench.colorTheme': theme } : {}) }));
 
   await initialize({
     ...getExtensionsOverride({ enableWorkerExtensionHost: true }), ...getFilesOverride(), ...getConfigurationOverride(),
@@ -106,6 +108,7 @@ try {
   themes.onDidColorThemeChange(paint);
   paint();
   setInterval(paint, 1000);
+  window.prismModel.themes = async () => (await themes.getColorThemes()).map((t) => t.settingsId ?? t.label);
   window.prismModel.colouring = () => { const t = themes.getColorTheme(); return { theme: t.label ?? t.id, rules: t.tokenColors?.length ?? null, semantic: t.semanticHighlighting ?? null, asked: registerLexLean.calls }; };
   window.prismModel.tokenize = (text) => monaco.editor.tokenize(text, LEXLEAN).map((line) => line.map((t) => t.type));
   window.prismModel.setText = (text) => model.setValue(text); // for a test to type with

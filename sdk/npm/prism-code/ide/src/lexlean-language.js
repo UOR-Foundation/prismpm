@@ -11,7 +11,7 @@ const DECLARATIONS = ['structure', 'definition', 'theorem', 'inductive', 'axiom'
 const MEMBERS = ['name', 'type_parameters', 'parameters', 'fields', 'result', 'body', 'statement', 'proof', 'axioms', 'definitions',
   'recursive_argument', 'type', 'constructors', 'cases', 'using'];
 // Words of the expression notation.
-const KEYWORDS = ['if', 'then', 'else', 'match', 'let', 'record', 'project', 'cons', 'nil', 'ctor', 'prim', 'not', 'fun', 'forall', 'exists'];
+const KEYWORDS = ['if', 'then', 'else', 'match', 'let', 'record', 'project', 'cons', 'nil', 'ctor', 'prim', 'not', 'fun', 'forall', 'exists', 'true', 'false'];
 const TYPES = ['Nat', 'Bool', 'String', 'Bytes', 'List', 'Option', 'UInt8', 'UInt32', 'UInt64', 'Int', 'Prop', 'Unit'];
 const PROOFS = ['linear_arithmetic', 'decide', 'reflexivity', 'induction', 'cases', 'simplify', 'rewrite', 'calculate'];
 
@@ -35,7 +35,7 @@ export const tokens = {
       [/0x[0-9a-fA-F]*/, 'number.hex'],
       [/\d+/, 'number'],
       // A member of a declaration: `name:` and its kin, at the start of a line or after `{` or `,`.
-      [/([a-z_]+)(\s*)(:)(?!=)/, { cases: { '$1@members': ['attribute.name', '', 'delimiter'], '@default': ['variable', '', 'delimiter'] } }],
+      [/([a-z_]+)(\s*)(:)(?![:=])/, { cases: { '$1@members': ['attribute.name', '', 'delimiter'], '@default': ['variable', '', 'delimiter'] } }],
       // A name from another module: Module::name.
       [/([A-Z][A-Za-z0-9_.]*)(::)([A-Za-z_][A-Za-z0-9_]*)/, ['namespace', 'delimiter', 'identifier']],
       [/[A-Z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+/, 'type.identifier'],

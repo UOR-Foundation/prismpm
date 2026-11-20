@@ -67,13 +67,22 @@ Tried by hand in the same browser, on `model/ide-capability-gate`:
 - The workbench's themes do not colour a tokenizer's own token names, so the tokens are handed over as semantic tokens of the standard kinds (keyword, type, string, number, operator, property, namespace, comment).
 - The workbench writes the stylesheet for token colours from its TextMate service, which this page does not load. The page writes that stylesheet itself from the theme's colour table, and again when the theme changes.
 
-Tried by hand in the same browser, on `model/ide-capability-gate`, theme "Light 2026": five distinct text colours in the visible lines; the prove loop is unchanged (13 of 13; flip, 6 problems; undo, none).
+Tried by hand in the same browser. `model.html?theme=<a theme's name>` opens the page in that theme.
+
+| Model, theme | Shown |
+|---|---|
+| `model/ide-capability-gate`, Light 2026 | five distinct text colours in the visible lines; the prove loop unchanged (13 of 13; flip, 6 problems; undo, none) |
+| the same, Dark Modern | coloured on the dark background; 13 of 13 proved |
+| the same, Default High Contrast | five distinct text colours on black |
+| `model/ide-scope`, Light 2026 | six distinct colours, numbers among them |
+| a theorem file of `model/ide-scope`, put into the editor by script | `theorem`, `linear_arithmetic`, `project` and `false` as keywords; `Scope` in `Scope::judge` and `Bool` as types; operators and numbers coloured |
 
 A diagnostic in another file of the project is now named in the strip rather than dropped. On `model/ide-scope` it reads `lexlean.toml: LLC0101: lean_toolchain must be exactly leanprover/lean4:v4.32.2`: the pinned LexLean refuses every model configured for Lean 4.32.1.
 
 Limits of the workbench page:
 
-- Colours were seen in one theme, on one model. Dark themes and the theorem notation of `model/ide-scope` were not looked at.
+- Colours were looked at in three of the ten themes, and on three files. Names a model defines, such as `judge`, keep the plain text colour.
+- The theme was chosen by the address; the workbench's command palette did not open on this page.
 - The token stylesheet is also rewritten once a second, because the theme's colour table grows as tokens are first seen and no event says so.
 - Every broken guarantee is reported on the one line where the guarantees are stated, not at its own place in that line.
 - Edits were made by setting the editor's text from a script, not by typing keys.
