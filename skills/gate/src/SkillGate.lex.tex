@@ -1,0 +1,69 @@
+\begin{lexlean}{SkillGate}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Skill,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: markdownNamed, type: Nat},
+    {name: markdownRendered, type: Nat},
+    {name: modelNamed, type: Nat},
+    {name: modelPinned, type: Nat},
+    {name: commandsNamed, type: Nat},
+    {name: commandsShipped, type: Nat},
+    {name: network, type: Nat},
+    {name: secrets, type: Nat},
+    {name: execution, type: Nat},
+    {name: sendsWithoutOptIn, type: Nat},
+    {name: proofNeedsDocker, type: Nat},
+    {name: theoremsDeclared, type: Nat},
+    {name: theoremsProved, type: Nat}
+  ]
+}
+
+definition{
+  name: canonical,
+  parameters: [s : Skill],
+  result: Bool,
+  body: (((project s markdownNamed) =? (project s markdownRendered)) && ((project s modelNamed) =? (project s modelPinned)))
+}
+
+definition{
+  name: namesOnlyShipped,
+  parameters: [s : Skill],
+  result: Bool,
+  body: ((project s commandsShipped) =? (project s commandsNamed))
+}
+
+definition{
+  name: noAuthority,
+  parameters: [s : Skill],
+  result: Bool,
+  body: ((((project s network) =? 0) && ((project s secrets) =? 0)) && ((project s execution) =? 0))
+}
+
+definition{
+  name: staysLocal,
+  parameters: [s : Skill],
+  result: Bool,
+  body: (((project s sendsWithoutOptIn) =? 0) && ((project s proofNeedsDocker) =? 0))
+}
+
+definition{
+  name: selfProved,
+  parameters: [s : Skill],
+  result: Bool,
+  body: ((0 <? (project s theoremsDeclared)) && ((project s theoremsProved) =? (project s theoremsDeclared)))
+}
+
+definition{
+  name: installs,
+  parameters: [s : Skill],
+  result: Bool,
+  body: ((((canonical s) && (namesOnlyShipped s)) && (noAuthority s)) && ((staysLocal s) && (selfProved s)))
+}
+\end{semanticmodule}
+\end{lexlean}

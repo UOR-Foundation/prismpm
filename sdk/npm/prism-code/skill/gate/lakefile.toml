@@ -1,0 +1,6 @@
+name = "PrismSkillGate"
+version = "0.1.0"
+defaultTargets = ["PrismSkillGate"]
+
+[[lean_lib]]
+name = "PrismSkillGate"

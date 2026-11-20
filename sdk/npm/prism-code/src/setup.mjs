@@ -302,6 +302,11 @@ export function bundledSkills(file = SKILL_FILE) {
  */
 export function planSkills(fetched, agents, context) {
   if (fetched.error) return { status: 'unreadable', detail: `not read: ${fetched.error}`, steps: [] };
+  // A skill the skill gate refuses is written nowhere; the row names the theorem each one breaks.
+  if (fetched.refused?.length) {
+    const why = (r) => r.reason ?? `the skill gate refuses it (${r.failing.join(', ')}${r.unshipped?.length ? `; it names ${r.unshipped.map((v) => `prism-code ${v}`).join(', ')}, which this prism-code does not ship` : ''})`;
+    return { status: 'failed', detail: `skill.refused: ${fetched.refused.map((r) => `${r.name} is not installed: ${why(r)}`).join('; ')}`, steps: [] };
+  }
   const found = new Set(agents.filter((a) => a.status !== 'not-found').map((a) => a.agent));
   const dirs = [];
   if (found.has('claude-code')) dirs.push(join(context.env.CLAUDE_CONFIG_DIR || join(context.home, '.claude'), 'skills'));
@@ -324,7 +329,7 @@ export function planSkills(fetched, agents, context) {
         kept.push(file);
         continue;
       }
-      steps.push({ kind: 'write', path: file, content: skill.markdown }, { kind: 'write', path: join(dir, skill.name, SKILL_MARKER), content: `${JSON.stringify({ source: skill.url, digest: skill.digest })}\n` });
+      steps.push({ kind: 'write', path: file, content: skill.markdown }, { kind: 'write', path: join(dir, skill.name, SKILL_MARKER), content: `${JSON.stringify({ source: skill.url, digest: skill.digest, ...(skill.receipt ? { receipt: skill.receipt } : {}) })}\n` });
     }
   }
   const replaced = [...new Set(retired)];

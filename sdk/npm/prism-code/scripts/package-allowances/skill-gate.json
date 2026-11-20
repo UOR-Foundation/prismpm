@@ -1,0 +1,4 @@
+{
+  "kib": 24,
+  "reason": "The skill gate: skill/gate, the LexLean model setup admits every skill by (about 9.8 KiB), skill/skills.json, which pins each skill and the gate by BLAKE3 label (0.3 KiB), and src/skills.mjs, which computes each fact and runs skill verify (about 12.8 KiB)."
+}
