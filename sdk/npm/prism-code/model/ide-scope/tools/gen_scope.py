@@ -118,6 +118,8 @@ if STARTER:
         app = app.replace(old, new)
     assert "ParkingFeeTier" not in app and "arking" not in app, "starter text left in the application record"
     model.append(app)
+# lexlean fmt leaves no blank line before the end of a module.
+model[-1] = model[-1].rstrip("\n")
 model += ["\\end{semanticmodule}", "\\end{lexlean}"]
 
 DEFS = ["Scope::answerInside", "Scope::answerOutside", "Scope::firstName", "Scope::inside", "Scope::judge", "Scope::prefixMatches",
@@ -187,6 +189,7 @@ claim("DescendantUnmatched", f"(({IN} && {under}) && (not (({GSD} <=? {GD}) && (
       params="[r : Scope::Request, c : Scope::Request]", args="r c",
       only=["Scope::answerInside", "Scope::answerOutside", "Scope::inside", "Scope::judge", "Scope::prefixMatches"])
 for lines in modules.values():
+    lines[-1] = lines[-1].rstrip("\n")
     lines += ["\\end{semanticmodule}", "\\end{lexlean}"]
 
 os.makedirs(out, exist_ok=True)

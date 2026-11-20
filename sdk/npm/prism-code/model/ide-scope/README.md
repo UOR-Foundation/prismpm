@@ -1,7 +1,7 @@
 # Scope kernel, version 1
 
 2026-11-20. Model: `src/Scope.lex.tex`. Guarantees: `src/ScopeProof*.lex.tex`, one module each. All are written by `tools/gen_scope.py`.
-Checked and verified on the hosted LexLean verifier at `https://mcp.uor.foundation/` (profile `spec`), through `tools/hosted.mjs`. That service stores what it is sent unlisted, not privately. Only the model and guarantee files under `src/` were sent, in several drafts as the guarantees were reworked.
+Proved by Lean in this repository's CI, and before that on the hosted LexLean verifier at `https://mcp.uor.foundation/` (profile `spec`), through `tools/hosted.mjs`. That service stores what it is sent unlisted, not privately. Only the model and guarantee files under `src/` were sent, in several drafts as the guarantees were reworked.
 
 ## What it decides
 
@@ -37,7 +37,12 @@ Eight theorems, each for every request, with no bound on the numbers. The hosted
 
 Axioms: `Quot.sound` and `propext` for 1 to 7; 8 also uses `Classical.choice`.
 
-Checked draft: `spec/cd05a51c4b3c3f33ec3f647f1edbd03fb462943c740e71955025b95c95bdf0f8`. Each theorem was verified in its own run, together with the model. No single run of all eight together completed: the one attempted stopped on guarantee 8's axiom list, which was then corrected and verified alone.
+Two independent runs:
+
+- In this repository's CI (`.github/workflows/ide-kernels-model.yml`), in the SDK image `verification.json` names, with Lean 4.32.1: `lexlean verify --all` reported `verified 9 modules; attestation df85f0d5a62dc56283e1f342efb3ce89082921464d4001537617eeccd173cba8`, all eight theorems in one run. The workflow repeats this whenever the kernel changes, and then plants a defect that Lean must reject.
+- On the hosted verifier, draft `spec/cd05a51c4b3c3f33ec3f647f1edbd03fb462943c740e71955025b95c95bdf0f8`, each theorem in its own run together with the model.
+
+`prism-code verify --lean`, the in-process kernel, did not finish on this model in 40 minutes on a development machine.
 
 ## Stated but not proved
 
