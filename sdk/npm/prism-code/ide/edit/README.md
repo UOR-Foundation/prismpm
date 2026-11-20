@@ -98,8 +98,33 @@ Tried by hand in the same browser, on `model/ide-capability-gate`, and on an app
 | F1, "Color Theme" | the command palette lists the theme commands |
 | On an app's model, add a comment to `prism.toml` | still proved; "Your text still gives the rules the app at … runs." |
 
+### Changes kept across a reload
+
+The workbench page keeps the reader's changes in the browser, in the origin's private file system (`drafts.mjs`). Everything is named by its BLAKE3 label, from prism-code's own `blake3.mjs`:
+
+- The model as fetched has one label, over its entry and every file's label: the base.
+- Each changed file's text is stored once, under its own label.
+- A draft says, for one base, which paths were changed and the label of each one's text.
+
+So a draft belongs to exactly the model it was made on: when an app publishes a different model, the old draft is not laid over it. A stored text comes back only if its bytes derive again to its label; one that does not is left out and the page says so. A line under the strip names the changed files and has a "Discard my changes" button.
+
+Tried by hand on the assembled site, served as Pages serves it:
+
+| Step | Shown |
+|---|---|
+| Change the entry file and `prism.toml` | "Changed and kept in this browser: prism.toml, src/App.lex.tex." |
+| Reload | both files open as they were left; the same line; the check runs on the restored text |
+| "Discard my changes" | the page reloads with the model as fetched; 13 of 13 proved |
+| A change on one model, then another model opened | the second model has no draft and no line |
+
+`tools/drafts-test.mjs` holds the store to this on a directory in memory, with a stored text altered behind its back and a draft that names another model.
+
 Limits of the workbench page:
 
+- A draft is trusted no further than the origin that serves the page: another page of the same origin can write to the same store. It is the reader's convenience, not evidence of anything.
+- Texts a discarded draft named stay in the browser until the site's data is cleared. Nothing names them.
+- Where the browser has no private file system for the page (a private window), nothing is kept, and the line says a reload loses the changes. That case was not tried by hand.
+- The plain edit page keeps nothing.
 - New files, renames and deletions made in the Explorer are not read by a check: it reads the files the model was fetched with.
 - Edits to files other than the entry were made by setting their text from a script, not by typing keys.
 
