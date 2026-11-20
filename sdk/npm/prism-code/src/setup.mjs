@@ -341,9 +341,9 @@ export function planSetup({ agent, skills, hosted = false } = {}, context) {
   if (agent !== undefined && !Object.hasOwn(AGENTS, agent)) fail('setup.agent', `${agent} is not an agent; one of ${Object.keys(AGENTS).join(', ')}`);
   const paths = agentPaths(context);
   const found = (agent === undefined ? LOCAL_AGENTS : [agent]).map((id) => planAgent(id, context, paths));
-  // The hosted lexlean server stores what it is sent unlisted, not privately, so no agent gets it unless setup is told --hosted.
+  // No agent gets the hosted lexlean server: every app is proved by Lean's kernel, as WebAssembly, on this machine.
   // The local prism server (the journey rows) proves on this machine either way. An entry already there is left as it is.
-  const agents = hosted ? found : found.map((a) => (a.status === 'configure' || a.status === 'manual' ? { agent: a.agent, status: 'local-only', detail: `the hosted ${MCP_NAME} server is added only with --hosted; the local prism server proves on this machine` } : a));
+  const agents = hosted ? found : found.map((a) => (a.status === 'configure' || a.status === 'manual' ? { agent: a.agent, status: 'local-only', detail: `the hosted ${MCP_NAME} server is not added; the local prism server proves on this machine, with Lean's kernel as WebAssembly` } : a));
   // The local server is planned over the rows that will be carried out. Planned over the hosted rows
   // as found, it folded their edit into its own: without --hosted the hosted server was still written
   // to each agent that did not have it, while the report said "not added", and with no backup of the
@@ -496,7 +496,7 @@ function formatStep(step) {
 /** One line per agent for each server, then the handler, the skills and the preferred agent; with `dryRun`, every step under its row. */
 export function formatSetup(plan, { dryRun = false } = {}) {
   const tense = dryRun ? 0 : 1;
-  const lines = [`prism-code setup${dryRun ? ' --dry-run' : ''}: your agents`, plan.hosted === false ? `  the server ${MCP_NAME}, remote at ${MCP_URL}: not added; it stores models unlisted, not privately (pass --hosted to add it)` : `  the server ${MCP_NAME}, remote at ${MCP_URL}: checks and proves LexLean models; it stores them unlisted, not privately`];
+  const lines = [`prism-code setup${dryRun ? ' --dry-run' : ''}: your agents`, plan.hosted === false ? `  the server ${MCP_NAME}, remote at ${MCP_URL}: not added; every app is proved by Lean's kernel, as WebAssembly, on this machine, and nothing is sent` : `  the server ${MCP_NAME}, remote at ${MCP_URL}: checks and proves LexLean models; it stores them unlisted, not privately`];
   const row = (name, words, status, detail, steps) => {
     lines.push(`  ${name.padEnd(16)}${(words[status] ?? [status, status])[tense].padEnd(20)}${detail ?? ''}`.trimEnd());
     if (dryRun) for (const step of steps ?? []) lines.push(`      ${formatStep(step)}`);

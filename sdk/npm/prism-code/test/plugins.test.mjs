@@ -177,9 +177,10 @@ test('prism-doctor is a valid plugin and its hook explains a missing lockfile or
   assert.deepEqual(hook({ command: 'check', args: ['app.holo', '--policy', 'p.json'], exitCode: 64 }), []);
 
   const empty = mkdtempSync(join(tmpdir(), 'prism-doctor-'));
-  const check = run(['build', '--check'], env, { cwd: empty });
-  assert.equal(check.code, 64);
-  assert.match(check.err, /prismpm\.lock not found[\s\S]*What's next:\n {2}Run `prism-code doctor`/);
+  // build --check needs no lockfile now (it checks the model as WebAssembly); a full build still does.
+  const build = run(['build'], env, { cwd: empty });
+  assert.equal(build.code, 64);
+  assert.match(build.err, /prismpm\.lock not found[\s\S]*What's next:\n {2}Run `prism-code doctor`/);
   const report = run(['doctor'], env, { cwd: empty });
   assert.match(report.out, /^ok {4}node \d+/m);
   assert.match(report.out, /^warn {2}no prismpm\.lock here/m);

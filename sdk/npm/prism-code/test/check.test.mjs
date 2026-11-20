@@ -286,19 +286,21 @@ test('the committed verdict goldens are what check prints; the Rust CLI holds it
   }
 });
 
-test('check without a holo is a usage error naming build --check, which runs prismpm check (#584)', () => {
+test('check without a holo is a usage error naming build --check, which checks the model as WebAssembly with no Docker (#584)', () => {
   const project = mkdtempSync(join(tmpdir(), 'prism-code-lock-'));
   writeFileSync(join(project, 'prismpm.lock'), JSON.stringify({ spec: 'prismpm/sdk-lock/2', sdk_image: IMAGE }));
+  writeFileSync(join(project, 'lexlean.toml'), 'spec = "lexlean/project/1"\n');
   const env = { PRISM_CODE_DRY_RUN: '1', PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-home-')) };
   const old = run(['check', '--verbose'], { cwd: project, env });
   assert.equal(old.code, 64, old.err);
   assert.match(old.err, /check takes a holo; the model check is prism-code build --check/);
   assert.doesNotMatch(old.err, /0\.4\.0/);
   assert.equal(old.out, '');
-  const current = run(['build', '--check', '--verbose'], { cwd: project, env });
+  const current = run(['build', '--check'], { cwd: project, env });
   assert.equal(current.code, 0, current.err);
   assert.equal(current.err, '');
-  assert.ok(current.out.includes(`${IMAGE} prismpm check --verbose`));
-  assert.doesNotMatch(current.out, /--volume \/var\/run\/docker\.sock/, 'check needs no Docker socket');
-  assert.ok(run(['build'], { cwd: project, env }).out.includes(`${IMAGE} prismpm build`));
+  assert.equal(current.out, 'wasm check .\n');
+  assert.doesNotMatch(current.out, /docker|prismpm check/, 'build --check runs no image');
+  assert.equal(run(['build', '--check', '--verbose'], { cwd: project, env }).code, 64, 'prismpm check\'s own flags are gone with it');
+  assert.ok(run(['build'], { cwd: project, env }).out.includes(`${IMAGE} prismpm build`), 'a full build still runs in the image');
 });
