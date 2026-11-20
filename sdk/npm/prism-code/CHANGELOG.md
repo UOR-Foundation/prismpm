@@ -6,6 +6,56 @@ Version 0.1.0 was a canonicalization library with no entry here; its API lives o
 
 To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.md).
 
+## [0.10.0](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.9.5...prism-code-v0.10.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **prism-code:** the guided build runs no local image; the hosted verifier is the default prover ([#724](https://github.com/UOR-Foundation/prismpm/issues/724))
+* prism/spec.json, prism_spec, prism_answer and check --spec are gone. A Docker-free build is unavailable until LexLean runs as WebAssembly.
+* **prism-code:** prism/spec.json, prism_spec, prism_answer and check --spec are gone. A Docker-free build is unavailable until LexLean runs as WebAssembly.
+
+### Features Added
+
+* **holo:** format revision 2026-11-18 and the binary application profile (HO-49, HO-50) ([#728](https://github.com/UOR-Foundation/prismpm/issues/728)) ([9411067](https://github.com/UOR-Foundation/prismpm/commit/941106701450c50d8574ba1de9b5bff68d27bfe9))
+* **lean-prover:** a sealed browser prover, and the kernel path, judged by Lean 4.32.2 ([e90a4d0](https://github.com/UOR-Foundation/prismpm/commit/e90a4d0ef57c19b1e0d173e94f13b846c625d8ce))
+* **lean-prover:** kernel declarations from LexLean, and proofs for every proof kind ([f9eb098](https://github.com/UOR-Foundation/prismpm/commit/f9eb098a8be8149371221ea73050c5501f4546bc))
+* **lean-prover:** prove every Prism app with Lean's kernel, in the tab and in prism-code ([5c6b4fa](https://github.com/UOR-Foundation/prismpm/commit/5c6b4faed715a4fa65d291d691a8f6a08aef048c))
+* **lean-prover:** the WASM Lean prover in sdk/npm/lean-prover ([15e2964](https://github.com/UOR-Foundation/prismpm/commit/15e2964bf1cc35acec82073982106a5a5af48147))
+* **prism-code:** an app's one source of truth is its LexLean model; prism/spec.json is removed ([#716](https://github.com/UOR-Foundation/prismpm/issues/716)) ([a8b27ab](https://github.com/UOR-Foundation/prismpm/commit/a8b27abe6e65a74d83b9a47c865031da1b5330ac))
+* **prism-code:** checkpoints, the hologram:guest/core-wasm@3 world (HO-47, HO-48) ([#723](https://github.com/UOR-Foundation/prismpm/issues/723)) ([f09dc05](https://github.com/UOR-Foundation/prismpm/commit/f09dc056421931b50f68ae5ea564f39d08d284e3))
+* **prism-code:** every app's theorems are proved by Lean's kernel in this process ([d11b2e2](https://github.com/UOR-Foundation/prismpm/commit/d11b2e2b1bb689cc79bf30c0532c627a5be8e3f2))
+* **prism-code:** LexLean keeps its verification processes, and apps share their foundation modules ([#713](https://github.com/UOR-Foundation/prismpm/issues/713)) ([b3c1390](https://github.com/UOR-Foundation/prismpm/commit/b3c1390d924a04f7b012e0a327c55228aad4ff10))
+* **prism-code:** one lean machine store, collected on setup, upgrade and system prune ([#725](https://github.com/UOR-Foundation/prismpm/issues/725)) ([40ecfe1](https://github.com/UOR-Foundation/prismpm/commit/40ecfe1edc1fbdb03df9701ee626b6c0a9cde7ca))
+* **prism-code:** reused proof terms are judged again, and builds stay inside a serverless boundary ([#715](https://github.com/UOR-Foundation/prismpm/issues/715)) ([17d3b10](https://github.com/UOR-Foundation/prismpm/commit/17d3b106f2276047d8c8dbbdb96983a86a7122ac))
+* **prism-code:** set a rendered kernel's `invocations` override, and run LexLean's first render of kernel 1 ([df19de0](https://github.com/UOR-Foundation/prismpm/commit/df19de03ba58e88872099b7100f36880b4164613))
+* **prism-code:** skills are admitted by a LexLean skill gate that Lean's kernel proves before setup writes them ([bafb94f](https://github.com/UOR-Foundation/prismpm/commit/bafb94f72d50ca2343ccc27419c27cadf23fc442))
+* **prism-code:** skills are admitted by a LexLean skill gate that Lean's kernel proves before setup writes them ([b7d68bf](https://github.com/UOR-Foundation/prismpm/commit/b7d68bfc7d9b43b12cac9b48ec6b0a82cdaa5214))
+* **prism-code:** the guided build runs no local image; the hosted verifier is the default prover ([#724](https://github.com/UOR-Foundation/prismpm/issues/724)) ([cd2a757](https://github.com/UOR-Foundation/prismpm/commit/cd2a75744a6e4562eaf5bc7e3ceb41be28fcc547))
+* **prism-code:** the WebGPU bridge runs LexLean's WGSL kernels and reads back their u32 words (S5d, DK-48) ([6e7853f](https://github.com/UOR-Foundation/prismpm/commit/6e7853fa90243cd198cfc3c093d4ad5fd5c4f93b))
+* **prism-code:** the WebGPU bridge runs LexLean's WGSL kernels and reads back their u32 words (S5d, DK-48) ([ee5127f](https://github.com/UOR-Foundation/prismpm/commit/ee5127f4a0b81df92f4b0d246318abd2bfd8f593))
+* **prism-code:** verify --lean, build --check and setup prove on Lean's kernel in this process ([1d89099](https://github.com/UOR-Foundation/prismpm/commit/1d89099344b99862636b196eb9d3d6099dff6931))
+* **prism-code:** verify --lean, build --check and setup prove on Lean's kernel in this process ([9f20855](https://github.com/UOR-Foundation/prismpm/commit/9f20855c78fe6d16c6e91dba29be6bda4a6f950f))
+
+
+### Bugs Fixed
+
+* **lean-prover:** start the workflow, release the package, and read its codes in the register test ([8d38364](https://github.com/UOR-Foundation/prismpm/commit/8d3836411e8152bfee9f89f7f4c81a3594a31843))
+* **prism-code:** name the bridge's own kernel conventions, and wait for the page's origin in the headless test ([b7b1cca](https://github.com/UOR-Foundation/prismpm/commit/b7b1cca297baf06483bd94c4c2061c9ab0570b36))
+* **prism-code:** raise the webgpu codes where the registry test reads them, and pin ./webgpu in the export map ([54988c7](https://github.com/UOR-Foundation/prismpm/commit/54988c7811b8406db72c22a6f43193b14b6dcbfd))
+
+
+### Other Changes
+
+* **lean-prover:** content-addressed, parallel kernel judging in the sealed prover ([3511a67](https://github.com/UOR-Foundation/prismpm/commit/3511a671628b3c544bf137460dc650507a0fd811))
+* LexLean 0.4.3 and Lean 4.32.2, the kernel soundness release ([#719](https://github.com/UOR-Foundation/prismpm/issues/719)) ([452337b](https://github.com/UOR-Foundation/prismpm/commit/452337b404b7150543b838a4722fed9d5827dc8a))
+* **prism-code:** every proof on a machine makes the next one cheaper ([4ab4dd5](https://github.com/UOR-Foundation/prismpm/commit/4ab4dd50f522dad357456ab7f43fb3a3fea7224b))
+* **prism-code:** exp2Neg's table is the model's Engine.Gpu::exp2Table ([3829199](https://github.com/UOR-Foundation/prismpm/commit/38291996abeebcb67f100b146a0c60c34891fc4e))
+* **prism-code:** record Lean rejecting two planted defects in model/webgpu-bridge ([f2834c7](https://github.com/UOR-Foundation/prismpm/commit/f2834c78d663206721a4ff1ee91d470d1d15eb9b))
+* **prism-code:** removing Chrome's profile never fails the WebGPU test ([494effe](https://github.com/UOR-Foundation/prismpm/commit/494effecc1493261d1e66b87979d4ca55b17522a))
+* **prism-code:** run LexLean's canonical renders of kernels 1 and 2 on WebGPU ([47ab8f1](https://github.com/UOR-Foundation/prismpm/commit/47ab8f10a1db5c816966e9b67f398174e5d4dafc))
+* **prism-code:** SwiftShader's Vulkan flags only on Linux ([e4d2d02](https://github.com/UOR-Foundation/prismpm/commit/e4d2d027b4db775e64bb546c4ce7aa57e9f5b06d))
+
 ## [0.9.5](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.9.4...prism-code-v0.9.5) (2026-11-16)
 
 ### Features Added
