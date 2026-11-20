@@ -884,7 +884,7 @@ pub fn run_at(root: &Path, id: &str) {
         "DK-46" => node_suite::verify_exact(
             root,
             id,
-            &[("sdk/npm/prism-code/test/journey-lexlean.test.mjs", 10)],
+            &[("sdk/npm/prism-code/test/journey-lexlean.test.mjs", 12)],
             "600000",
         ),
         // LexLean's front end as WebAssembly in prism-code (Phase 3).
