@@ -101,3 +101,15 @@ test('a theorem judged once is not judged again, in this app or in another app w
   const after = await modelProve(edited, { env, fetch: noFetch });
   assert.deepEqual([after.ok, after.judged, after.remembered], [true, 1, 7]);
 });
+
+test('statements with || are proved, in a hypothesis, nested, and as the goal; a false one is not', { skip: !here && 'no lean-prover package beside this one' }, async () => {
+  // Before, every proof through `||` cited Init's Bool.or_eq_true, which the base library does not hold, and the
+  // kernel refused it as an unknown constant.
+  const r = await modelProve(snapshot('or'), { kernel: await openModelKernel({ env: { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() } }) });
+  const status = Object.fromEntries(r.theorems.map((t) => [t.name.slice(t.name.lastIndexOf('.') + 1), t.status]));
+  for (const name of ['aSkillInstallsOnlyAsTheBytesItsPinnedModelRenders', 'aSkillInstallsOnlyWithNoNetworkSecretsOrExecution', 'everyNetworkCountIsZeroOrNot']) {
+    assert.match(status[name], /^proved/, `${name}: ${status[name]}`);
+  }
+  assert.match(status.notEveryCountIsZero, /^not proved/);
+  assert.doesNotMatch(Object.values(status).join('\n'), /unknown constant/);
+});
