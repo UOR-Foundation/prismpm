@@ -31,18 +31,28 @@
   <p id="summary">Reading the app…</p>
 
   <h2>Guarantees</h2>
-  <p class="dim">Proved means Lean's kernel accepted it in this tab, for the exact record shown here. Tested means only the examples back it.</p>
+  <p class="dim">Proved means Lean accepted it for exactly this app: its kernel in this tab for a rule app, a checked proof statement for a holo. Tested means only the examples back it.</p>
   <div class="scroll"><table><thead><tr><th>Guarantee</th><th>Status</th><th>Why</th></tr></thead><tbody id="guarantees"></tbody></table></div>
 
+  <section id="verdictSection" hidden>
+  <h2>Verdict</h2>
+  <p class="dim">The holo, judged in this tab by prism-code's verifier.</p>
+  <table><tbody id="verdict"></tbody></table>
+  </section>
+
+  <section id="rulesSection" hidden>
   <h2>Rules</h2>
   <p class="dim">The first rule that matches decides.</p>
   <ol id="rules"></ol>
+  </section>
 
+  <section id="requestSection" hidden>
   <h2>Request</h2>
-  <p class="dim">One request is these values in order, separated by spaces.</p>
+  <p class="dim" id="requestNote">One request is these values in order, separated by spaces.</p>
   <table><tbody id="fields"></tbody></table>
+  </section>
 
-  <h2>Examples <button id="replay" type="button">Replay</button></h2>
+  <h2>Examples <button id="replay" type="button" hidden>Replay</button></h2>
   <p id="vectorsSummary" class="dim"></p>
   <div class="scroll"><table><thead><tr><th>Request</th><th>Recorded</th><th>Now</th><th></th></tr></thead><tbody id="vectors"></tbody></table></div>
 

@@ -1,12 +1,17 @@
-// The audit view of one rule app: its rules, each guarantee with what backs it, its examples, its fingerprint.
+// The audit view of one Prism app: what it decides, each guarantee with what backs it, its examples, its fingerprint.
 //
-// It proves nothing itself. The app's own published page already checks its judge archive, runs its examples and
-// proves every guarantee with Lean's kernel in the tab; this view loads that page in a frame and reads what it
-// found. What each guarantee may then be called (proved, tested, refused, unknown) is not decided here either: it
-// is asked of the audit-status model (../../model/ide-audit), run through the same verified rule judge.
+// It proves nothing itself, and it does not decide what a guarantee may be called (proved, tested, refused,
+// unknown): that is asked of the audit-status model (../../model/ide-audit), run through the verified rule judge.
 //
-// Phase 2a limits: the app must be served from this page's origin, and the copy of prism-code the app publishes is
-// taken as it is. Fetching by content label is phase 2d.
+// A rule app (app.rule-app.json): the app's own published page already checks its judge archive, runs its examples
+// and proves every guarantee with Lean's kernel in the tab. This view loads that page in a frame and reads what it
+// found. "Proved" then means the kernel, in this tab.
+//
+// A holo app (app.holo): the holo is judged in this tab by prism-code's verifier, loaded, and its examples replayed.
+// Lean does not run here for a holo. "Proved" then means the holo carries a proof statement that the verifier
+// accepted at level P2 or above, about this holo's own model.
+//
+// Phase 2a limits: the app is served from this page's origin, and files are fetched by path, not by content label.
 
 const params = new URLSearchParams(location.search);
 const appBase = new URL(params.get('app') ?? './app/', location.href).href.replace(/\/?$/, '/');
@@ -14,13 +19,19 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+const row = (parent, cells) => { const tr = el('tr'); for (const [tag, text, cls] of cells) tr.append(el(tag, text, cls)); $(parent).append(tr); return tr; };
+const show = (...ids) => { for (const id of ids) $(id).hidden = false; };
 const hexWord = (n) => [0, 8, 16, 24].map((k) => ((n >>> k) & 255).toString(16).padStart(2, '0')).join('');
 const readWord = (hex) => parseInt(hex.match(/../g).reverse().join(''), 16);
 const unhex = (hex) => dec.decode(Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16)));
 const sha256 = async (bytes) => 'sha256:' + [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
-const bytesOf = async (url) => new Uint8Array(await (await fetch(url, { cache: 'no-store' })).arrayBuffer());
+const bytesOrNull = async (url) => { const r = await fetch(url, { cache: 'no-store' }); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; };
+// This page's own copy of a file when it is served one, else the app's copy.
+const mine = (path) => new URL('./' + path, import.meta.url).href;
+const importFirst = async (...urls) => { let last; for (const u of urls) { try { return await import(u); } catch (e) { last = e; } } throw last; };
 
-const state = (window.prismAudit = { app: appBase, ready: false, error: null, guarantees: [], vectors: [], facts: null });
+const state = (window.prismAudit = { app: appBase, kind: null, ready: false, error: null, guarantees: [], vectors: [], verdict: null });
+const WHY = { tested: 'not proved; the examples pass', unknown: 'nothing in this tab backs it' };
 
 // A record's words: [schema, fields, (least, greatest) per field, otherwise, rules, then per rule: conditions, answer, (field, op, value)...].
 const OPS = ['<', '≤', '>', '≥', 'is', 'is not'];
@@ -37,14 +48,13 @@ function readRules(record) {
   }
   return { rules, otherwise };
 }
-const condition = (record, [field, op, value]) => {
+const conditions = (record, when) => when.map(([field, op, value]) => {
   const f = record.fields[field];
   return `${f.name} ${OPS[op]} ${f.kind === 'choice' ? f.values[value] : value}`;
-};
-const conditions = (record, when) => when.map((c) => condition(record, c)).join(' and ');
+}).join(' and ');
 
-// One rule app, loaded as the app's page loads it: the record's numbers through the verified rule judge.
-async function judgeOf(record, kernel) {
+// One rule app's numbers through the verified rule judge, as the app's page runs them.
+function judgeOf(record, kernel) {
   const prefix = 'rule ' + record.words.map(hexWord).join('');
   return async (request) => {
     const numbers = record.fields.map((f, i) => (f.kind === 'choice' ? f.values.indexOf(request[i]) : Number(request[i])));
@@ -54,7 +64,36 @@ async function judgeOf(record, kernel) {
   };
 }
 
-// What the app's own page found, read once it has finished proving.
+// The audit-status model's judge. Its record names the judge archive it needs by hash; an archive is used only if it
+// is that one, verifies, and replays its own vectors. Without it nothing is claimed.
+async function auditJudge(loadArchive, judgeBytes) {
+  const record = await (await fetch(mine('audit-status.rule-app.json'))).json();
+  if (!judgeBytes || record.kernel.holo !== await sha256(judgeBytes)) return { ask: null, kernel: null };
+  const kernel = await loadArchive(judgeBytes, { capabilities: null, capabilitySet: undefined, allowUnverified: false });
+  const sound = kernel.identities?.verified === true && (await kernel.acceptance()).failed.length === 0;
+  return sound ? { ask: judgeOf(record, kernel), kernel } : { ask: null, kernel: null };
+}
+
+function fingerprint(rows) {
+  for (const [name, l] of rows) row('fingerprint', [['th', name], ['td', l.blake3, 'mono'], ['td', l.sha256, 'mono']]);
+}
+function guaranteeRow(text) {
+  return row('guarantees', [['td', text], ['td', 'checking…', 'status'], ['td', '', 'why']]);
+}
+function settle(tr, index, request, status, cause) {
+  tr.children[1].textContent = status ?? 'unknown';
+  tr.children[1].dataset.status = status ?? 'unknown';
+  tr.children[2].textContent = cause;
+  state.guarantees.push({ index, request: request.join(' '), status: status ?? 'unknown', cause });
+}
+function summarise(extra = '') {
+  const counts = {};
+  for (const g of state.guarantees) counts[g.status] = (counts[g.status] ?? 0) + 1;
+  state.summary = counts;
+  $('summary').textContent = Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ') + ` of ${state.guarantees.length}.` + extra;
+}
+
+// What a rule app's own page found, read once it has finished proving.
 function appFindings() {
   return new Promise((resolve) => {
     const frame = Object.assign(document.createElement('iframe'), { src: appBase, hidden: true, title: 'the app' });
@@ -72,96 +111,142 @@ function appFindings() {
   });
 }
 
-async function main() {
-  $('app').textContent = appBase;
-  const recordBytes = await bytesOf(appBase + 'app.rule-app.json');
-  const holoBytes = await bytesOf(appBase + 'kernel.holo');
+async function auditRuleApp(recordBytes, lib) {
+  state.kind = 'rule app';
   const record = JSON.parse(dec.decode(recordBytes));
-  const { kappa } = await import(appBase + 'prism-code/src/blake3.mjs');
-  const { loadArchive } = await import(appBase + 'prism-code/src/index.mjs');
-  const labels = { record: { sha256: await sha256(recordBytes), blake3: kappa(recordBytes) }, judge: { sha256: await sha256(holoBytes), blake3: kappa(holoBytes) } };
-
+  const appJudgeBytes = await bytesOrNull(appBase + 'kernel.holo');
+  const judgeBytes = (await bytesOrNull(mine('judge/kernel.holo'))) ?? appJudgeBytes;
   $('title').textContent = record.title || record.name;
-  for (const [name, l] of Object.entries(labels)) {
-    const row = el('tr');
-    row.append(el('th', name === 'record' ? 'App record' : 'Rule judge'), el('td', l.blake3, 'mono'), el('td', l.sha256, 'mono'));
-    $('fingerprint').append(row);
-  }
+  const recordLabel = { sha256: await sha256(recordBytes), blake3: lib.kappa(recordBytes) };
+  fingerprint([['App record', recordLabel], ...(appJudgeBytes ? [['Rule judge', { sha256: await sha256(appJudgeBytes), blake3: lib.kappa(appJudgeBytes) }]] : [])]);
 
-  // The request and the rules, in words.
-  for (const f of record.fields) {
-    const row = el('tr');
-    row.append(el('th', f.name), el('td', f.kind === 'choice' ? f.values.join(', ') : `${f.min} to ${f.max}`));
-    $('fields').append(row);
-  }
+  show('rulesSection', 'requestSection');
+  for (const f of record.fields) row('fields', [['th', f.name], ['td', f.kind === 'choice' ? f.values.join(', ') : `${f.min} to ${f.max}`]]);
   const { rules, otherwise } = readRules(record);
   for (const r of rules) $('rules').append(el('li', `${conditions(record, r.when)} → ${record.outcomes[r.answer]}`));
   $('rules').append(el('li', `otherwise → ${record.outcomes[otherwise]}`));
 
-  // The audit-status model's own judge. Its record names the judge archive it needs by hash; the app's copy is used
-  // only if it is that archive, and only if the archive verifies and replays its own vectors.
-  const auditRecord = await (await fetch(new URL('./audit-status.rule-app.json', import.meta.url))).json();
-  const kernel = await loadArchive(holoBytes, { capabilities: null, capabilitySet: undefined, allowUnverified: false });
-  const judgeSound = auditRecord.kernel.holo === labels.judge.sha256 && kernel.identities?.verified === true && (await kernel.acceptance()).failed.length === 0;
-  const auditJudge = judgeSound ? await judgeOf(auditRecord, kernel) : null;
-  const appJudge = judgeSound ? await judgeOf(record, kernel) : null;
-
-  // The examples, each replayed here through the judge.
+  const audit = await auditJudge(lib.loadArchive, judgeBytes);
+  const appJudge = audit.kernel ? judgeOf(record, audit.kernel) : null;
   const replay = async () => {
     $('vectors').replaceChildren();
     state.vectors = [];
     for (const v of record.vectors) {
       const request = unhex(v.request), want = unhex(v.response);
       const got = appJudge ? await appJudge(request === '' ? [] : request.split(' ')) : null;
-      const pass = got === want;
-      state.vectors.push({ request, want, got, pass });
-      const row = el('tr');
-      row.append(el('td', request || '(empty)', 'mono'), el('td', want), el('td', got ?? 'no answer'), el('td', pass ? 'same' : 'DIFFERENT', pass ? 'ok' : 'bad'));
-      $('vectors').append(row);
+      state.vectors.push({ request, want, got, pass: got === want });
+      row('vectors', [['td', request || '(empty)', 'mono'], ['td', want], ['td', got ?? 'no answer'], ['td', got === want ? 'same' : 'DIFFERENT', got === want ? 'ok' : 'bad']]);
     }
     const passed = state.vectors.filter((v) => v.pass).length;
     $('vectorsSummary').textContent = `${passed} of ${state.vectors.length} examples give the recorded answer, replayed in this tab.`;
-    return passed === state.vectors.length ? 'passed' : 'failed';
+    return state.vectors.length === 0 ? 'none' : passed === state.vectors.length ? 'passed' : 'failed';
   };
+  show('replay');
   $('replay').addEventListener('click', replay);
-  const replayed = state.vectors.length || record.vectors.length ? await replay() : 'none';
+  const replayed = await replay();
 
-  // The guarantees, each waiting on the app's own proof.
-  const rows = record.guarantees.map((g) => {
-    const row = el('tr');
-    const status = el('td', 'proving…', 'status');
-    row.append(el('td', `When ${conditions(record, g.when)}, the answer is ${g.always ? 'always' : 'never'} ${record.outcomes[g.outcome]}.`), status, el('td', '', 'why'));
-    $('guarantees').append(row);
-    return row;
-  });
-
+  const rows = record.guarantees.map((g) => guaranteeRow(`When ${conditions(record, g.when)}, the answer is ${g.always ? 'always' : 'never'} ${record.outcomes[g.outcome]}.`));
   const found = await appFindings();
-  state.facts = found.facts ?? null;
   // "This model" is the record on show: the frame must have loaded the same bytes this view read.
-  const sameModel = !found.error && found.address === labels.record.sha256;
+  const sameModel = !found.error && found.address === recordLabel.sha256;
   const accepted = Array.isArray(found.proved?.accepted) ? found.proved.accepted : null;
-  const WHY = { proved: "Lean's kernel accepted it in this tab, for this record", tested: 'not proved here; the examples pass', refused: 'see the cause', unknown: 'nothing in this tab backs it' };
-  for (const [i, row] of rows.entries()) {
+  for (const [i, tr] of rows.entries()) {
     const request = [accepted === null ? 'none' : accepted[i] ? 'accepted' : 'refused', sameModel ? 'this' : 'other', 'none', 'other', found.admitted === false ? 'failed' : replayed];
-    const status = auditJudge ? await auditJudge(request) : 'unknown';
-    const cause = !judgeSound ? 'the rule judge archive is not the verified one, so nothing is claimed'
+    const status = audit.ask ? await audit.ask(request) : 'unknown';
+    settle(tr, i, request, status, !audit.ask ? 'the rule judge archive is not the verified one, so nothing is claimed'
       : found.error ? found.error
       : found.admitted === false ? 'the app refuses itself: its record, judge or proof is not the one it names'
       : request[0] === 'refused' ? "Lean's kernel did not accept it"
       : replayed === 'failed' ? 'an example gives a different answer than recorded'
       : found.proved?.error ? 'the kernel could not run here: ' + found.proved.error
       : found.timedOut ? 'the proof did not finish in 90 seconds'
-      : WHY[status];
-    row.children[1].textContent = status ?? 'unknown';
-    row.children[1].dataset.status = status ?? 'unknown';
-    row.children[2].textContent = cause;
-    state.guarantees.push({ index: i, request: request.join(' '), status, cause });
+      : status === 'proved' ? "Lean's kernel accepted it in this tab, for this record" : WHY[status]);
   }
-  const counts = {};
-  for (const g of state.guarantees) counts[g.status] = (counts[g.status] ?? 0) + 1;
-  $('summary').textContent = Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ') + ` of ${rows.length} guarantees.`
-    + (found.proved?.ms ? ` Proved in ${found.proved.ms} ms.` : '');
-  state.summary = counts;
+  summarise(found.proved?.ms ? ` Proved in ${found.proved.ms} ms.` : '');
+}
+
+const PROOF_PREDICATE = 'https://uor.foundation/prism/proof/v1';
+const LEVELS = ['P0', 'P1', 'P2', 'P3'];
+
+async function auditHolo(holoBytes, lib) {
+  state.kind = 'holo';
+  const verifier = await import(mine('prism-code/vendor/verify.mjs'));
+  const label = { sha256: await sha256(holoBytes), blake3: lib.kappa(holoBytes) };
+  fingerprint([['Holo', label]]);
+  const audit = await auditJudge(lib.loadArchive, await bytesOrNull(mine('judge/kernel.holo')));
+
+  // Judge, read and load the holo. Any of the three refusing it is the finding.
+  let verdict = null, info = null, app = null, refusal = null;
+  try {
+    verdict = await verifier.verify(holoBytes);
+    info = verifier.inspect(holoBytes);
+    app = await lib.loadArchive(holoBytes, { capabilities: null, capabilitySet: undefined, allowUnverified: false });
+  } catch (e) { refusal = `${e?.code ? e.code + ': ' : ''}${e?.message ?? e}`; }
+  state.verdict = verdict;
+  $('title').textContent = info?.name ?? 'A holo this tab refuses';
+
+  show('verdictSection');
+  if (refusal) row('verdict', [['th', 'Refused'], ['td', refusal, 'bad']]);
+  if (verdict) {
+    row('verdict', [['th', 'Level'], ['td', `${verdict.level} (the default policy asks for ${verdict.policy.minimum})`]]);
+    for (const r of verdict.reasons) row('verdict', [['th', r.withholds ? `Withholds ${r.withholds}` : 'Policy'], ['td', r.message]]);
+  }
+  if (info?.model) {
+    show('requestSection');
+    $('requestNote').textContent = 'What the holo says of its model.';
+    for (const [k, v] of [['Function', info.model.function], ['Description', info.model.description], ['Crate', `${info.model.cargo_name} ${info.model.cargo_version}`],
+      ['Limits', `request ${info.model.limits.request} B, response ${info.model.limits.response} B`], ['Model document', 'blake3:' + info.model.digest.blake3]]) row('fields', [['th', k], ['td', String(v), k === 'Model document' ? 'mono' : undefined]]);
+  }
+
+  // The examples the holo carries, replayed through the guest it carries.
+  let replayed = 'none';
+  if (app) {
+    const result = await app.acceptance();
+    replayed = result.total === 0 ? 'none' : result.failed.length === 0 ? 'passed' : 'failed';
+    state.vectors = [{ total: result.total, passed: result.passed, failed: result.failed.length }];
+    $('vectorsSummary').textContent = `${result.passed} of ${result.total} examples give the recorded answer, replayed in this tab through the holo's own guest.`;
+  } else {
+    $('vectorsSummary').textContent = 'Not replayed: the holo did not load.';
+  }
+
+  // What Lean proved, by the holo's own signed account. Lean does not run here for a holo.
+  const statements = (info?.attestations ?? []).map((a) => a.statement ?? a).filter((s) => s?.predicateType === PROOF_PREDICATE);
+  const proof = statements[0]?.predicate ?? null;
+  const reachedP2 = verdict ? LEVELS.indexOf(verdict.level) >= 2 : false;
+  const aboutThis = proof?.model?.document?.sha256 === info?.model?.digest?.sha256;
+  const theorems = proof?.theorems ?? [];
+  if (theorems.length === 0) {
+    const tr = guaranteeRow('The app answers its own examples as recorded.');
+    const request = ['none', 'other', 'none', 'other', refusal ? 'failed' : replayed];
+    const status = audit.ask ? await audit.ask(request) : 'unknown';
+    settle(tr, 0, request, status, !audit.ask ? 'the rule judge archive is not the verified one, so nothing is claimed'
+      : refusal ? 'the holo is refused: ' + refusal
+      : status === 'tested' ? 'the holo carries no proof statement, so nothing Lean proved can be checked here; its examples pass' : WHY[status] ?? 'an example gives a different answer than recorded');
+  }
+  for (const [i, t] of theorems.entries()) {
+    const tr = guaranteeRow(`${t.name} (${t.module}), axioms: ${(t.axioms?.observed ?? []).join(', ') || 'none'}`);
+    const request = ['none', 'other', reachedP2 && t.verdict === 'PASSED' ? 'verified' : 'invalid', aboutThis ? 'this' : 'other', refusal ? 'failed' : replayed];
+    const status = audit.ask ? await audit.ask(request) : 'unknown';
+    settle(tr, i, request, status, !audit.ask ? 'the rule judge archive is not the verified one, so nothing is claimed'
+      : refusal ? 'the holo is refused: ' + refusal
+      : status === 'proved' ? 'the build proved it with Lean; this tab checked the signed statement, not the proof'
+      : t.verdict !== 'PASSED' ? 'the proof statement records it as failed'
+      : !reachedP2 ? `the proof statement is not accepted: the holo is at ${verdict?.level}`
+      : !aboutThis ? 'the proof statement is about another model' : WHY[status] ?? 'an example gives a different answer than recorded');
+  }
+  summarise(verdict ? ` Level ${verdict.level}.` : '');
+}
+
+async function main() {
+  $('app').textContent = appBase;
+  const prismCode = await importFirst(mine('prism-code/index.mjs'), appBase + 'prism-code/src/index.mjs');
+  const blake3 = await importFirst(mine('prism-code/blake3.mjs'), appBase + 'prism-code/src/blake3.mjs');
+  const lib = { loadArchive: prismCode.loadArchive, kappa: blake3.kappa };
+  const recordBytes = await bytesOrNull(appBase + 'app.rule-app.json');
+  if (recordBytes) return auditRuleApp(recordBytes, lib);
+  const holoBytes = await bytesOrNull(appBase + 'app.holo');
+  if (holoBytes) return auditHolo(holoBytes, lib);
+  throw new Error('no app.rule-app.json and no app.holo at ' + appBase);
 }
 
 main().catch((e) => { state.error = String(e?.stack ?? e); $('summary').textContent = 'This audit could not be made: ' + (e?.message ?? e); })

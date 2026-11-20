@@ -1,5 +1,6 @@
-// Serve the audit view beside one built rule app, on one origin, for trying it by hand or in a test.
-// Usage: node tools/serve-audit.mjs <rule app site dir, e.g. .../.prism/site> [port]
+// Serve the audit view beside one built app, on one origin, for trying it by hand or in a test.
+// Usage: node tools/serve-audit.mjs <app dir: a rule app's .prism/site, or a folder holding app.holo> [port]
+// The page is also given this checkout's prism-code and the rule judge archive, so it need not trust the app's copies.
 // Then open http://localhost:<port>/audit/ . The app is at /audit/app/ .
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -9,7 +10,10 @@ import { fileURLToPath } from 'node:url';
 const [siteDir, port = '4180'] = process.argv.slice(2);
 if (!siteDir) { console.error('usage: node tools/serve-audit.mjs <rule app site dir> [port]'); process.exit(64); }
 const auditDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'audit');
-const roots = [['/audit/app/', resolve(siteDir)], ['/audit/', resolve(auditDir)]];
+const package_ = join(auditDir, '..', '..');
+// Longest prefix first.
+const roots = [['/audit/app/', resolve(siteDir)], ['/audit/prism-code/', resolve(package_, 'src')],
+  ['/audit/judge/', resolve(package_, 'test', 'fixtures', 'kernel')], ['/audit/', resolve(auditDir)]];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.css': 'text/css', '.gz': 'application/gzip', '.holo': 'application/octet-stream' };
 
 createServer(async (request, response) => {
