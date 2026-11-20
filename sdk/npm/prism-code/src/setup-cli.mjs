@@ -48,8 +48,11 @@ export async function runSetup(argv, usage, context = hostSetupContext(), machin
   const machine = named['agents-only'] ? null : planMachine({ image: named.image, pull, local }, machineContext);
   if (machine && !dryRun) applyMachine(machine);
   const agentsHalf = !named['machine-only'];
-  // The skill ships in the package, so there is nothing to fetch.
-  const skills = agentsHalf ? bundledSkills() : undefined;
+  // The skill ships in the package, so there is nothing to fetch. Before any is written, the skill gate's theorems are
+  // proved by Lean's kernel in this process and each skill is judged by it (skills.mjs); a dry run writes nothing, so
+  // it proves nothing either.
+  let skills = agentsHalf ? bundledSkills() : undefined;
+  if (skills && !dryRun) skills = await (await import('./skills.mjs')).admitSkills(skills, { env: context.env });
   const plan = agentsHalf ? planSetup({ agent: named.agent, skills, hosted: false }, context) : { agents: [], handler: { status: 'not-found', steps: [] }, preferred: { agent: null, steps: [] } };
   if (!dryRun && agentsHalf) applySetup(plan);
   const rows = [...plan.agents, ...(plan.journey ?? []), plan.handler, ...(plan.skills ? [plan.skills] : [])];

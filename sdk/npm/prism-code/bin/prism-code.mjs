@@ -188,6 +188,9 @@ Usage:
                                                     VS Code, Claude Desktop; install the Prism
                                                     skill; register the holo:// handler; remember the agent; print the
                                                     next steps. Run it as npx prism-code@latest setup
+  prism-code skill verify [<dir>]                   judge an installed skill again: its SKILL.md has the label prism-code
+                                                    pins, every command it names ships, it holds no network, secret or
+                                                    executable, and Lean's kernel proves the skill gate's theorems here
   prism-code mcp [--project <dir>]                  the Prism MCP server on stdio (experimental): the app starts from a
                                                     starter LexLean module the agent writes; Lean's kernel proves it as
                                                     WebAssembly in this process (a holo build still needs the SDK image)
@@ -1084,6 +1087,22 @@ async function main(argv) {
     case 'setup': {
       const { runSetup } = await import('../src/setup-cli.mjs');
       return runSetup(rest, usage);
+    }
+    case 'skill': {
+      if (rest[0] !== 'verify' || rest.length > 2) return usage('skill takes verify [<dir>]');
+      const skills = await import('../src/skills.mjs');
+      const dirs = rest[1] ? [resolve(rest[1])] : skills.installedSkillDirs();
+      if (dirs.length === 0) {
+        process.stderr.write('skill verify: no installed prism skill here; run npx prism-code@latest setup, or name a skill folder\n');
+        return 2;
+      }
+      let failed = false;
+      for (const dir of dirs) {
+        const { ok, lines } = await skills.verifyInstalled(dir);
+        process.stdout.write(`${lines.join('\n')}\n`);
+        if (!ok) failed = true;
+      }
+      return failed ? 1 : 0;
     }
     case 'open': {
       const { runOpen } = await import('../src/setup-cli.mjs');

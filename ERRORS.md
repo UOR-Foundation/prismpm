@@ -1109,6 +1109,8 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `setup.command` |  | `DK-41` | A setup step's command failed. |
 | `signature_invalid` | `SignatureInvalidError` | `CT-12` | The attestation's signature does not verify. |
 | `signing_failed` | `SigningError` | `CT-12` | Attest could not produce a signature. |
+| `skill.missing` |  | `DK-41` | The folder skill verify was given holds no SKILL.md. |
+| `skill.unproved` |  | `DK-41` | Lean's kernel could not judge the skill gate, so no skill is installed. |
 | `start.exists` |  | `DK-46` | The app folder already holds a LexLean model; no starter is written over it. |
 | `start.starter` |  | `DK-46` | The starter named is not one this package carries, or one of its files is not the bytes its index names. |
 | `subject_mismatch` | `SubjectMismatchError` | `CT-12` | The attestation is about bytes other than the holo. |

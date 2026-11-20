@@ -148,6 +148,11 @@
     },
     {
       "kind": "verb",
+      "place": "prism-code skill",
+      "name": "skill"
+    },
+    {
+      "kind": "verb",
       "place": "prism-code tag",
       "name": "tag"
     },

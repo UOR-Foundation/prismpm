@@ -17,6 +17,47 @@ import { fileURLToPath } from 'node:url';
 import { readCli, readPages } from './lib/generate.mjs';
 import { PACKAGE_SKILL_FILE, PACKAGE_SKILL_PATH, SKILL_FILE, SKILL_PATH, TRY_IT, readSkill, renderSkill, skillProblems } from './lib/skill.mjs';
 
+const REPO = fileURLToPath(new URL('../../', import.meta.url));
+const GATE_SOURCE = join(REPO, 'skills/gate');
+const PACKAGE_SKILL_DIR = join(REPO, 'sdk/npm/prism-code/skill');
+const GATE_FILES = ['lexlean.toml', 'lexlean.lock', 'lean-toolchain', 'lakefile.toml', 'src/SkillGate.lex.tex', 'src/SkillGateProofs.lex.tex'];
+
+/**
+ * What prism-code ships beside the skill: the skill gate's LexLean model, copied byte for byte from skills/gate, and
+ * skills.json, which pins each skill's SKILL.md and the gate model by BLAKE3 label. `prism-code setup` installs a skill
+ * only when its bytes have the pinned label and the gate's theorems are proved (src/skills.mjs).
+ */
+async function shippedGate(markdown) {
+  const { kappa } = await import('../npm/prism-code/src/blake3.mjs');
+  const { modelLabel } = await import('../npm/prism-code/src/skills.mjs');
+  const files = Object.fromEntries(GATE_FILES.map((f) => [f, readFileSync(join(GATE_SOURCE, f))]));
+  const pins = `${JSON.stringify({ schema: 'prism/skill-pins/1', skills: { prism: { markdown: kappa(new TextEncoder().encode(markdown)) } }, gate: modelLabel(GATE_SOURCE) }, null, 2)}\n`;
+  return { files, pins };
+}
+
+/** Problems with what prism-code ships beside the skill: a gate file that differs, or pins that are stale. */
+export async function checkGate(markdown) {
+  const { files, pins } = await shippedGate(markdown);
+  const problems = [];
+  for (const [f, bytes] of Object.entries(files)) {
+    let shipped = null;
+    try {
+      shipped = readFileSync(join(PACKAGE_SKILL_DIR, 'gate', f));
+    } catch {
+      // Missing is a difference.
+    }
+    if (!shipped || !shipped.equals(bytes)) problems.push(`sdk/npm/prism-code/skill/gate/${f} differs from skills/gate/${f}; run node sdk/docs/skill.mjs`);
+  }
+  let shippedPins = null;
+  try {
+    shippedPins = readFileSync(join(PACKAGE_SKILL_DIR, 'skills.json'), 'utf8').replace(/\r\n/g, '\n');
+  } catch {
+    // Missing is a difference.
+  }
+  if (shippedPins !== pins) problems.push('sdk/npm/prism-code/skill/skills.json does not pin the skill and the gate as they are; run node sdk/docs/skill.mjs');
+  return problems;
+}
+
 /** Problems with the committed skill: broken rules, then stale blocks. */
 export function checkSkill() {
   const cli = readCli();
@@ -66,7 +107,7 @@ async function main(argv) {
   const unknown = argv.filter((a) => a !== '--check');
   if (unknown.length > 0) throw new Error(`unknown argument ${unknown[0]}`);
   if (check) {
-    const problems = checkSkill();
+    const problems = [...checkSkill(), ...(await checkGate(readSkill()))];
     for (const problem of problems) console.error(`skill: ${SKILL_FILE}: ${problem}`);
     if (problems.length > 0) return 1;
     console.log(`skill ok: ${SKILL_FILE} names only shipped commands and its generated blocks are current`);
@@ -77,7 +118,13 @@ async function main(argv) {
   if (next !== text) writeFileSync(SKILL_PATH, next);
   mkdirSync(dirname(PACKAGE_SKILL_PATH), { recursive: true });
   writeFileSync(PACKAGE_SKILL_PATH, next);
-  console.log(`${next === text ? 'unchanged' : 'wrote'} ${SKILL_FILE}, and its copy ${PACKAGE_SKILL_FILE}`);
+  const { files, pins } = await shippedGate(next);
+  for (const [f, bytes] of Object.entries(files)) {
+    mkdirSync(dirname(join(PACKAGE_SKILL_DIR, 'gate', f)), { recursive: true });
+    writeFileSync(join(PACKAGE_SKILL_DIR, 'gate', f), bytes);
+  }
+  writeFileSync(join(PACKAGE_SKILL_DIR, 'skills.json'), pins);
+  console.log(`${next === text ? 'unchanged' : 'wrote'} ${SKILL_FILE}, and its copy ${PACKAGE_SKILL_FILE}, with the skill gate and skills.json`);
   return 0;
 }
 

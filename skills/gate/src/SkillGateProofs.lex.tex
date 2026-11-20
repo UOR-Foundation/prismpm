@@ -1,0 +1,157 @@
+\begin{lexlean}{SkillGateProofs}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{SkillGate}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: installsWithOtherMarkdown,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s markdownNamed) =? (project s markdownRendered))))
+}
+
+theorem{
+  name: aSkillInstallsOnlyAsTheBytesItsModelRenders,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsWithOtherMarkdown s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsWithOtherMarkdown]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsUnderOtherModel,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s modelNamed) =? (project s modelPinned))))
+}
+
+theorem{
+  name: aSkillInstallsOnlyUnderItsPinnedModel,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsUnderOtherModel s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsUnderOtherModel]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsNamingUnshipped,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s commandsShipped) =? (project s commandsNamed))))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWhenEveryCommandItTeachesShips,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsNamingUnshipped s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsNamingUnshipped]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsWithNetwork,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s network) =? 0)))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWithoutNetworkAuthority,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsWithNetwork s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsWithNetwork]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsWithSecrets,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s secrets) =? 0)))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWithoutSecrets,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsWithSecrets s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsWithSecrets]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsWithExecution,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s execution) =? 0)))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWithoutExecutionAuthority,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsWithExecution s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsWithExecution]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsSending,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s sendsWithoutOptIn) =? 0)))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWhenItSendsNothingUnasked,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsSending s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsSending]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsNeedingDocker,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s proofNeedsDocker) =? 0)))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWhenItProvesWithoutDocker,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsNeedingDocker s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsNeedingDocker]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsDeclaringNothing,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && ((project s theoremsDeclared) =? 0))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWhenItDeclaresATheorem,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsDeclaringNothing s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsDeclaringNothing]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: installsUnproved,
+  parameters: [s : SkillGate::Skill],
+  result: Bool,
+  body: ((SkillGate::installs s) && (not ((project s theoremsProved) =? (project s theoremsDeclared))))
+}
+
+theorem{
+  name: aSkillInstallsOnlyWhenEveryTheoremItDeclaresIsProved,
+  parameters: [s : SkillGate::Skill],
+  statement: ((installsUnproved s) = false),
+  proof: linear_arithmetic{definitions: [SkillGate::canonical, SkillGate::installs, SkillGate::namesOnlyShipped, SkillGate::noAuthority, SkillGate::selfProved, SkillGate::staysLocal, installsUnproved]},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}
