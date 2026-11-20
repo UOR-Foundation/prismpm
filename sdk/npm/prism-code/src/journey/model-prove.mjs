@@ -25,7 +25,8 @@ import { pathToFileURL } from 'node:url';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { buildFetch } from './hosts.mjs';
 import { admittedLabel, kappaDirectory, pinnedFile, writeAtomic } from './kappa-store.mjs';
-import { kappa } from '../uorc.mjs';
+// The UOR content-addressed label, BLAKE3: what this machine keeps is named by it.
+import { kappa } from '../blake3.mjs';
 import { loadLibrary } from '../vendor/kernel-path/emit.mjs';
 import { COVERED, plan } from '../vendor/kernel-path/plan.mjs';
 
@@ -100,7 +101,7 @@ export async function ensureModelKernel({ env = process.env, fetch = globalThis.
 // Two things are remembered on this machine, in the κ store (`$PRISM_HOME/kappa/kernel-path/`), so every proof of every
 // app here makes the next one cheaper:
 //   - the kernel with the base library loaded, suspended to an image: a later process resumes from it instead of
-//     reading the library again. Kept gzipped under the κ store's label of those bytes (uorc.mjs's kappa, SHA-256 today),
+//     reading the library again. Kept gzipped under the κ store's label of those bytes (BLAKE3),
 //     used only when they have it, and set aside for a fresh kernel when resuming from it fails.
 //   - each theorem's verdict, by its Merkle key (vendor/kernel-path/lower.mjs): the label of its statement and of every
 //     declaration it reaches, without the project's module prefix, so the same theorem over the same definitions is
@@ -195,19 +196,22 @@ export function openModelKernel({ env = process.env } = {}) {
     // only saves time: when resuming from it fails for any reason, a fresh kernel reads the library, so a cache never
     // fails a proof.
     const image = readImage(env);
-    let resumed = false;
+    let resumed = false, setAside = null;
     if (image) {
       try {
         const need = image.length - heap().length;
         if (need > 0 && !module._malloc(need)) throw new Error('the kernel could not grow to its image');
         const now = heap();
-        if (now.length < image.length) throw new Error('the kernel did not grow to its image');
+        if (now.length < image.length) throw new Error(`the kernel grew to ${now.length} bytes, not its image's ${image.length}`);
         now.set(image);
         if (now.length > image.length) now.fill(0, image.length);
         // The resumed kernel must answer as a kernel over its library: checking nothing is accepted, or it is not resumed.
-        if (run('check_suffix', '').exit !== 0) throw new Error('the resumed kernel did not answer');
+        const probe = run('check_suffix', '');
+        if (probe.exit !== 0) throw new Error(`the resumed kernel did not answer (${probe.output.slice(0, 120)})`);
         resumed = true;
-      } catch {
+      } catch (error) {
+        // Why the image was set aside, said with the kernel, so a slow start is never a mystery.
+        setAside = String(error?.message ?? error);
         ({ made: module, heap } = await start());
       }
     }
@@ -216,7 +220,7 @@ export function openModelKernel({ env = process.env } = {}) {
       if (loaded.exit !== 0) throw new Error(`the kernel refused its base library: ${loaded.output}`);
       keepImage(env, heap().slice());
     }
-    return { library: loadLibrary(baseText), check: (text) => run('check_suffix', text), resumed };
+    return { library: loadLibrary(baseText), check: (text) => run('check_suffix', text), resumed, ...(setAside ? { setAside } : {}) };
   })();
   opened.catch(() => { opened = null; });
   return opened;

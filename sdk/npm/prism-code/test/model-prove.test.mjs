@@ -118,18 +118,19 @@ test('the kernel image only saves time: a process resumes from it, and an image 
   const { spawnSync } = await import('node:child_process');
   const { readdirSync } = await import('node:fs');
   const { gzipSync, gunzipSync } = await import('node:zlib');
-  // The store's own label: an image is admitted only under it.
-  const { kappa } = await import('../src/uorc.mjs');
+  // The store's own label, the UOR content-addressed BLAKE3 label: an image is admitted only under it.
+  const { kappa } = await import('../src/blake3.mjs');
   const env = { ...process.env, PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
-  // One process per open: the kernel is opened once per process.
+  // One process per open: the kernel is opened once per process. setAside says why an image was not resumed.
   const open = () => {
-    const script = `const m = await import(${JSON.stringify(new URL('../src/journey/model-prove.mjs', import.meta.url).href)}); const k = await m.openModelKernel(); console.log(JSON.stringify({ resumed: k.resumed, exit: k.check('').exit }));`;
+    const script = `const m = await import(${JSON.stringify(new URL('../src/journey/model-prove.mjs', import.meta.url).href)}); const k = await m.openModelKernel(); console.log(JSON.stringify({ resumed: k.resumed, exit: k.check('').exit, setAside: k.setAside ?? null }));`;
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { env, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
     return JSON.parse(r.stdout.trim().split('\n').at(-1));
   };
-  assert.deepEqual(open(), { resumed: false, exit: 0 }, 'the first process reads the library and keeps an image');
-  assert.deepEqual(open(), { resumed: true, exit: 0 }, 'the next resumes from it');
+  const first = open(), second = open();
+  assert.deepEqual(first, { resumed: false, exit: 0, setAside: null }, 'the first process reads the library and keeps an image');
+  assert.deepEqual(second, { resumed: true, exit: 0, setAside: null }, `the next resumes from it${second.setAside ? `; it was set aside: ${second.setAside}` : ''}`);
   // An image that carries its own label but is not a working kernel's memory: the real image with its first 8 MiB
   // cleared. Resumed as it is, the kernel traps on every check (memory access out of bounds), as CI saw.
   const dir = join(env.PRISM_KAPPA_DIR, 'kernel-path');
@@ -140,6 +141,8 @@ test('the kernel image only saves time: a process resumes from it, and an image 
   const gz = gzipSync(image), label = kappa(gz);
   writeFileSync(join(dir, 'images', label.slice(7)), gz);
   writeFileSync(join(dir, pointer), `${kappa(new TextEncoder().encode(label))}\n${label}`);
-  assert.deepEqual(open(), { resumed: false, exit: 0 }, 'an image that will not resume gives a fresh kernel, never a failed proof');
-  assert.deepEqual(open(), { resumed: true, exit: 0 }, 'and the fresh kernel keeps a good image again');
+  const third = open();
+  assert.deepEqual({ resumed: third.resumed, exit: third.exit }, { resumed: false, exit: 0 }, 'an image that will not resume gives a fresh kernel, never a failed proof');
+  assert.match(third.setAside, /did not answer|grew to/, 'and says why it was set aside');
+  assert.deepEqual(open(), { resumed: true, exit: 0, setAside: null }, 'and the fresh kernel keeps a good image again');
 });
