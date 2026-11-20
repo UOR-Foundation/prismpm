@@ -39,6 +39,8 @@ theorem{
 }
 - definitions lists every definition the proof unfolds, the breaks definition included, without repeats, sorted as text: App::… before breaksFreeShort.
 - A guarantee about every request bounds it: (((project request hours) <=? 24) && …) inside the breaks body.
+- A guarantee of an app that keeps state is an invariant: one theorem that it holds in the initial state, and one per action that the action keeps it, given it held before.
+- Declare axioms: [Quot.sound, propext]. A proof that needs fewer is still proved, and said.
 - Lean's kernel proves linear_arithmetic, decide and reflexivity proofs here; any other proof kind is reported not proved.
 
 After every edit: prism_build. It returns the first problem with the exact fix, or every theorem with whether Lean proved it.`;

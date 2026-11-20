@@ -293,6 +293,10 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
     // Check, prove, then build what needs no image: a rule app's verified judge. Another app stops at proved.
     async prism_build(args, progress) {
       const verified = await tools.prism_verify(args, progress);
+      // Proved, not a rule app: say plainly that nothing was built here, and how it is built.
+      if (verified.step === 'prove' && verified.state === 'done' && verified.ok !== false && !isRuleApp(load())) {
+        return { ...verified, built: { ok: false, reason: 'Proved, not built: this app is built into a holo through Rust to WebAssembly, which does not run in this process yet. npx prism-code build --remote github builds it on your repository\'s own GitHub Actions and checks what comes back here; prism_run answers once it is built.' } };
+      }
       if (verified.step !== 'prove' || verified.state !== 'done' || verified.ok === false || !isRuleApp(load())) return verified;
       const built = await longTool('build', args, progress);
       return { ...verified, step: 'build', built: { ok: built.ok, state: built.state, message: built.message ?? built.note } };
