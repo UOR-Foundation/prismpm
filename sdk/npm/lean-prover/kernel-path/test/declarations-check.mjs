@@ -1,6 +1,7 @@
-// node test/declarations-check.mjs BASE.ndjson DECLARATIONS.json...
-// LexLean's own kernel declarations of a model (lexlean/kernel-declarations/1), judged by Lean's kernel: every
-// declaration and statement, then each theorem's proof as the kernel path finds it.
+// node test/declarations-check.mjs BASE.ndjson DIR...
+// LexLean's kernel declarations of a project (lexlean/kernel-declarations/2, written by `cargo xtask kernel-terms
+// declare DIR BASE.ndjson`: DIR/declarations.json and DIR/declarations.ndjson), judged by Lean's kernel: every
+// declaration and every proof LexLean produced, then a proof of each other theorem as the kernel path finds it.
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,7 +10,7 @@ import { root, loadLibrary } from "./harness.mjs";
 import { planDeclarations } from "../src/declarations.mjs";
 
 const [baseFile, ...files] = process.argv.slice(2);
-const base = fs.readFileSync(baseFile, "utf8"), lib = loadLibrary(base);
+const base = fs.readFileSync(baseFile, "utf8");
 const factory = (await import(pathToFileURL(path.join(root, "kernel/lean-kernel.mjs")).href)).default;
 const wasmBinary = gunzipSync(fs.readFileSync(path.join(root, "kernel/lean-kernel.wasm.gz"))), lines = [];
 const m = await factory({ instantiateWasm: (imports, ok) => { WebAssembly.instantiate(wasmBinary, imports).then((r) => ok(r.instance, r.module)); return {}; }, print: (s) => lines.push(s), printErr: (s) => lines.push(s) });
@@ -17,14 +18,19 @@ m.ccall("checker_ready", "number", [], []);
 const call = (text) => { m.FS.writeFile("/f.ndjson", text); lines.length = 0; let exit; try { exit = m.ccall("check_suffix", "number", ["string"], ["/f.ndjson"]); } catch (e) { exit = 3; lines.push("trap " + e.message); } return { exit, out: [...lines] }; };
 m.FS.writeFile("/b", base); m.ccall("load_library", "number", ["string"], ["/b"]);
 let all = 0, proved = 0;
-for (const file of files) {
-  const d = JSON.parse(fs.readFileSync(file, "utf8")), name = path.basename(file, ".json");
-  let p;
-  try { p = planDeclarations(d, lib); } catch (e) { console.log(`${name}: could not read: ${e.message}`); continue; }
-  const declText = p.file([]), decls = declText.trim() ? call(declText) : { exit: 0, out: [] };
-  console.log(`${name}: ${p.declarations} declarations, ${d.refused.length} refused; kernel ${decls.exit === 0 ? "accepts them" : "refuses: " + decls.out.slice(-2).join(" | ")}`);
-  if (decls.exit !== 0) continue;
-  let todo = p.theorems.filter((t) => !t.status && (!process.env.ONLY || t.name.endsWith("." + process.env.ONLY))).map((t) => t.name), here = 0;
+for (const dir of files) {
+  const name = path.basename(dir);
+  let meta, suffix, p;
+  try {
+    meta = JSON.parse(fs.readFileSync(path.join(dir, "declarations.json"), "utf8"));
+    suffix = fs.readFileSync(path.join(dir, "declarations.ndjson"), "utf8");
+    p = planDeclarations(meta, suffix, loadLibrary(base + suffix));
+  } catch (e) { console.log(`${name}: could not read: ${e.message}`); continue; }
+  const produced = p.theorems.filter((t) => t.produced).length;
+  const decls = suffix.trim() ? call(suffix) : { exit: 0, out: [] };
+  console.log(`${name}: ${meta.refused.length} declarations refused, ${produced} theorems produced by LexLean; kernel ${decls.exit === 0 ? "accepts all" : "refuses: " + decls.out.slice(-2).join(" | ")}`);
+  if (decls.exit !== 0) { all += p.theorems.length; continue; }
+  let todo = p.theorems.filter((t) => !t.status && !t.produced && (!process.env.ONLY || t.name.endsWith("." + process.env.ONLY))).map((t) => t.name), here = 0;
   if (process.env.ONLY) { const r = call(p.file(todo)); console.log(r.out.join("\n").slice(-3000)); }
   const failed = new Map(p.theorems.filter((t) => t.status).map((t) => [t.name, t.status]));
   while (todo.length) {
@@ -34,8 +40,8 @@ for (const file of files) {
     if (!todo.includes(bad)) { for (const n of todo) failed.set(n, "kernel: " + r.out.slice(-1)[0]); break; }
     failed.set(bad, "kernel refused the proof: " + r.out.slice(-1)[0]); todo = todo.filter((n) => n !== bad);
   }
-  all += p.theorems.length; proved += here;
-  console.log(`  ${here} of ${p.theorems.length} theorems proved`);
+  all += p.theorems.length; proved += here + produced;
+  console.log(`  ${here + produced} of ${p.theorems.length} theorems proved (${produced} by LexLean, ${here} found here)`);
   for (const [n, why] of [...failed]) console.log(`    ${n.slice(n.lastIndexOf(".") + 1)}: ${why.slice(0, 200)}`);
 }
 console.log(`all: ${proved} of ${all}`);

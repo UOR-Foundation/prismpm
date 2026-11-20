@@ -25,17 +25,18 @@ import { pathToFileURL } from 'node:url';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { buildFetch } from './hosts.mjs';
 import { admittedLabel, kappaDirectory, pinnedFile, writeAtomic } from './kappa-store.mjs';
-import { kappa } from '../uorc.mjs';
+// The UOR content-addressed label, BLAKE3: what this machine keeps is named by it.
+import { kappa } from '../blake3.mjs';
 import { loadLibrary } from '../vendor/kernel-path/emit.mjs';
 import { COVERED, plan } from '../vendor/kernel-path/plan.mjs';
 
 export const MODEL_KERNEL_REPOSITORY = 'UOR-Foundation/PrismPM';
-export const MODEL_KERNEL_COMMIT = '8e949491b3b1ddaf771179f534bce87a41f89c8a';
+export const MODEL_KERNEL_COMMIT = '67ba3a17656fae808cfa9e6b7419591e35c977c6';
 /** The files, by name: where each lives in the repository, and the BLAKE3 κ-label of its decoded bytes. */
 export const MODEL_KERNEL_FILES = Object.freeze({
   'lean-kernel.mjs': { path: 'sdk/npm/lean-prover/kernel-path/kernel/lean-kernel.mjs', kappa: 'blake3:ec13d669b62c9a0223a937e04c3df18235fa67878ca53ba926f75904fe9c4610', encoding: 'identity', bytes: 62389 },
   'lean-kernel.wasm.gz': { path: 'sdk/npm/lean-prover/kernel-path/kernel/lean-kernel.wasm.gz', kappa: 'blake3:2f254140590074724ca1a8033080e0ae0834a018e06481ad7ccf7de9b80f175a', encoding: 'gzip', bytes: 2235146 },
-  'base.ndjson.gz': { path: 'sdk/npm/lean-prover/kernel-path/library/base.ndjson.gz', kappa: 'blake3:058fcddc88e59a6d7604c759225008a2058d6b9203506eaf42d7ad8177238096', encoding: 'gzip', bytes: 7764697 },
+  'base.ndjson.gz': { path: 'sdk/npm/lean-prover/kernel-path/library/base.ndjson.gz', kappa: 'blake3:f5502e3d8e4fd563f8bd352b427883149abd5dca0e6c47002fe686a5ddeae995', encoding: 'gzip', bytes: 20413230 },
 });
 /** Lean's three standard axioms: no theorem may rest on any other. */
 export const STANDARD_AXIOMS = Object.freeze(['Classical.choice', 'Quot.sound', 'propext']);
@@ -100,7 +101,8 @@ export async function ensureModelKernel({ env = process.env, fetch = globalThis.
 // Two things are remembered on this machine, in the κ store (`$PRISM_HOME/kappa/kernel-path/`), so every proof of every
 // app here makes the next one cheaper:
 //   - the kernel with the base library loaded, suspended to an image: a later process resumes from it instead of
-//     reading the library again. Kept gzipped under the BLAKE3 label of those bytes, and used only when they have it.
+//     reading the library again. Kept gzipped under the κ store's label of those bytes (BLAKE3),
+//     used only when they have it, and set aside for a fresh kernel when resuming from it fails.
 //   - each theorem's verdict, by its Merkle key (vendor/kernel-path/lower.mjs): the label of its statement and of every
 //     declaration it reaches, without the project's module prefix, so the same theorem over the same definitions is
 //     judged once for every app on this machine. Filed under the labels of the kernel, the library and this code.
@@ -159,12 +161,22 @@ export function openModelKernel({ env = process.env } = {}) {
       try { renameSync(own, loader); } catch { if (!kept()) loader = own; }
     }
     const said = [];
-    const module = await (await import(pathToFileURL(loader).href)).default({
-      instantiateWasm: (imports, done) => { WebAssembly.instantiate(wasm, imports).then((r) => done(r.instance, r.module)); return {}; },
-      print: (line) => said.push(line),
-      printErr: (line) => said.push(line),
-    });
-    if (module.ccall('checker_ready', 'number', [], []) !== 0) throw new Error('the kernel did not start');
+    // A kernel, and its memory, taken from the instance: a view of memory made after it grows always reaches its end,
+    // where a view kept from before the growth does not.
+    const start = async () => {
+      let memory = null;
+      const made = await (await import(pathToFileURL(loader).href)).default({
+        instantiateWasm: (imports, done) => {
+          WebAssembly.instantiate(wasm, imports).then((r) => { memory = Object.values(r.instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; done(r.instance, r.module); });
+          return {};
+        },
+        print: (line) => said.push(line),
+        printErr: (line) => said.push(line),
+      });
+      if (made.ccall('checker_ready', 'number', [], []) !== 0) throw new Error('the kernel did not start');
+      return { made, heap: () => (memory ? new Uint8Array(memory.buffer) : made.HEAPU8) };
+    };
+    let { made: module, heap } = await start();
     const run = (entry, text) => {
       said.length = 0;
       module.FS.writeFile('/in.ndjson', text);
@@ -180,21 +192,37 @@ export function openModelKernel({ env = process.env } = {}) {
       return { exit, axioms: exit === 0 ? axioms : {}, output: rest.join('\n').slice(-600) };
     };
     const baseText = base.toString('utf8');
-    // Resumed from this machine's image when there is one; otherwise the library is read, and the image kept.
+    // Resumed from this machine's image when there is one; otherwise the library is read, and the image kept. The image
+    // only saves time: when resuming from it fails for any reason, a fresh kernel reads the library, so a cache never
+    // fails a proof.
     const image = readImage(env);
-    let resumed = false;
+    let resumed = false, setAside = null;
     if (image) {
-      const need = image.length - module.HEAPU8.length;
-      if (need > 0 && !module._malloc(need)) throw new Error('the kernel could not grow to its image');
-      module.HEAPU8.set(image);
-      if (module.HEAPU8.length > image.length) module.HEAPU8.fill(0, image.length);
-      resumed = true;
-    } else {
+      try {
+        // The image is the whole memory of a kernel that loaded its library, which can be larger than a fresh kernel's
+        // (80.5 MB against 64 MB on CI). malloc of only the difference can be met from free space inside the current
+        // memory, which then never grows; asking for the image's whole size makes the runtime grow memory past it.
+        if (image.length > heap().length && !module._malloc(image.length)) throw new Error('the kernel could not grow to its image');
+        const now = heap();
+        if (now.length < image.length) throw new Error(`the kernel grew to ${now.length} bytes, not its image's ${image.length}`);
+        now.set(image);
+        if (now.length > image.length) now.fill(0, image.length);
+        // The resumed kernel must answer as a kernel over its library: checking nothing is accepted, or it is not resumed.
+        const probe = run('check_suffix', '');
+        if (probe.exit !== 0) throw new Error(`the resumed kernel did not answer (${probe.output.slice(0, 120)})`);
+        resumed = true;
+      } catch (error) {
+        // Why the image was set aside, said with the kernel, so a slow start is never a mystery.
+        setAside = String(error?.message ?? error);
+        ({ made: module, heap } = await start());
+      }
+    }
+    if (!resumed) {
       const loaded = run('load_library', baseText);
       if (loaded.exit !== 0) throw new Error(`the kernel refused its base library: ${loaded.output}`);
-      keepImage(env, module.HEAPU8.slice());
+      keepImage(env, heap().slice());
     }
-    return { library: loadLibrary(baseText), check: (text) => run('check_suffix', text), resumed };
+    return { library: loadLibrary(baseText), check: (text) => run('check_suffix', text), resumed, ...(setAside ? { setAside } : {}) };
   })();
   opened.catch(() => { opened = null; });
   return opened;

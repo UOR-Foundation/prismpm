@@ -39,12 +39,14 @@ const apps = (f, ...args) => args.reduce((acc, a) => E.app(acc, a), f);
 
 // ---------- the library: names, levels, expressions, constant types ----------
 export function loadLibrary(text) {
-  const lib = { names: [""], nameIx: new Map([["", 0]]), levels: [L.zero], levelIx: new Map([[L.zero.key, 0]]), exprs: [], exprIx: new Map(), decls: new Map(), ctors: new Map(), ctorsOf: (n) => lib.ctors.get(n), maxIn: 0, maxIl: 0, maxIe: -1 };
+  const lib = { names: [""], nameIx: new Map([["", 0]]), levels: [L.zero], levelIx: new Map([[L.zero.key, 0]]), exprs: [], exprIx: new Map(), decls: new Map(), ctors: new Map(), groups: new Map(), ctorsOf: (n) => lib.ctors.get(n), maxIn: 0, maxIl: 0, maxIe: -1 };
   const walk = (o) => {
     if (Array.isArray(o)) return o.forEach(walk);
     if (o && typeof o === "object") {
       if ("name" in o && "type" in o && "levelParams" in o) lib.decls.set(lib.names[o.name], { levelParams: o.levelParams.map((n) => lib.names[n]), type: lib.exprs[o.type], value: "value" in o ? lib.exprs[o.value] : null });
       if ("name" in o && Array.isArray(o.ctors) && o.ctors.every((c) => typeof c === "number")) lib.ctors.set(lib.names[o.name], o.ctors.map((c) => lib.names[c]));
+      // An inductive group (mutual types share `all`), and how many parameters its types take.
+      if ("name" in o && Array.isArray(o.all) && Array.isArray(o.ctors) && "numParams" in o) lib.groups.set(lib.names[o.name], { all: o.all.map((n) => lib.names[n]), params: o.numParams });
       Object.values(o).forEach(walk);
     }
   };
@@ -147,6 +149,60 @@ function show(e, depth = 0) {
 export function emitter(base) {
   const lib = { ...base, decls: new Layered(base.decls) };
   const decl = (name) => lib.decls.get(name) || fail(`unknown constant ${name}`);
+  // A recursor of an inductive group, mutual or nested, at a constructor, as the kernel reduces it. The family is
+  // found as the kernel builds it: the group's types, then each nested occurrence a constructor's field makes of them
+  // inside another type (`List T`), in the order the fields first name it. `T.rec` eliminates the group's type T and
+  // `First.rec_j` the j-th nested occurrence; each takes the parameters, a motive per member, a minor per constructor
+  // of every member, and the major.
+  function familyIota(h, a, again) {
+    const m = /^(.*)\.rec(?:_(\d+))?$/.exec(h.name);
+    if (!m) return null;
+    const g = lib.groups.get(m[1]);
+    if (!g || (g.all.length === 1 && !m[2] && !nestedIn(g, m[1]))) return null;
+    const np = g.params, params = a.slice(0, np);
+    const ms = g.all.map((n) => ({ ty: apps(E.const(n, []), ...params), ctors: (lib.ctorsOf(n) || []).map((cn) => ({ cn, ps: params, us: [] })) }));
+    const declared = ms.length, names = new Set(g.all);
+    const mentions = (t) => { let f = false; map(t, (x) => { if (x.k === "const" && names.has(x.name)) f = true; return null; }); return f; };
+    const ctorTy = (c) => { const d = lib.decls.get(c.cn); let t = substLevels(d.type, new Map(d.levelParams.map((p, i) => [p, c.us[i] ?? L.zero]))); for (const p of c.ps) t = instantiate(t.body, p); return t; };
+    for (let i = 0; i < ms.length; i++) for (const c of ms[i].ctors) {
+      for (let t = ctorTy(c); t.k === "pi"; t = instantiate(t.body, E.fvar("f", t.type))) {
+        if (ms.some((x) => x.ty === t.type) || !mentions(t.type)) continue;
+        const [H, hp] = spine(t.type);
+        if (H.k !== "const" || !lib.ctorsOf(H.name)) return null;
+        ms.push({ ty: t.type, ctors: lib.ctorsOf(H.name).map((cn) => ({ cn, ps: hp, us: H.us })) });
+      }
+    }
+    const k = m[2] ? declared + Number(m[2]) - 1 : g.all.indexOf(m[1]);
+    if (k < 0 || k >= ms.length) return null;
+    const nm = ms.length, nminors = ms.reduce((s, x) => s + x.ctors.length, 0), majorAt = np + nm + nminors;
+    if (a.length <= majorAt) return null;
+    const major = again(a[majorAt]), [ch, ca] = spine(major);
+    const i = ch.k === "const" ? ms[k].ctors.findIndex((c) => c.cn === ch.name) : -1;
+    if (i < 0) return null;
+    const offset = ms.slice(0, k).reduce((s, x) => s + x.ctors.length, 0), c = ms[k].ctors[i];
+    const motives = a.slice(np, np + nm), minors = a.slice(np + nm, majorAt), fields = ca.slice(c.ps.length);
+    const recName = (j) => (j < declared ? `${g.all[j]}.rec` : `${g.all[0]}.rec_${j - declared + 1}`);
+    const recs = [];
+    let t = ctorTy(c);
+    for (const f of fields) {
+      if (t.k !== "pi") return null;
+      const j = ms.findIndex((x) => x.ty === t.type);
+      if (j >= 0) recs.push(apps(E.const(recName(j), h.us), ...params, ...motives, ...minors, f));
+      t = instantiate(t.body, f);
+    }
+    return apps(minors[offset + i], ...fields, ...recs, ...a.slice(majorAt + 1));
+  }
+  // Whether a single type's constructors hold it inside another type: its recursor then has nested motives too.
+  function nestedIn(g, T) {
+    const names = new Set(g.all);
+    for (const cn of lib.ctorsOf(T) || []) {
+      for (let t = lib.decls.get(cn).type; t.k === "pi"; t = t.body) {
+        const [H] = spine(t.type);
+        if (H.k === "const" && !names.has(H.name)) { let f = false; map(t.type, (x) => { if (x.k === "const" && names.has(x.name)) f = true; return null; }); if (f) return true; }
+      }
+    }
+    return false;
+  }
   const constant = (name) => { const d = decl(name); const us = d.levelParams.map(() => lmvar()); return [E.const(name, us), substLevels(d.type, new Map(d.levelParams.map((p, i) => [p, us[i]])))]; };
 
   function infer(e) {
@@ -324,8 +380,27 @@ export function emitter(base) {
           if (ph.k === "const" && ph.name === "Prod.mk" && pa.length === 4) return norm(pa[h.name === "Prod.fst" ? 2 : 3]);
           return apps(h, a[0], a[1], p);
         }
+        // `T.casesOn params motive x minors` (LexLean's own, defined from `T.rec`): at a constructor, its minor at the
+        // fields; a minor that only selects a field, at anything else, is that field's projection, as Lean writes it.
+        if (h.name.endsWith(".casesOn") && h.name.startsWith(project)) {
+          const T = h.name.slice(0, -8), ctors = lib.ctorsOf(T), decl = lib.decls.get(T);
+          if (ctors && decl) {
+            let np = 0; for (let x = decl.type; x.k === "pi"; x = x.body) np++;
+            if (a.length >= np + 2 + ctors.length) {
+              const major = norm(a[np + 1]), [ch, ca] = spine(major), i = ch.k === "const" ? ctors.indexOf(ch.name) : -1;
+              const rest = a.slice(np + 2 + ctors.length);
+              if (i >= 0) return norm(apps(a[np + 2 + i], ...ca.slice(np), ...rest));
+              if (ctors.length === 1 && rest.length === 0) {
+                let m = a[np + 2], k = 0; while (m.k === "lam") { m = m.body; k++; }
+                if (m.k === "bvar" && m.i < k) return E.proj(T, k - 1 - m.i, major);
+              }
+              return apps(h, ...a.slice(0, np + 1).map(norm), major, ...a.slice(np + 2).map(norm));
+            }
+          }
+        }
         const d = lib.decls.get(h.name);
         if (d && d.value && h.name.startsWith(project) && d.levelParams.length === 0) return norm(apps(d.value, ...a));
+        if (/\.rec(_\d+)?$/.test(h.name) && h.name.startsWith(project)) { const r = familyIota(h, a, norm); if (r) return norm(r); }
         // A recursor at a constructor, as the kernel reduces it: the constructor's minor at its fields and, for each
         // field of the type itself, the recursor at that field. (A model's own types: no parameters, no indices.)
         if (h.name.endsWith(".rec") && h.name.startsWith(project)) {
@@ -379,29 +454,7 @@ export function emitter(base) {
     // Booleans and natural-number comparisons, as Lean writes them.
     const BoolT = () => c0("Bool");
     const eqB = (x, v) => apps(E.const("Eq", [u1]), BoolT(), x, c0(v ? "Bool.true" : "Bool.false"));
-    // `||` by cases on its left side, citing no lemma: the kernel reduces `false || y` to y and `true || y` to true,
-    // and the impossible case is closed by Bool.noConfusion. Each term rests on no axiom. (The base library has the
-    // constructors and recursors these use, but not Init's Bool.or_eq_true or Bool.or_eq_false_iff.)
-    const orB = (x, y) => apps(c0("Bool.or"), x, y), lit = (v) => c0(v ? "Bool.true" : "Bool.false");
-    const reflB = (v) => apps(E.const("Eq.refl", [u1]), BoolT(), lit(v));
-    const absurdB = (goal, x, y, h) => apps(E.const("Bool.noConfusion", [L.zero]), goal, x, y, h); // h : x = y, x and y distinct
-    const byCases = (t, motiveOf, onFalse, onTrue) => { const x = E.fvar("x", BoolT()); return apps(E.const("Bool.casesOn", [L.zero]), lambda([x], motiveOf(x)), t, onFalse(lit(false)), onTrue(lit(true))); };
-    const given = (type, body) => { const h = E.fvar("h", type); return lambda([h], body(h)); };
-    // From (x || y) = true: x = true or y = true.
-    const orTrue = (x, y, h) => E.app(byCases(x, (z) => E.pi("h", eqB(orB(z, y), true), apps(c0("Or"), eqB(z, true), eqB(y, true))),
-      (f) => given(eqB(orB(f, y), true), (hy) => apps(c0("Or.inr"), eqB(f, true), eqB(y, true), hy)),
-      (t) => given(eqB(orB(t, y), true), () => apps(c0("Or.inl"), eqB(t, true), eqB(y, true), reflB(true)))), h);
-    // From (x || y) = false: x = false and y = false.
-    const orFalse = (x, y, h) => E.app(byCases(x, (z) => E.pi("h", eqB(orB(z, y), false), apps(c0("And"), eqB(z, false), eqB(y, false))),
-      (f) => given(eqB(orB(f, y), false), (hy) => apps(c0("And.intro"), eqB(f, false), eqB(y, false), reflB(false), hy)),
-      (t) => given(eqB(orB(t, y), false), (ht) => absurdB(apps(c0("And"), eqB(t, false), eqB(y, false)), lit(true), lit(false), ht))), h);
-    // From x = true or y = true: (x || y) = true.
-    const orIntro = (x, y, q) => E.app(byCases(x, (z) => E.pi("q", apps(c0("Or"), eqB(z, true), eqB(y, true)), eqB(orB(z, y), true)),
-      (f) => given(apps(c0("Or"), eqB(f, true), eqB(y, true)), (qf) => apps(c0("Or.elim"), eqB(f, true), eqB(y, true), eqB(orB(f, y), true), qf,
-        given(eqB(f, true), (h1) => absurdB(eqB(orB(f, y), true), lit(false), lit(true), h1)),
-        given(eqB(y, true), (h2) => h2))),
-      (t) => given(apps(c0("Or"), eqB(t, true), eqB(y, true)), () => reflB(true))), q);
-    const ltN =(x, y) => apps(E.const("LT.lt", [L.zero]), NatC(), c0("instLTNat"), x, y), leN = (x, y) => apps(E.const("LE.le", [L.zero]), NatC(), c0("instLENat"), x, y);
+    const ltN = (x, y) => apps(E.const("LT.lt", [L.zero]), NatC(), c0("instLTNat"), x, y), leN = (x, y) => apps(E.const("LE.le", [L.zero]), NatC(), c0("instLENat"), x, y);
     const eqN = (x, y) => apps(E.const("Eq", [u1]), NatC(), x, y);
     // Case splits a fact needs, taken only if the search fails without them: `or` proves P ∨ N, and `also(h)` lists
     // what else each side gives, as [proposition, proof] pairs.
@@ -655,8 +708,9 @@ export function emitter(base) {
         if (e.name === "Bool.not" && b.length === 1) return hypothesis(eqB(b[0], !truth), lemma(truth ? "bnot_t" : "bnot_f", b[0], h));
         if (e.name === "Bool.or" && b.length === 2) {
           const A = eqB(b[0], truth), B = eqB(b[1], truth);
-          if (truth) return split(orTrue(b[0], b[1], h), A, B);
-          return hypothesis(apps(c0("And"), A, B), orFalse(b[0], b[1], h));
+          if (truth) return split(apps(E.const("Eq.mp", [L.zero]), P, apps(c0("Or"), A, B), apps(c0("Bool.or_eq_true"), b[0], b[1]), h), A, B);
+          const both = apps(c0("And"), A, B);
+          return hypothesis(both, apps(c0("Iff.mp"), P, both, apps(c0("Bool.or_eq_false_iff"), b[0], b[1]), h));
         }
         if (e.name === "Nat.blt" && b.length === 2) return hypothesis(truth ? ltN(b[0], b[1]) : leN(b[1], b[0]), lemma(truth ? "nat_blt_t" : "nat_blt_f", b[0], b[1], h));
         if (e.name === "Nat.ble" && b.length === 2) return hypothesis(truth ? leN(b[0], b[1]) : ltN(b[1], b[0]), lemma(truth ? "nat_ble_t" : "nat_ble_f", b[0], b[1], h));
@@ -726,7 +780,7 @@ export function emitter(base) {
         }
         if (e.k === "const" && e.name === "Bool.or" && b.length === 2) {
           // By cases on the left side: if it holds, the left; if not, the right, proved knowing the left is false.
-          const A = eqB(b[0], true), N = eqB(b[0], false), B = eqB(b[1], true), or = apps(c0("Or"), A, B), viaOr = (q) => orIntro(b[0], b[1], q);
+          const A = eqB(b[0], true), N = eqB(b[0], false), B = eqB(b[1], true), or = apps(c0("Or"), A, B), viaOr = (q) => apps(E.const("Eq.mpr", [L.zero]), P, or, apps(c0("Bool.or_eq_true"), b[0], b[1]), q);
           return { closed: apps(c0("Or.elim"), A, N, P, lemma("bool_cases", b[0]),
             E.lam("h", A, viaOr(apps(c0("Or.inl"), A, B, E.bvar(0)))),
             E.lam("h", N, viaOr(apps(c0("Or.inr"), A, B, E.app(lift1(sub(E.pi("h", N, B))), E.bvar(0)))))) };
@@ -1151,7 +1205,7 @@ export function emitter(base) {
   // its own, proved by the same means (or by the finder), and joined by the type's own eliminator. Nothing here is
   // trusted: the kernel judges every part.
   // The rest (region_check, law, congruence, boolean_reflection) state goals the finder takes as they stand.
-  const STRUCTURED = new Set(["cases", "induction", "apply", "decide", "constructor", "simplify", "region_check", "law", "congruence", "boolean_reflection"]);
+  const STRUCTURED = new Set(["cases", "induction", "nested_induction", "apply", "decide", "constructor", "simplify", "region_check", "law", "congruence", "boolean_reflection"]);
   const unfoldOnce = (P) => { const [g, a] = spine(P); const d = g.k === "const" && g.name !== "And" ? lib.decls.get(g.name) : null; return d && d.value && d.levelParams.length === 0 ? beta(apps(d.value, ...a)) : null; };
   const piOpen = (S) => { const fvs = []; let b = S; while (b.k === "pi") { const fv = E.fvar(b.name, b.type); fvs.push(fv); b = instantiate(b.body, fv); } return [fvs, b]; };
   const piClose = (fvs, e) => fvs.reduceRight((acc, fv) => E.pi(fv.name, fv.type, abstract(acc, fv)), e);
@@ -1189,6 +1243,131 @@ export function emitter(base) {
   }
   const truth = () => apps(E.const("Eq.refl", [u1]), c0("Bool"), c0("Bool.true"));
   const hasFree = (t) => { let f = false; map(t, (n) => { if (n.k === "fvar") f = true; return null; }); return f; };
+
+  // ---------- case analysis on an equation hypothesis `L = C args` ----------
+  // The constructor each constant is, and its type.
+  const ownerOf = new Map();
+  const ctorOwner = (name) => {
+    if (!ownerOf.size) for (const [T, cs] of lib.ctors) for (const c of cs) ownerOf.set(c, T);
+    return ownerOf.get(name);
+  };
+  const ctorHead = (t) => { const [h, a] = spine(t); return h.k === "const" && ctorOwner(h.name) ? { h, a, T: ctorOwner(h.name) } : null; };
+  // The head form the kernel reaches by itself, nothing under a binder: a let substituted, this project's definitions
+  // unfolded, a casesOn or `if` at a constructor or a literal taken, a pair's part of a pair. A casesOn or `if` it cannot
+  // take is left with its scrutinee in head form, which is where a case split goes.
+  function whnfH(t, project, fuel = { n: 4000 }) {
+    for (;;) {
+      if (--fuel.n < 0) return t;
+      t = beta(t);
+      if (t.k === "let") { t = instantiate(t.body, t.value); continue; }
+      const [h, a] = spine(t);
+      if (h.k !== "const") return t;
+      if (h.name === "ite" && a.length >= 5) {
+        const [eq, ea] = spine(a[1]);
+        if (eq.k === "const" && eq.name === "Eq" && ea.length === 3 && ea[0] === c0("Bool") && ea[2] === c0("Bool.true")) {
+          const b = whnfH(ea[1], project, fuel);
+          if (b === c0("Bool.true")) { t = apps(a[3], ...a.slice(5)); continue; }
+          if (b === c0("Bool.false")) { t = apps(a[4], ...a.slice(5)); continue; }
+        }
+        return t;
+      }
+      if ((h.name === "Prod.fst" || h.name === "Prod.snd") && a.length >= 3) {
+        const p = whnfH(a[2], project, fuel), [ph, pa] = spine(p);
+        if (ph.k === "const" && ph.name === "Prod.mk" && pa.length === 4) { t = apps(pa[h.name === "Prod.fst" ? 2 : 3], ...a.slice(3)); continue; }
+        return apps(h, a[0], a[1], p, ...a.slice(3));
+      }
+      if (h.name.endsWith(".casesOn")) {
+        const T = h.name.slice(0, -8), ctors = lib.ctorsOf(T);
+        if (ctors && lib.decls.has(T)) {
+          const np = numParamsOf(T), at = np + 1;
+          if (a.length >= at + 1 + ctors.length) {
+            const m = whnfH(a[at], project, fuel), [ch, ca] = spine(m), i = ch.k === "const" ? ctors.indexOf(ch.name) : -1;
+            if (i >= 0) { t = apps(a[at + 1 + i], ...ca.slice(np), ...a.slice(at + 1 + ctors.length)); continue; }
+            return apps(h, ...a.slice(0, at), m, ...a.slice(at + 1));
+          }
+        }
+      }
+      const d = lib.decls.get(h.name);
+      if (d && d.value && d.levelParams.length === 0 && h.name.startsWith(project)) { t = apps(d.value, ...a); continue; }
+      return t;
+    }
+  }
+  const sortLevelOf = (ty) => (ty.k === "sort" ? ty.l : u1); // the universe of a type whose type is `ty`, as Eq and congrArg take it
+  // For a hypothesis `L = C args` (C a constructor): when L's head form is the other constructor, the goal follows from
+  // False; when it is C at other fields, the fields' equations are the new hypotheses; when it is a casesOn or `if` on
+  // a scrutinee s, the goal is proved by cases on s, each case keeping `s = case` and the hypothesis at that case.
+  function caseHyp(name, S, deps) {
+    if ((name.match(/\.case\d/g) || []).length > 8) return null;
+    const project = name.split(".")[0] + ".";
+    let [fvs, G] = piOpen(S);
+    // A goal that is a definition of the project: unfolded, its own hypotheses opened.
+    for (let g = whnfH(G, project); g !== G && g.k === "pi"; g = whnfH(G, project)) { const [more, body] = piOpen(g); fvs = [...fvs, ...more]; G = body; }
+    // The hypotheses as stated first; a case's own equation only after them, and split again only on a decision.
+    const own = (fv) => fv.name.startsWith("split");
+    for (const h of [...fvs.filter((fv) => !own(fv)), ...fvs.filter(own)]) {
+      const [g, a] = spine(h.type);
+      if (!(g.k === "const" && g.name === "Eq" && a.length === 3)) continue;
+      const [T, Lraw, Kraw] = a, K = whnfH(Kraw, project), kc = ctorHead(K);
+      if (!kc) continue;
+      const Lhs = whnfH(Lraw, project), lc = ctorHead(Lhs), rest = fvs.filter((fv) => fv !== h);
+      const [TH, Targs] = spine(T);
+      if (TH.k !== "const" || TH.name !== kc.T) continue;
+      const np = numParamsOf(kc.T), ctors = lib.ctorsOf(kc.T);
+      const ctorFields = (cname, us, params) => { const cd = lib.decls.get(cname); let cty = substLevels(cd.type, new Map(cd.levelParams.map((p, i) => [p, us[i]]))); for (const p of params) cty = instantiate(cty.body, p); const out = []; while (cty.k === "pi") { const f = E.fvar("a" + out.length, cty.type); out.push(f); cty = instantiate(cty.body, f); } return out; };
+      const casesOn = (level, motive, major, minors) => apps(E.const(`${kc.T}.casesOn`, [level, ...TH.us]), ...Targs, motive, major, ...minors);
+      if (lc && lc.T === kc.T) {
+        if (lc.h.name !== kc.h.name) {
+          // Different constructors: P e is True at L's constructor and False elsewhere, so P K, which is False.
+          const e = E.fvar("e", T);
+          const P = E.lam("e", T, abstract(casesOn(u1, E.lam("_", T, E.sort(L.zero)), e, ctors.map((cn) => lamClose(ctorFields(cn, TH.us, Targs), c0(cn === lc.h.name ? "True" : "False")))), e));
+          const along = apps(E.const("congrArg", [sortLevelOf(infer(T)), u1]), T, E.sort(L.zero), Lraw, Kraw, P, h);
+          const no = apps(E.const("Eq.mp", [L.zero]), E.app(P, Lraw), E.app(P, Kraw), along, c0("True.intro"));
+          return { value: lamClose(fvs, apps(E.const("False.elim", [L.zero]), G, no)) };
+        }
+        // The same constructor: each field that differs is equal to K's, by congrArg of its selector.
+        const lf = lc.a.slice(np), kf = kc.a.slice(np), eqs = [], proofs = [];
+        const fieldTys = ctorFields(kc.h.name, TH.us, Targs).map((f) => f.type);
+        lf.forEach((x, j) => {
+          if (x === kf[j]) return;
+          const e = E.fvar("e", T), ty = fieldTys[j];
+          const pick = E.lam("e", T, abstract(casesOn(sortLevelOf(infer(ty)), E.lam("_", T, ty), e, ctors.map((cn) => { const fs = ctorFields(cn, TH.us, Targs); return lamClose(fs, cn === kc.h.name ? fs[j] : kf[j]); })), e));
+          eqs.push(E.fvar(`split_inj${j}`, apps(E.const("Eq", [sortLevelOf(infer(ty))]), ty, x, kf[j])));
+          proofs.push(apps(E.const("congrArg", [sortLevelOf(infer(T)), sortLevelOf(infer(ty))]), T, ty, Lraw, Kraw, pick, h));
+        });
+        if (!eqs.length) continue;
+        const c = partTheorem(`${name}.inj`, piClose([...rest, ...eqs], G), null, deps);
+        return { value: lamClose(fvs, apps(c, ...rest, ...proofs)) };
+      }
+      // A case split on the scrutinee of L's head casesOn, or of its `if`'s Boolean.
+      const [lh, la] = spine(Lhs);
+      if (lh.k !== "const") continue;
+      if (own(h) && lh.name !== "ite" && lh.name !== "Bool.casesOn") continue;
+      let s, sT, sOwner, sUs, sArgs;
+      if (lh.name === "ite" && la.length >= 5) {
+        const [, ea] = spine(la[1]); if (ea.length !== 3) continue;
+        s = ea[1]; sT = c0("Bool"); sOwner = "Bool"; sUs = []; sArgs = [];
+      } else if (lh.name.endsWith(".casesOn") && lib.ctorsOf(lh.name.slice(0, -8))) {
+        sOwner = lh.name.slice(0, -8); const snp = numParamsOf(sOwner);
+        s = la[snp + 1]; sUs = lh.us.slice(1); sArgs = la.slice(0, snp); sT = apps(E.const(sOwner, sUs), ...sArgs);
+      } else continue;
+      if (ctorHead(s)) continue;
+      const z = E.fvar("z", sT), occurs = (x) => (n) => (n === x ? z : null);
+      const Lz = map(Lhs, occurs(s));
+      if (Lz === Lhs) continue; // the scrutinee is not where the split would see it
+      const eqS = (rhs) => apps(E.const("Eq", [sortLevelOf(infer(sT))]), sT, s, rhs), eqL = (lhs) => apps(E.const("Eq", g.us), T, lhs, Kraw);
+      const motive = E.lam("z", sT, abstract(E.pi("split", eqS(z), E.pi("h", eqL(Lz), G)), z));
+      const k = (name.match(/\.case\d/g) || []).length;
+      const minors = lib.ctorsOf(sOwner).map((cn, i) => {
+        const fs = ctorFields(cn, sUs, sArgs), built = apps(E.const(cn, sUs), ...sArgs, ...fs);
+        const hs = E.fvar("split", eqS(built)), hi = E.fvar("h", eqL(map(Lz, (n) => (n === z ? built : null))));
+        const c = partTheorem(`${name}.case${k}_${i}`, piClose([...rest, ...fs, hs, hi], G), null, deps);
+        return lamClose([...fs, hs, hi], apps(c, ...rest, ...fs, hs, hi));
+      });
+      const split = apps(E.const(`${sOwner}.casesOn`, [L.zero, ...sUs]), ...sArgs, motive, s, ...minors);
+      return { value: lamClose(fvs, apps(split, apps(E.const("Eq.refl", [sortLevelOf(infer(sT))]), sT, s), h)) };
+    }
+    return null;
+  }
   // A part, written as its own theorem before the whole; returns its constant.
   function partTheorem(name, S, proof, deps) {
     const r = prove(name, S, proof, deps);
@@ -1197,7 +1376,7 @@ export function emitter(base) {
   }
   function prove(name, S, proof, deps) {
     const kind = proof?.kind;
-    const viaFinder = () => { const th = { name, sub: true }; return substitute(name, S) ?? decompose(th, S) ?? compile(th, S); };
+    const viaFinder = () => { const th = { name, sub: true }; return substitute(name, S) ?? caseHyp(name, S, deps) ?? decompose(th, S) ?? compile(th, S); };
     if (kind === "decide" && !hasFree(S)) {
       // A closed proposition: the kernel evaluates `decide S`. Under binders it is the finder's.
       const [fvs, body] = piOpen(S);
@@ -1273,6 +1452,39 @@ export function emitter(base) {
       const body = kind === "cases" ? apps(elim, ...params, motive, x, ...minors) : apps(elim, ...params, motive, ...minors, x);
       return { value: lamClose([...before, x], body) };
     }
+    if (kind === "nested_induction") {
+      // One recursor over the family: the statement's motive for the type, and for each nested member the motive
+      // LexLean declares as `LexStmt.T.<binder>`; a minor for every constructor of every member, its proof its branch's.
+      const before = []; let rest = S;
+      while (rest.k === "pi" && rest.name !== proof.scrutinee) { const fv = E.fvar(rest.name, rest.type); before.push(fv); rest = instantiate(rest.body, fv); }
+      if (rest.k !== "pi") fail(`nested_induction: no binder ${proof.scrutinee}`);
+      const [T, params] = spine(rest.type);
+      if (T.k !== "const") fail("nested_induction: the scrutinee's type is not an inductive");
+      const x = E.fvar(rest.name, rest.type), motives = [E.lam(rest.name, rest.type, rest.body)], memberTys = [rest.type];
+      for (const m of proof.members) {
+        let t = lib.decls.get(`LexStmt.${name}.${m.binder}`)?.value ?? fail(`nested_induction: no statement for member ${m.binder}`);
+        for (const b of before) t = t.k === "pi" ? instantiate(t.body, b) : fail("nested_induction: a member statement's parameters");
+        if (t.k !== "pi") fail("nested_induction: a member statement without its binder");
+        motives.push(E.lam(t.name, t.type, t.body)); memberTys.push(t.type);
+      }
+      const branchesOf = [proof.branches, ...proof.members.map((m) => m.branches)], minors = [];
+      memberTys.forEach((mty, mi) => {
+        const [MT, mparams] = spine(mty);
+        const ctors = (MT.k === "const" && lib.ctorsOf(MT.name)) || fail("nested_induction: a member that is not an inductive");
+        for (const cname of ctors) {
+          const short = cname.slice(MT.name.length + 1), branch = branchesOf[mi].find((b) => b.constructor === short) ?? fail(`nested_induction: no branch for ${short}`);
+          const cd = lib.decls.get(cname); let cty = substLevels(cd.type, new Map(cd.levelParams.map((p, i) => [p, MT.us[i]]))); for (const p of mparams) cty = instantiate(cty.body, p);
+          const fields = [], recs = [];
+          while (cty.k === "pi") { const f = E.fvar(branch.binders[fields.length] ?? "a" + fields.length, cty.type); fields.push(f); const k = memberTys.indexOf(cty.type); if (k >= 0) recs.push([f, k]); cty = instantiate(cty.body, f); }
+          const built = apps(E.const(cname, MT.us), ...mparams, ...fields);
+          const ihs = recs.map(([f, k], i) => E.fvar(branch.binders[fields.length + i] ?? "ih" + i, beta(E.app(motives[k], f))));
+          const Si = piClose([...before, ...fields, ...ihs], beta(E.app(motives[mi], built)));
+          const c = partTheorem(`${name}.m${mi}.${short}`, Si, branch.proof, deps);
+          minors.push(lamClose([...fields, ...ihs], apps(c, ...before, ...fields, ...ihs)));
+        }
+      });
+      return { value: lamClose([...before, x], apps(E.const(`${T.name}.rec`, [L.zero, ...T.us]), ...params, ...motives, ...minors, x)) };
+    }
     return viaFinder();
   }
   // A hypothesis `x = t`, x a parameter of a model's own type: the goal is proved with t for x, and carried back along
@@ -1312,6 +1524,7 @@ export function emitter(base) {
     if (t.k === "app" || t.k === "const") {
       const [h, a] = spine(t);
       if (h.k === "const") {
+        if (/\.rec(_\d+)?$/.test(h.name)) { const r = familyIota(h, a, (x) => reduce(x, fuel)); if (r) return reduce(r, fuel); }
         if (h.name.endsWith(".rec")) {
           const T = h.name.slice(0, -4), ctors = lib.ctorsOf(T);
           if (ctors) {

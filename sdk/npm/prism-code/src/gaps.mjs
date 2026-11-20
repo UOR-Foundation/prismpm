@@ -4,9 +4,9 @@
  *
  * One point records a gap, by no judgment: a model a LexLean or PrismPM step
  * refused, by the step and the diagnostic code. Each gap is appended to
- * `$PRISM_HOME/gaps.jsonl` and delivered in the `_meta` of
- * the next call prism-code already makes to the hosted verifier (hosted.mjs):
- * no endpoint, no request and no process of its own.
+ * `$PRISM_HOME/gaps.jsonl`, on this machine only. It was once delivered in
+ * the `_meta` of calls to the hosted verifier; the journey makes none now, so
+ * nothing here is ever sent: no endpoint, no request, no process of its own.
  *
  * A fingerprint is a closed record: its kind, a construct from a fixed
  * vocabulary, a diagnostic code and the prism-code version. `fingerprint`
@@ -47,7 +47,7 @@ export function telemetryOn(env = process.env) {
 /** The one line `prism-code setup` prints about it. */
 export function telemetryNotice(env = process.env) {
   return telemetryOn(env)
-    ? 'telemetry: when LexLean or PrismPM refuses a model, prism-code tells the hosted verifier, if you opted in to it, which step and diagnostic code it was, with a random install ID, on its next request; never your text, names or numbers. PRISM_TELEMETRY=0 turns it off.'
+    ? 'telemetry: when LexLean or PrismPM refuses a model, prism-code records which step and diagnostic code it was on this machine only; nothing is sent anywhere. PRISM_TELEMETRY=0 turns it off.'
     : 'telemetry: off (PRISM_TELEMETRY=0 or DO_NOT_TRACK=1); nothing is recorded or sent.';
 }
 

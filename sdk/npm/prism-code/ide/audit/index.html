@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Code runs from this origin only. An app's files may be fetched from where the app is published, as data.
+     'wasm-unsafe-eval' is for the rule judge, a holo's guest and Lean's kernel, which are WebAssembly. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https: blob: data:; frame-src 'self'; worker-src 'self' blob:">
+<title>Prism audit</title>
+<style>
+  :root { --bg: #fbfaf8; --fg: #1d1c1a; --dim: #6b6862; --line: #dedad3; --ok: #1f6b3a; --bad: #a12626; --warn: #8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161513; --fg: #ece9e3; --dim: #a09c94; --line: #36332e; --ok: #6fcf8f; --bad: #ff8a8a; --warn: #e0b060; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; } h2 { font-size: 1rem; margin: 2rem 0 .5rem; }
+  p { margin: .25rem 0; } .dim { color: var(--dim); }
+  table { border-collapse: collapse; width: 100%; } th, td { text-align: left; vertical-align: top; padding: .35rem .6rem .35rem 0; border-top: 1px solid var(--line); }
+  th { font-weight: 600; white-space: nowrap; }
+  .mono { font: 12px/1.5 ui-monospace, Consolas, monospace; word-break: break-all; }
+  .scroll { overflow-x: auto; }
+  ol { margin: 0; padding-left: 1.4rem; }
+  .status { font-weight: 600; white-space: nowrap; }
+  [data-status="proved"], .ok { color: var(--ok); } [data-status="refused"], .bad { color: var(--bad); }
+  [data-status="tested"], [data-status="unknown"] { color: var(--warn); }
+  input { font: inherit; padding: .2rem .4rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; max-width: 100%; }
+  button { font: inherit; padding: .2rem .7rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Prism audit</h1>
+  <p class="dim">App: <span id="app" class="mono"></span></p>
+  <p id="summary">Reading the app…</p>
+  <p id="edit" hidden>This app publishes its model. <a id="editLink">Open the model in the editor</a>, where LexLean checks it and Lean's kernel judges its guarantees as you change it. Nothing you change there is saved.</p>
+  <form id="open" hidden>
+    <p>Paste the address of a published Prism app. Its files are fetched and checked here, in this tab.</p>
+    <p><input id="address" name="app" type="url" required placeholder="https://owner.github.io/app/" size="46"> <button type="submit">Audit</button></p>
+  </form>
+
+  <h2>Guarantees</h2>
+  <p class="dim">Proved means Lean accepted it for exactly this app: its kernel in this tab for a rule app, a checked proof statement for a holo. Tested means only the examples back it.</p>
+  <div class="scroll"><table><thead><tr><th>Guarantee</th><th>Status</th><th>Why</th></tr></thead><tbody id="guarantees"></tbody></table></div>
+
+  <section id="verdictSection" hidden>
+  <h2>Verdict</h2>
+  <p class="dim">The holo, judged in this tab by prism-code's verifier.</p>
+  <table><tbody id="verdict"></tbody></table>
+  </section>
+
+  <section id="rulesSection" hidden>
+  <h2>Rules</h2>
+  <p class="dim">The first rule that matches decides.</p>
+  <ol id="rules"></ol>
+  </section>
+
+  <section id="requestSection" hidden>
+  <h2>Request</h2>
+  <p class="dim" id="requestNote">One request is these values in order, separated by spaces.</p>
+  <table><tbody id="fields"></tbody></table>
+  </section>
+
+  <h2>Examples <button id="replay" type="button" hidden>Replay</button></h2>
+  <p id="vectorsSummary" class="dim"></p>
+  <div class="scroll"><table><thead><tr><th>Request</th><th>Recorded</th><th>Now</th><th></th></tr></thead><tbody id="vectors"></tbody></table></div>
+
+  <h2>Fingerprint</h2>
+  <p class="dim">Computed in this tab from the bytes that were fetched.</p>
+  <div class="scroll"><table><thead><tr><th></th><th>BLAKE3</th><th>SHA-256</th></tr></thead><tbody id="fingerprint"></tbody></table></div>
+</main>
+<script type="module" src="./audit.mjs"></script>
+</body>
+</html>

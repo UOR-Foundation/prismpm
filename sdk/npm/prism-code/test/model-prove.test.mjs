@@ -22,10 +22,10 @@ const storeDir = () => mkdtempSync(join(tmpdir(), 'kappa-'));
 const snapshot = (name) => JSON.parse(readFileSync(join(kernelPath, 'test', 'model', `${name}-snapshot.json`), 'utf8'));
 const noFetch = async (url) => { throw new Error(`a request was made: ${url}`); };
 
-test('an app is proved in this process by default, and on the hosted verifier only when the user asks', () => {
-  assert.equal(proverWhere({ env: {} }), 'kernel');
+test('an app is always proved in this process: PRISM_CODE_TIER=hosted no longer names a hosted verifier', () => {
+  assert.equal(proverWhere(), 'kernel');
   assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'offline' } }), 'kernel');
-  assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'hosted' } }), 'hosted');
+  assert.equal(proverWhere({ env: { PRISM_CODE_TIER: 'hosted' } }), 'kernel');
 });
 
 test('the lowering and proof finder here are byte for byte the ones the sealed browser prover runs', { skip: !here && 'no lean-prover package beside this one' }, () => {
@@ -112,4 +112,46 @@ test('statements with || are proved, in a hypothesis, nested, and as the goal; a
   }
   assert.match(status.notEveryCountIsZero, /^not proved/);
   assert.doesNotMatch(Object.values(status).join('\n'), /unknown constant/);
+});
+
+test('the kernel image only saves time: a process resumes from it, and an image that will not resume is set aside for a fresh kernel', { skip: !here && 'no lean-prover package beside this one', timeout: 180000 }, async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { readdirSync } = await import('node:fs');
+  const { gzipSync, gunzipSync } = await import('node:zlib');
+  // The store's own label, the UOR content-addressed BLAKE3 label: an image is admitted only under it.
+  const { kappa } = await import('../src/blake3.mjs');
+  const env = { ...process.env, PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
+  // One process per open: the kernel is opened once per process. setAside says why an image was not resumed.
+  const open = () => {
+    const script = `const m = await import(${JSON.stringify(new URL('../src/journey/model-prove.mjs', import.meta.url).href)}); const k = await m.openModelKernel(); console.log(JSON.stringify({ resumed: k.resumed, exit: k.check('').exit, setAside: k.setAside ?? null }));`;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { env, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout.trim().split('\n').at(-1));
+  };
+  const first = open(), second = open();
+  assert.deepEqual(first, { resumed: false, exit: 0, setAside: null }, 'the first process reads the library and keeps an image');
+  assert.deepEqual(second, { resumed: true, exit: 0, setAside: null }, `the next resumes from it${second.setAside ? `; it was set aside: ${second.setAside}` : ''}`);
+  const dir = join(env.PRISM_KAPPA_DIR, 'kernel-path');
+  const pointer = readdirSync(dir).find((f) => f.startsWith('image-'));
+  const real = readFileSync(join(dir, pointer), 'utf8').split('\n')[1].trim();
+  const image = gunzipSync(readFileSync(join(dir, 'images', real.slice(7))));
+  const keep = (bytes) => {
+    const gz = gzipSync(bytes), label = kappa(gz);
+    writeFileSync(join(dir, 'images', label.slice(7)), gz);
+    writeFileSync(join(dir, pointer), `${kappa(new TextEncoder().encode(label))}\n${label}`);
+  };
+  // An image larger than a fresh kernel's memory, as a machine keeps whose library load grew it (80.5 MB on CI against
+  // 64 MB): the kernel must grow to it, which asking malloc for the difference alone did not do.
+  const larger = new Uint8Array(image.length + 16 * 1024 * 1024);
+  larger.set(image);
+  keep(larger);
+  assert.deepEqual(open(), { resumed: true, exit: 0, setAside: null }, 'an image larger than a fresh kernel resumes');
+  // An image that carries its own label but is not a working kernel's memory: the real image with its first 8 MiB
+  // cleared. Resumed as it is, the kernel traps on every check (memory access out of bounds).
+  image.fill(0, 0, 8 * 1024 * 1024);
+  keep(image);
+  const third = open();
+  assert.deepEqual({ resumed: third.resumed, exit: third.exit }, { resumed: false, exit: 0 }, 'an image that will not resume gives a fresh kernel, never a failed proof');
+  assert.match(third.setAside, /did not answer|grew to/, 'and says why it was set aside');
+  assert.deepEqual(open(), { resumed: true, exit: 0, setAside: null }, 'and the fresh kernel keeps a good image again');
 });

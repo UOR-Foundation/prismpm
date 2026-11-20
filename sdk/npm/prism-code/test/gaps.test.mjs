@@ -116,7 +116,7 @@ test('PRISM_TELEMETRY=0 or DO_NOT_TRACK=1 records nothing and sends nothing; set
     appendFileSync(gaps.file, `${JSON.stringify({ kind: 'model-refused', construct: 'lock', code: null, version: VERSION })}\n`);
     assert.equal(gaps.pending(), null, 'a ledger written before it was turned off is not sent');
   }
-  assert.match(telemetryNotice({}), /^telemetry: .*never your text, names or numbers\. PRISM_TELEMETRY=0 turns it off\.$/);
+  assert.match(telemetryNotice({}), /^telemetry: .*on this machine only; nothing is sent anywhere\. PRISM_TELEMETRY=0 turns it off\.$/);
   assert.match(telemetryNotice({ DO_NOT_TRACK: '1' }), /^telemetry: off/);
   assert.equal(telemetryNotice({}).split('\n').length, 1);
 });

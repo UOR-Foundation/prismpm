@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- This origin only. 'wasm-unsafe-eval' is for LexLean's front end, which is WebAssembly. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self'">
+<title>Prism edit</title>
+<style>
+  :root { --bg: #fbfaf8; --fg: #1d1c1a; --dim: #6b6862; --line: #dedad3; --ok: #1f6b3a; --bad: #a12626; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161513; --fg: #ece9e3; --dim: #a09c94; --line: #36332e; --ok: #6fcf8f; --bad: #ff8a8a; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 72rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .25rem; } p { margin: .25rem 0; } .dim { color: var(--dim); }
+  .editor { display: flex; border: 1px solid var(--line); border-radius: 4px; margin-top: .75rem; height: 26rem; overflow: hidden; }
+  #gutter, #source { font: 13px/1.5 ui-monospace, Consolas, monospace; margin: 0; padding: .5rem; border: 0; tab-size: 2; }
+  #gutter .mark { color: var(--bad); font-weight: 700; }
+  #gutter { color: var(--dim); text-align: right; user-select: none; overflow: hidden; white-space: pre; border-right: 1px solid var(--line); min-width: 3.6rem; }
+  #source { flex: 1; resize: none; outline: none; background: transparent; color: inherit; white-space: pre; overflow: auto; }
+  #status { font-weight: 600; margin-top: .75rem; } #appMatch[data-state="same"] { color: var(--ok); } #appMatch[data-state="other"] { color: var(--bad); font-weight: 600; } [data-state="ok"] { color: var(--ok); } [data-state="bad"] { color: var(--bad); }
+  h2 { font-size: 1rem; margin: 1.25rem 0 .25rem; }
+  table { border-collapse: collapse; width: 100%; } td { vertical-align: top; padding: .3rem .6rem .3rem 0; border-top: 1px solid var(--line); }
+  td.s { font-weight: 600; white-space: nowrap; } [data-s="proved"] { color: var(--ok); } [data-s="broken"], [data-s="refused"] { color: var(--bad); }
+  ul { margin: .25rem 0 0; padding-left: 1.2rem; } li { margin: .15rem 0; }
+  button { font: inherit; padding: .1rem .5rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+  li button { font: 12px ui-monospace, Consolas, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Edit a model</h1>
+  <p class="dim"><span id="file" style="font-family: ui-monospace, Consolas, monospace"></span> · checked here by LexLean as you type · nothing is saved or sent <button id="revert" type="button">Revert</button></p>
+  <div class="editor"><pre id="gutter" aria-hidden="true"></pre><textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Model source"></textarea></div>
+  <p id="status">Starting LexLean…</p>
+  <p id="appMatch" hidden></p>
+  <ul id="diagnostics"></ul>
+  <section id="guaranteesSection" hidden>
+    <h2>Guarantees</h2>
+    <p id="proofStatus" class="dim"></p>
+    <table><tbody id="guarantees"></tbody></table>
+  </section>
+  <p id="engine" class="dim"></p>
+</main>
+<script type="module" src="./edit.mjs"></script>
+</body>
+</html>
