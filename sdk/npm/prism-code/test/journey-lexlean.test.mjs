@@ -179,7 +179,7 @@ test('a snapshot that is not a rule app\'s is refused by name, never guessed at'
 });
 
 test('the server offers the LexLean path and no other: four tools named as Docker names them, no spec, and what runs without Docker said plainly', async () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['prism_init', 'prism_build', 'prism_run', 'prism_inspect']);
+  assert.deepEqual(TOOLS.map((t) => t.name), ['prism_init', 'prism_build', 'prism_run', 'prism_inspect', 'prism_push', 'prism_pull']);
   assert.deepEqual(TOOLS.find((t) => t.name === 'prism_run').inputSchema.required, ['request']);
   assert.ok(!/spec\.json|prism\/spec|prism_spec|prism_answer/.test(JSON.stringify(TOOLS) + INSTRUCTIONS));
   for (const name of ['prism_init', 'prism_build', 'prism_run', 'prism_inspect']) assert.ok(INSTRUCTIONS.includes(name), name);
@@ -204,9 +204,10 @@ test('the server offers the LexLean path and no other: four tools named as Docke
   assert.match(started.next, /then call prism_build\.$/);
   const inspected = (await call('prism_inspect')).structuredContent;
   assert.deepEqual([inspected.starter, inspected.files, inspected.audit], ['rule-app', ['src/App.lex.tex', 'src/Foundation/Bytes.lex.tex', 'src/Foundation/View/Text/V1/Model.lex.tex'], null]);
-  // The older names are still answered by name, unlisted.
-  const status = (await call('prism_status')).structuredContent;
-  assert.deepEqual(status.files, inspected.files);
-  assert.equal((await call('prism_start')).structuredContent.greeting, 'Welcome back.');
-  assert.match((await call('prism_try', { request: '0 car' })).content[0].text, /try\.unbuilt/);
+  // The six tools are the only ones: an older name is not answered.
+  for (const name of ['prism_start', 'prism_check', 'prism_prove', 'prism_verify', 'prism_try', 'prism_status']) {
+    await server.handle({ jsonrpc: '2.0', id: sent.length + 1, method: 'tools/call', params: { name, arguments: {} } });
+    assert.match(sent.at(-1).error?.message ?? '', new RegExp(`Unknown tool: ${name}`), name);
+  }
+  assert.equal((await call('prism_init')).structuredContent.greeting, 'Welcome back.');
 });

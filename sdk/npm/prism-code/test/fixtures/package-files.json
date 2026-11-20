@@ -68,6 +68,7 @@
   "src/init-cli.mjs",
   "src/init.mjs",
   "src/inspect.mjs",
+  "src/journey/app-bundle.mjs",
   "src/journey/canonical-rules.mjs",
   "src/journey/card.mjs",
   "src/journey/engine.mjs",

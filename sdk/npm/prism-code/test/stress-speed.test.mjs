@@ -17,7 +17,7 @@ process.env.PRISM_LEXLEAN_FETCH = '0';
     const cwd = project();
     const started = performance.now();
     const server = startServer(cwd);
-    const status = await server.call('prism_status');
+    const status = await server.call('prism_inspect');
     times.push(performance.now() - started);
     assert.deepEqual(status.data.files, []);
     await server.close();

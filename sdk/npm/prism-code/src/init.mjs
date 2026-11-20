@@ -125,7 +125,7 @@ export function planInit({ name, template = DEFAULT_TEMPLATE }) {
 /**
  * What this scaffold is: a LexLean project of the template's kind. A Prism app
  * is one too, started from a starter module by the prism MCP server
- * (`prism_start`), so the agent and Prism share one source of truth.
+ * (`prism_init`), so the agent and Prism share one source of truth.
  */
 export const NOT_AN_APP = [
   'This is a LexLean project. A Prism app is a LexLean project too: ask your agent for one',

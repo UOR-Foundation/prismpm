@@ -142,6 +142,51 @@ capability = "DK-41"
 statement = "The project has no .lex.tex file under its source roots, so there is nothing to audit."
 
 [[error]]
+code = "bundle.altered"
+capability = "DK-49"
+statement = "An object of a pulled app does not re-derive its κ-label (BLAKE3): it was altered, and nothing was written."
+
+[[error]]
+code = "bundle.exists"
+capability = "DK-49"
+statement = "A pulled model file would replace a file that holds other bytes; pull into an empty project."
+
+[[error]]
+code = "bundle.missing"
+capability = "DK-49"
+statement = "An object a pulled app's manifest names is not in the store the reference names."
+
+[[error]]
+code = "bundle.path"
+capability = "DK-49"
+statement = "A pulled app's manifest names a path outside the app."
+
+[[error]]
+code = "bundle.read-only"
+capability = "DK-49"
+statement = "An https:// store is read-only to prism_push; push to a dir:// folder and publish that folder with any static host."
+
+[[error]]
+code = "bundle.reference"
+capability = "DK-49"
+statement = "A reference is not a κ-label, dir://<folder>#<κ> or https://<site>#<κ>, or a pull names no app."
+
+[[error]]
+code = "bundle.schema"
+capability = "DK-49"
+statement = "A pulled manifest is not a prism/app-bundle/1 manifest."
+
+[[error]]
+code = "bundle.store-off"
+capability = "DK-49"
+statement = "This machine keeps no Prism store (PRISM_KAPPA=0), so an app is pushed only to a dir:// folder."
+
+[[error]]
+code = "bundle.unproved"
+capability = "DK-49"
+statement = "prism_push publishes only an app whose proof is current; call prism_build first."
+
+[[error]]
 code = "build.frontend-unavailable"
 capability = "DK-46"
 statement = "LexLean's front end is not available: LexLean as WebAssembly is not on this machine and could not be fetched, or PRISM_CODE_TIER=offline fetches nothing. Nothing about the app is sent anywhere instead."

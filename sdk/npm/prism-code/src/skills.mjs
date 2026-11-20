@@ -2,12 +2,13 @@
  * Skills as Prism apps: every skill setup installs is admitted by a LexLean model, the skill gate
  * (skill/gate/src/SkillGate.lex.tex), whose theorems Lean's kernel proves in this process before anything is written.
  *
- * The gate decides `installs` from thirteen facts. Each fact is computed here from the bytes and the code, never
+ * The gate decides `installs` from fifteen facts. Each fact is computed here from the bytes and the code, never
  * declared by the skill:
  *
  *   markdownNamed / markdownRendered   the BLAKE3 label of SKILL.md, and the label skill/skills.json pins for it
  *   modelNamed / modelPinned           the label of the gate model's sources, and the pinned one
  *   commandsNamed / commandsShipped    every `prism-code <verb>` the skill names, and how many this CLI's --help has
+ *   toolsNamed / toolsServed           every `prism_<tool>` the skill names, and how many the MCP server answers
  *   network                            URLs to hosts outside the skill's own sites
  *   secrets                            strings shaped like a credential
  *   execution                          files in the skill folder that are not text the agent reads
@@ -63,6 +64,15 @@ const codeOf = (markdown) => [...markdown.matchAll(/```[\s\S]*?```|`[^`\n]+`/g)]
 /** Every distinct `prism-code <verb>` the markdown teaches in its code. */
 export const namedVerbs = (markdown) => new Set([...codeOf(markdown).matchAll(/prism-code(?:@[\w.]+)? ([a-z][a-z-]*)/g)].map((m) => m[1]));
 
+/** Every distinct `prism_<tool>` the markdown teaches in its code. */
+export const namedTools = (markdown) => new Set([...codeOf(markdown).matchAll(/(?<![\w-])prism_[a-z]+(?![\w-])/g)].map((m) => m[0]));
+
+/** The tools the MCP server answers, the six named as Docker names its verbs. */
+export async function servedTools() {
+  const { TOOLS } = await import('./journey/mcp.mjs');
+  return new Set(TOOLS.map((t) => t.name));
+}
+
 /** The facts about the folder itself: links outside the skill's hosts, credential-shaped strings, non-text files. */
 export function folderFacts(markdown, extraFiles = []) {
   // A loopback address (the dev server on this machine) never leaves it, so it is no network authority.
@@ -90,7 +100,7 @@ export async function routingFacts() {
 /** The model's `canonical`, `namesOnlyShipped`, `noAuthority`, `staysLocal`, `selfProved` and `installs`, written out. */
 export function installs(s) {
   const canonical = s.markdownNamed === s.markdownRendered && s.modelNamed === s.modelPinned;
-  const namesOnlyShipped = s.commandsShipped === s.commandsNamed;
+  const namesOnlyShipped = s.commandsShipped === s.commandsNamed && s.toolsServed === s.toolsNamed;
   const noAuthority = s.network === 0 && s.secrets === 0 && s.execution === 0;
   const staysLocal = s.sendsWithoutOptIn === 0 && s.proofNeedsDocker === 0;
   const selfProved = s.theoremsDeclared > 0 && s.theoremsProved === s.theoremsDeclared;
@@ -103,6 +113,7 @@ export function failing(s) {
   if (s.markdownNamed !== s.markdownRendered) out.push('aSkillInstallsOnlyAsTheBytesItsModelRenders');
   if (s.modelNamed !== s.modelPinned) out.push('aSkillInstallsOnlyUnderItsPinnedModel');
   if (s.commandsShipped !== s.commandsNamed) out.push('aSkillInstallsOnlyWhenEveryCommandItTeachesShips');
+  if (s.toolsServed !== s.toolsNamed) out.push('aSkillInstallsOnlyWhenEveryToolItTeachesIsServed');
   if (s.network !== 0) out.push('aSkillInstallsOnlyWithoutNetworkAuthority');
   if (s.secrets !== 0) out.push('aSkillInstallsOnlyWithoutSecrets');
   if (s.execution !== 0) out.push('aSkillInstallsOnlyWithoutExecutionAuthority');
@@ -126,9 +137,11 @@ export async function proveGate({ env = process.env, dir = GATE_DIR, prove = nul
  * The gate's verdict on one skill's markdown (and any other files its folder holds). Resolves
  * { name, admitted, facts, failing, receipt } and never writes anything.
  */
-export async function judgeSkill({ name, markdown, extraFiles = [], pins = readPins(), gate = null, verbs = null, routing = null, env = process.env, log = () => {} }) {
+export async function judgeSkill({ name, markdown, extraFiles = [], pins = readPins(), gate = null, verbs = null, tools = null, routing = null, env = process.env, log = () => {} }) {
   const shipped = verbs ?? shippedVerbs();
   const named = [...namedVerbs(markdown)];
+  const served = tools ?? (await servedTools());
+  const toolsTaught = [...namedTools(markdown)];
   const proof = gate ?? (await proveGate({ env, log }));
   const facts = {
     markdownNamed: kappa(new TextEncoder().encode(markdown)),
@@ -137,13 +150,15 @@ export async function judgeSkill({ name, markdown, extraFiles = [], pins = readP
     modelPinned: pins.gate ?? null,
     commandsNamed: named.length,
     commandsShipped: named.filter((v) => shipped.has(v)).length,
+    toolsNamed: toolsTaught.length,
+    toolsServed: toolsTaught.filter((t) => served.has(t)).length,
     ...folderFacts(markdown, extraFiles),
     ...(routing ?? (await routingFacts())),
     theoremsDeclared: proof.declared,
     theoremsProved: proof.proved,
   };
   const admitted = installs(facts);
-  const unshipped = named.filter((v) => !shipped.has(v));
+  const unshipped = [...named.filter((v) => !shipped.has(v)), ...toolsTaught.filter((t) => !served.has(t))];
   return {
     name,
     admitted,
@@ -210,6 +225,7 @@ export async function verifyInstalled(dir, { env = process.env, log = () => {} }
     `  SKILL.md         ${f.markdownNamed}${f.markdownNamed === f.markdownRendered ? ', the label prism-code pins' : `, not the pinned ${f.markdownRendered}`}`,
     `  skill gate       ${f.modelNamed}${f.modelNamed === f.modelPinned ? ', pinned' : `, not the pinned ${f.modelPinned}`}; Lean's kernel proved ${f.theoremsProved} of ${f.theoremsDeclared} theorems here`,
     `  commands         ${f.commandsShipped} of ${f.commandsNamed} it names ship in this prism-code${verdict.unshipped.length ? ` (not: ${verdict.unshipped.join(', ')})` : ''}`,
+    `  tools            ${f.toolsServed} of ${f.toolsNamed} it names are answered by the MCP server`,
     `  authority        network ${f.network}, secrets ${f.secrets}, execution ${f.execution}`,
     `  routing          sends unasked ${f.sendsWithoutOptIn}, proof needs Docker ${f.proofNeedsDocker}`,
     ...(marker?.receipt && !receiptHolds ? ['  receipt          names other bytes than are installed'] : []),

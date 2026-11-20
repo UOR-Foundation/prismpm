@@ -84,12 +84,12 @@ This is a rule app, a static page plus a verified rule judge. It is not a `.holo
 
 ## Tooling problems found
 
-The rule-app starter fails `prism_check` straight after `prism_start` with `LLC0102` (stale lock). The scaffold renames `lexlean.toml`, `lakefile.toml` and `lake-manifest.json` but keeps the template's `lexlean.lock`. Worked around by writing the three new SHA-256 values into `lexlean.lock` by hand. Seen on Windows; not checked elsewhere. Worth an issue on PrismPM.
+The rule-app starter fails `prism_build` with `check: true` straight after `prism_init` with `LLC0102` (stale lock). The scaffold renames `lexlean.toml`, `lakefile.toml` and `lake-manifest.json` but keeps the template's `lexlean.lock`. Worked around by writing the three new SHA-256 values into `lexlean.lock` by hand. Seen on Windows; not checked elsewhere. Worth an issue on PrismPM.
 The published `prism-code@0.9.5` on npm still ships the removed `prism_spec` tools. Main was run from a source export instead.
 
 ## Reproduce
 
-From this folder, with prism-code from PrismPM main: `prism_check`, `prism_prove`, `prism_build`, then `prism_try` with a request such as `network yes no yes yes no`.
+From this folder, with prism-code from PrismPM main: `prism_build` with `check: true`, `prism_build`, then `prism_run` with a request such as `network yes no yes yes no`.
 
 ## Version history
 

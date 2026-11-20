@@ -1,0 +1,4 @@
+{
+  "kib": 14,
+  "reason": "The six agent tools (prism_init, prism_build, prism_run, prism_inspect, prism_push, prism_pull) and an app as one BLAKE3-addressed bundle that prism_push writes and prism_pull admits by label and the skill gate's tool rule (about 13 KiB)."
+}
