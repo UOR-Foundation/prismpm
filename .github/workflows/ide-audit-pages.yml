@@ -112,6 +112,12 @@ jobs:
           const bytes = (file) => gunzipSync(readFileSync(`${site}/${file}`));
           const got = kappa(bytes('lexlean.wasm.gz'));
           if (got !== LEXLEAN_WASM.kappa) throw new Error(`lexlean.wasm.gz decodes to ${got}, not the pinned ${LEXLEAN_WASM.kappa}`);
+          // Pages publishes no file or folder whose name starts with a dot, so the model's listing may name none,
+          // and every file it names is there.
+          for (const path of JSON.parse(readFileSync(`${site}/project.json`, 'utf8')).files) {
+            if (path.split('/').some((part) => part.startsWith('.'))) throw new Error(`project.json lists ${path}, which Pages would not publish`);
+            readFileSync(`${site}/project/${path}`);
+          }
           const manifest = JSON.parse(readFileSync(`${site}/kernel/manifest.json`, 'utf8'));
           for (const part of [manifest.glue, manifest.wasm, manifest.library]) {
             // The kernel's manifest names its three files by SHA-256, which is what the page's worker checks.
