@@ -215,7 +215,23 @@ async function auditHolo(holoBytes, lib) {
   const reachedP2 = verdict ? LEVELS.indexOf(verdict.level) >= 2 : false;
   const aboutThis = proof?.model?.document?.sha256 === info?.model?.digest?.sha256;
   const theorems = proof?.theorems ?? [];
+  // With no proof statement, what the app's own page claims Lean proved (the template's app.json). A claim is the
+  // app's word: it is shown, and marked by what this tab could check, which is the examples.
+  let claims = [];
   if (theorems.length === 0) {
+    try { claims = JSON.parse(dec.decode(await bytesOrNull(appBase + 'app.json') ?? enc.encode('{}'))).theorems ?? []; } catch { claims = []; }
+  }
+  state.claims = claims.length;
+  for (const [i, c] of claims.entries()) {
+    const tr = guaranteeRow(`${c.name}: ${c.statement}`);
+    const request = ['none', 'other', 'none', 'other', refusal ? 'failed' : replayed];
+    const status = audit.ask ? await audit.ask(request) : 'unknown';
+    settle(tr, i, request, status, !audit.ask ? 'the rule judge archive is not the verified one, so nothing is claimed'
+      : refusal ? 'the holo is refused: ' + refusal
+      : `claimed by the app, not checked here: the holo carries no proof statement. The app says: "${c.how ?? 'no account given'}"`
+        + (status === 'tested' ? ' Its examples pass.' : ''));
+  }
+  if (theorems.length === 0 && claims.length === 0) {
     const tr = guaranteeRow('The app answers its own examples as recorded.');
     const request = ['none', 'other', 'none', 'other', refusal ? 'failed' : replayed];
     const status = audit.ask ? await audit.ask(request) : 'unknown';
