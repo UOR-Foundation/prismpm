@@ -5,8 +5,8 @@
  *
  * Where each step runs is frontend.mjs: LexLean as WebAssembly on this
  * machine checks the model and takes its semantic snapshot, and Lean's kernel
- * proves any other app's theorems in this process (model-prove.mjs). The
- * hosted verifier runs only when the user sets PRISM_CODE_TIER=hosted.
+ * proves any other app's theorems in this process (model-prove.mjs). Nothing
+ * about an app is sent anywhere: there is no hosted route.
  *
  * A rule app (the `rule-app` starter) is checked by Lean's kernel in this
  * process from the model's semantic snapshot, and becomes the verified rule
@@ -24,6 +24,7 @@ import { NO_DOCKER_FREE_BUILD, frontendWhere, proverWhere } from './frontend.mjs
 import { lexleanReady, wasmCheck, wasmSnapshot } from './lexlean-wasm.mjs';
 import { collectIfUpgraded, withStoreHeld } from './store-gc.mjs';
 import { sourceDigest } from './project.mjs';
+import { hints } from './hints.mjs';
 import { axiomViolations, forbiddenAxioms, forbiddenMessage } from './sdk.mjs';
 
 /** A front-end probe that answers what was found. */
@@ -43,47 +44,40 @@ export function fromHosted(d) {
   return { severity: d.severity ?? 'error', code: d.code, message: String(d.message ?? ''), span: p?.path ? { file: p.path, line: p.line_start, column: p.column_start } : null };
 }
 
-/** Diagnostics as the author reads them: code, message, and the line of the model they anchor to. */
-const shown = (diagnostics) => diagnostics.filter((d) => !isWarning(d)).slice(0, 12).map((d) => ({ code: d.code, message: d.message.split('\n').slice(0, 8).join('\n'), at: d.span ? `${d.span.file}:${d.span.line}:${d.span.column ?? 1}` : null }));
+/**
+ * Diagnostics as the author reads them: code, message, and the line of the model they anchor to. With the model's
+ * folder, each also carries its hint (hints.mjs): where the name it quotes is written, that line, and the closest
+ * names in scope when it is not one.
+ */
+const shown = (diagnostics, dir = null) => {
+  const kept = diagnostics.filter((d) => !isWarning(d)).slice(0, 12);
+  const extra = dir ? hints(kept, dir) : kept.map(() => ({}));
+  return kept.map((d, i) => ({ code: d.code, message: d.message.split('\n').slice(0, 8).join('\n'), at: d.span ? `${d.span.file}:${d.span.line}:${d.span.column ?? 1}` : null, ...extra[i] }));
+};
 
 /** What to do about the diagnostics, in one line. An axiom-policy diagnostic says which set Lean observed. */
-function repair(diagnostics) {
+function repair(diagnostics, dir = null) {
   const fixes = axiomViolations(diagnostics);
   if (forbiddenAxioms(fixes).length) return forbiddenMessage(forbiddenAxioms(fixes));
   if (fixes.length) return `Lean observed other axioms than ${fixes.map((f) => `${f.name} declares`).join(', ')}; set each theorem's axioms to ${fixes.map((f) => `[${f.axioms.join(', ')}] for ${f.name}`).join('; ')}.`;
+  // The first problem, when its hint names the fix: the replacement, and where to write it.
+  const first = dir ? shown(diagnostics, dir)[0] : null;
+  if (first?.didYouMean?.length && first.at) return `\`${first.name}\` is not in scope: at ${first.at} write ${first.didYouMean.map((n) => `\`${n}\``).join(' or ')} instead, then call the same tool again.`;
+  if (first?.at && first.line) return `Fix ${first.at}, \`${first.line}\`, then call the same tool again.`;
   return 'Fix the model at the lines named, then call the same tool again.';
-}
-
-/** The hosted client. */
-async function hostedOf(client, gaps) {
-  const hosted = await import('../hosted.mjs');
-  return { hosted, client: client ?? hosted.hostedClient({ version: VERSION, gaps }) };
 }
 
 /**
  * Check the model: LexLean reads, links and elaborates it, and every
  * diagnostic is returned anchored to its line. Proves nothing.
  */
-async function checkUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), wasm = null } = {}) {
+async function checkUnheld(dir, session, { log = () => {}, env = process.env, snapshot = null, gaps = gapLedger(), wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   try {
     where = frontendWhere({ env, hasWasm: wasm });
   } catch (error) {
     return failure(error);
-  }
-  if (where === 'hosted') {
-    const h = await hostedOf(client, gaps);
-    log(`Checking the model on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted.`);
-    let result;
-    try {
-      result = await h.hosted.hostedCheck(h.client, h.hosted.hostedProject(dir));
-    } catch (error) {
-      return { ok: false, where, code: error.code, message: `The hosted verifier did not check the model: ${error.message}` };
-    }
-    const diagnostics = (result.outcome.diagnostics ?? []).map(fromHosted);
-    session.status.checked = result.outcome.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where } : null;
-    return result.outcome.success ? { ok: true, where, message: 'The model checks.' } : { ok: false, where, diagnostics: shown(diagnostics), message: repair(diagnostics) };
   }
   let result;
   try {
@@ -93,99 +87,70 @@ async function checkUnheld(dir, session, { log = () => {}, env = process.env, cl
   }
   const diagnostics = (result.diagnostics ?? []).map(fromHosted);
   session.status.checked = result.success ? { source: sourceDigest(dir), at: new Date().toISOString(), where, ms: result.ms, semanticId: result.semantic_id ? `sha256:${result.semantic_id}` : null } : null;
-  return result.success ? { ok: true, where, ms: result.ms, semanticId: session.status.checked.semanticId, message: `The model checks, in ${result.ms} ms, with LexLean as WebAssembly on this machine.` } : { ok: false, where, ms: result.ms, diagnostics: shown(diagnostics), message: repair(diagnostics) };
+  return result.success ? { ok: true, where, ms: result.ms, semanticId: session.status.checked.semanticId, message: `The model checks, in ${result.ms} ms, with LexLean as WebAssembly on this machine.` } : { ok: false, where, ms: result.ms, diagnostics: shown(diagnostics, dir), message: repair(diagnostics, dir) };
 }
 
 /**
  * Prove the model. A rule app's guarantees are checked by Lean's kernel in
- * this process from its semantic snapshot; any other app's theorems are proved
- * by `lexlean verify`. Returns `{ ok, where, guarantees | message, diagnostics }`.
+ * this process from its semantic snapshot; any other app's theorems by Lean's
+ * kernel in this process (proveModel). Returns `{ ok, where, guarantees | message, diagnostics }`.
  */
-async function proveUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, modelKernel = null, wasm = null } = {}) {
+async function proveUnheld(dir, session, { log = () => {}, env = process.env, snapshot = null, gaps = gapLedger(), kernel = null, modelKernel = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   let where;
   let frontend;
   try {
     where = frontend = frontendWhere({ env, hasWasm: wasm });
-    // A rule app is proved by the rule judge's lemma in this process; any other app's theorems by the kernel path, or
-    // by `lexlean verify` on the hosted verifier when the user asked for it.
-    if (!isRuleApp(session)) where = proverWhere({ env });
+    // A rule app is proved by the rule judge's lemma in this process; any other app's theorems by the kernel path.
+    if (!isRuleApp(session)) where = proverWhere();
   } catch (error) {
     return failure(error);
   }
-  if (isRuleApp(session)) return proveRuleApp(dir, session, { log, where, client, gaps, kernel, env });
-  if (where === 'kernel') return proveModel(dir, session, { log, frontend, client, gaps, kernel: modelKernel, env });
-  const started = Date.now();
-  const h = await hostedOf(client, gaps);
-  log(`Asking Lean to prove the model on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted: not searchable, but readable by anyone with the draft's ID.`);
-  let project;
-  let outcome;
-  try {
-    project = h.hosted.hostedProject(dir);
-    const all = { ...project, entrypoints: project.files.map((f) => f.path).filter((p) => h.hosted.moduleOf(p)) };
-    outcome = await h.hosted.hostedVerify(h.client, all, { onWait: (s) => s % 30 < 5 && log(`Lean is working, ${s} s...`) });
-    if (outcome.state === 'verified') h.hosted.writeHostedRecord(dir, { ...outcome, url: h.client.url, entrypoints: all.entrypoints });
-  } catch (error) {
-    return { ok: false, where, code: error.code, message: `The hosted verifier did not prove the model: ${error.message}` };
-  }
-  const seconds = Math.round((Date.now() - started) / 1000);
-  if (outcome.state === 'verified') return proved(dir, session, { where, seconds, attestation: outcome.record.attestation_id });
-  const diagnostics = outcome.diagnostics.map(fromHosted);
-  return { ok: false, where, seconds, diagnostics: shown(diagnostics), message: repair(diagnostics) };
+  if (isRuleApp(session)) return proveRuleApp(dir, session, { log, where, snapshot, gaps, kernel, env });
+  return proveModel(dir, session, { log, frontend, snapshot, gaps, kernel: modelKernel, env });
 }
 
 /**
  * Any app: its semantic snapshot lowered to kernel declarations, a proof found for each theorem, and Lean's kernel
  * judging all of it in this process (model-prove.mjs). Nothing is sent anywhere when LexLean runs here.
  */
-async function proveModel(dir, session, { log, frontend, client, gaps, kernel, env }) {
+async function proveModel(dir, session, { log, frontend, snapshot, gaps, kernel, env }) {
   const started = Date.now();
-  let snapshot;
+  let model;
   try {
-    snapshot = await snapshotOf(dir, { where: frontend, client, gaps, log, env });
+    model = await snapshotOf(dir, { log, env, snapshot });
   } catch (error) {
-    return { ...failure(error), where: 'kernel', ...(error.diagnostics ? { diagnostics: shown(error.diagnostics), message: repair(error.diagnostics) } : {}) };
+    return { ...failure(error), where: 'kernel', ...(error.diagnostics ? { diagnostics: shown(error.diagnostics, dir), message: repair(error.diagnostics, dir) } : {}) };
   }
   const { modelProve } = await import('./model-prove.mjs');
   log("Asking Lean's kernel, in this process, to check every theorem of the model.");
   let result;
   try {
-    result = await modelProve(snapshot, { log, kernel, env });
+    result = await modelProve(model, { log, kernel, env });
   } catch (error) {
     return { ok: false, where: 'kernel', code: error.code ?? 'kernel.unavailable', message: `Lean's kernel could not run in this process (${error.message}). This says nothing about the app.` };
   }
   const seconds = Math.round((Date.now() - started) / 100) / 10;
   const short = (name) => name.slice(name.lastIndexOf('.') + 1);
   const theorems = result.theorems.map((t) => ({ theorem: short(t.name), proof: t.proof, status: t.status, axioms: t.axioms }));
-  if (result.refusal) return { ok: false, where: 'kernel', seconds, theorems, message: `The model could not be put to Lean's kernel: ${result.refusal}. This is a limit of this prover, not a verdict on the app; PRISM_CODE_TIER=hosted proves it on the hosted verifier, which stores the model unlisted.` };
+  if (result.refusal) return { ok: false, where: 'kernel', seconds, theorems, message: `The model could not be put to Lean's kernel: ${result.refusal}. This is a limit of this prover, not a verdict on the app.` };
   const missed = result.theorems.filter((t) => !t.status.startsWith('proved'));
   if (missed.length) return { ok: false, where: 'kernel', seconds, theorems, message: `${missed.length} of ${result.theorems.length} theorems are not proved: ${missed.slice(0, 3).map((t) => `${short(t.name)} (${t.status.replace(/^not proved: /, '')})`).join('; ')}.` };
   const fewer = result.theorems.filter((t) => t.status !== 'proved').length;
-  session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where: 'kernel', seconds, semanticId: snapshot.semantic_id ? `sha256:${snapshot.semantic_id}` : null };
+  session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where: 'kernel', seconds, semanticId: model.semantic_id ? `sha256:${model.semantic_id}` : null };
   return { ok: true, where: 'kernel', seconds, theorems, message: `Lean's kernel, in this process, accepted a proof of every one of the model's ${result.theorems.length} theorems over ${result.declarations} declarations, in ${seconds} s, each within its declared axioms${fewer ? ` (${fewer} on fewer than declared)` : ''}. ${result.remembered ? `${result.remembered} were remembered from earlier proofs on this machine, by their content, and ${result.judged} judged now. ` : ''}Nothing was sent anywhere.` };
 }
 
-/** Record that Lean proved this model as it is on disk. */
-function proved(dir, session, { where, seconds, attestation = null }) {
-  session.status.proved = { source: sourceDigest(dir), at: new Date().toISOString(), where, seconds, ...(attestation ? { attestation } : {}) };
-  return { ok: true, where, seconds, ...(attestation ? { attestation } : {}), message: `Lean proved every theorem of the model (lexlean verify --all) on the hosted verifier, which is trusted, not local, in ${seconds} s.` };
-}
-
 /**
- * The model's semantic snapshot, `lexlean/semantic-snapshot/2`: the JSON LexLean
- * exports for it: from LexLean as WebAssembly on this machine, else from the
- * hosted verifier.
+ * The model's semantic snapshot, `lexlean/semantic-snapshot/2`: the JSON LexLean as WebAssembly exports for it on
+ * this machine. `snapshot`, a function of the folder, stands in for LexLean in tests.
  */
-async function snapshotOf(dir, { where, client, gaps, log, env }) {
-  if (where === 'wasm') {
-    const taken = await wasmSnapshot(dir, { env });
-    if (!taken.ok) throw Object.assign(new PrismCodeError('rule-table.refused', 'LexLean refused the model, so it has no semantic snapshot'), { diagnostics: (taken.check.diagnostics ?? []).map(fromHosted) });
-    log(`Took the model's semantic snapshot with LexLean as WebAssembly, in ${taken.ms} ms.`);
-    return taken.snapshot;
-  }
-  const h = await hostedOf(client, gaps);
-  log(`Taking the model's semantic snapshot on the hosted verifier ${h.client.url}. The files under prism/src/ are sent and stored unlisted.`);
-  return (await h.hosted.hostedSnapshot(h.client, h.hosted.hostedProject(dir))).snapshot;
+async function snapshotOf(dir, { log, env, snapshot = null }) {
+  if (snapshot) return snapshot(dir);
+  const taken = await wasmSnapshot(dir, { env });
+  if (!taken.ok) throw Object.assign(new PrismCodeError('rule-table.refused', 'LexLean refused the model, so it has no semantic snapshot'), { diagnostics: (taken.check.diagnostics ?? []).map(fromHosted) });
+  log(`Took the model's semantic snapshot with LexLean as WebAssembly, in ${taken.ms} ms.`);
+  return taken.snapshot;
 }
 
 /**
@@ -193,14 +158,14 @@ async function snapshotOf(dir, { where, client, gaps, log, env }) {
  * counterexample, then judged by Lean's kernel in this process, and the
  * verdict on the whole check given by the verified guest (kernel-verdict.mjs).
  */
-async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, env }) {
+async function proveRuleApp(dir, session, { log, where, snapshot, gaps, kernel, env }) {
   const started = Date.now();
   const { ruleTable, tableWords, counterexample } = await import('./rule-table.mjs');
   let table;
   try {
-    table = ruleTable(await snapshotOf(dir, { where, client, gaps, log, env }));
+    table = ruleTable(await snapshotOf(dir, { log, env, snapshot }));
   } catch (error) {
-    return { ...failure(error), where, ...(error.diagnostics ? { diagnostics: shown(error.diagnostics), message: repair(error.diagnostics) } : {}) };
+    return { ...failure(error), where, ...(error.diagnostics ? { diagnostics: shown(error.diagnostics, dir), message: repair(error.diagnostics, dir) } : {}) };
   }
   const describe = (g, i) => `guarantee ${i + 1} (${g.always ? 'always' : 'never'} ${table.answers[g.outcome]})`;
   const broken = table.guarantees.map((g) => counterexample(table, g)).map((c, i) => ({ ...c, i })).filter((c) => c.request !== null);
@@ -240,15 +205,15 @@ async function proveRuleApp(dir, session, { log, where, client, gaps, kernel, en
  * its holo needs Lean's export, Rust and WebAssembly, which no step runs
  * without an image yet.
  */
-async function buildUnheld(dir, session, { log = () => {}, env = process.env, client = null, gaps = gapLedger(), kernel = null, remote = null, wasm = null } = {}) {
+async function buildUnheld(dir, session, { log = () => {}, env = process.env, snapshot = null, gaps = gapLedger(), kernel = null, remote = null, wasm = null } = {}) {
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
-  if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, client, gaps, kernel, wasm });
+  if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, snapshot, gaps, kernel, wasm });
   return { ...failure(new PrismCodeError('build.frontend-unavailable', `This app's holo is built from Lean's export through Rust to WebAssembly, and no step runs that without an image yet; a rule app (the rule-app starter) builds with nothing compiled. prism_prove proves this app's theorems. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
 }
 
 /** A rule app: kernel-checked from its snapshot, then written as the rule judge and its numbers, with its page. */
-async function buildRuleApp(dir, session, { log, env, client, gaps, kernel, wasm }) {
+async function buildRuleApp(dir, session, { log, env, snapshot, gaps, kernel, wasm }) {
   const started = Date.now();
   let where;
   try {
@@ -256,7 +221,7 @@ async function buildRuleApp(dir, session, { log, env, client, gaps, kernel, wasm
   } catch (error) {
     return { ...failure(error), stage: 'prove' };
   }
-  const checked = await proveRuleApp(dir, session, { log, where, client, gaps, kernel, env });
+  const checked = await proveRuleApp(dir, session, { log, where, snapshot, gaps, kernel, env });
   if (!checked.ok) return { ...checked, stage: 'prove' };
   const { loadRuleApp, ruleAppRecord } = await import('./rule-app.mjs');
   log("Writing the app as the verified rule judge and the model's numbers. Nothing is compiled.");
@@ -318,7 +283,7 @@ export async function tryRequest(dir, session, request) {
       return { ok: false, request, code: error.code, message: `The built rule app is refused: ${error.message}` };
     }
   }
-  return { ...failure(new PrismCodeError('try.unbuilt', 'Nothing is built yet, so nothing answers: call prism_build first. Prism answers only from a built app, never from a second reading of the model.')), request };
+  return { ...failure(new PrismCodeError('try.unbuilt', 'Nothing is built yet, so nothing answers: call prism_run, which builds first. Prism answers only from a built app, never from a second reading of the model.')), request };
 }
 
 /**

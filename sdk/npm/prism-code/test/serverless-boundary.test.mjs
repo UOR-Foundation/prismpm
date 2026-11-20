@@ -28,11 +28,10 @@ test('the boundary admits GitHub\'s static hosts and the user\'s Pages site, and
   assert.equal(refusal('https://u:p@github.com/a'), 'carries credentials');
   assert.equal(refusal('https://example.com/a'), 'not an allowed host');
   assert.equal(refusal('https://github.com.example.com/a'), 'not an allowed host');
-  // The hosted verifier is the one UOR-run server: a build's static reads never reach it, and the user can refuse it.
+  // Prism is serverless: the hosted verifier is refused like any other host, whatever the user sets or opts in to.
   assert.equal(refusal(`https://${HOSTED_HOST}/`), 'hosted');
-  assert.equal(refusal(`https://${HOSTED_HOST}/`, { optIn: optedIn({}) }), null);
-  assert.deepEqual(optedIn({ PRISM_CODE_TIER: 'hosted' }), [HOSTED_HOST]);
-  assert.deepEqual(optedIn({ PRISM_CODE_TIER: 'offline' }), []);
+  assert.equal(refusal(`https://${HOSTED_HOST}/`, { optIn: [HOSTED_HOST] }), 'hosted');
+  for (const tier of [undefined, 'hosted', 'offline']) assert.deepEqual(optedIn({ PRISM_CODE_TIER: tier }), []);
 });
 
 test('planted defect B1: a build that reaches a non-allowed host is refused before anything is sent', async () => {

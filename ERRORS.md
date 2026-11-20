@@ -949,8 +949,8 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `auth.unavailable` |  | `SE-09` | prism.auth reads and writes Docker's credential stores, which this build of prism-code leaves out; use it in Node. |
 | `axioms.probe` |  | `DK-41` | Lean refused the axiom probe, said nothing about a declaration, or left no audit records. |
 | `axioms.project` |  | `DK-41` | The project has no .lex.tex file under its source roots, so there is nothing to audit. |
-| `build.frontend-unavailable` |  | `DK-46` | LexLean's front end is not available: no SDK image on this machine and no PRISM_CODE_TIER=hosted. A Docker-free build waits for LexLean's front end as WebAssembly (Phase 3); the hosted verifier is never chosen for the user. |
-| `build.host-not-allowed` |  | `DK-45` | A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier without PRISM_CODE_TIER=hosted. Nothing was sent, and there is no fallback. |
+| `build.frontend-unavailable` |  | `DK-46` | LexLean's front end is not available: LexLean as WebAssembly is not on this machine and could not be fetched, or PRISM_CODE_TIER=offline fetches nothing. Nothing about the app is sent anywhere instead. |
+| `build.host-not-allowed` |  | `DK-45` | A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier, which is never asked. Nothing was sent, and there is no fallback. |
 | `build.publish-unavailable` |  | `DK-46` | Publishing an app to GitHub is not available until the template's ID rows, scenarios and tests are written from the model's semantic snapshot. |
 | `canonical.algorithm` |  | `DK-41` | The digest algorithm needs node:crypto, which this host does not have; sha256 stays available. |
 | `capabilities.invalid` |  | `AL-07` | A capability file or capability set is malformed, or a set was named without a capability file. |
