@@ -29,7 +29,7 @@ import getDialogsOverride from '@codingame/monaco-vscode-dialogs-service-overrid
 import '@codingame/monaco-vscode-theme-defaults-default-extension';
 import extHostWorkerUrl from '@codingame/monaco-vscode-api/workers/extensionHost.worker?worker&url';
 import editorWorkerUrl from '@codingame/monaco-vscode-api/workers/editor.worker?worker&url';
-import { LEXLEAN, registerLexLean } from './lexlean-language.js';
+import { LEXLEAN, registerLexLean, tokenTypes } from './lexlean-language.js';
 
 const PAUSE_MS = 350;
 const ERROR = 8; // MarkerSeverity.Error
@@ -110,7 +110,7 @@ try {
   setInterval(paint, 1000);
   window.prismModel.themes = async () => (await themes.getColorThemes()).map((t) => t.settingsId ?? t.label);
   window.prismModel.colouring = () => { const t = themes.getColorTheme(); return { theme: t.label ?? t.id, rules: t.tokenColors?.length ?? null, semantic: t.semanticHighlighting ?? null, asked: registerLexLean.calls }; };
-  window.prismModel.tokenize = (text) => monaco.editor.tokenize(text, LEXLEAN).map((line) => line.map((t) => t.type));
+  window.prismModel.tokenize = (text) => tokenTypes(monaco, text);
   window.prismModel.setText = (text) => model.setValue(text); // for a test to type with
   window.prismModel.text = () => model.getValue();
 

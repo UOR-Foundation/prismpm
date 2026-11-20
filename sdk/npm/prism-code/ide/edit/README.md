@@ -64,7 +64,7 @@ Tried by hand in the same browser, on `model/ide-capability-gate`:
 `../src/lexlean-language.js` makes LexLean a language of the editor: the status bar names it, brackets and `%` comments behave, and the text is coloured.
 
 - The tokenizer is written from the models in this repository, not from LexLean's grammar. It decides nothing: a wrong colour changes no verdict.
-- The workbench's themes do not colour a tokenizer's own token names, so the tokens are handed over as semantic tokens of the standard kinds (keyword, type, string, number, operator, property, namespace, comment).
+- The workbench cannot run a tokenizer of this kind on an open file: it logs an error for every line and colours nothing. So the tokenizer is registered under a name no file has and is only asked for a text's tokens, which are handed over as semantic tokens of the standard kinds (keyword, type, string, number, operator, property, namespace, comment).
 - The workbench writes the stylesheet for token colours from its TextMate service, which this page does not load. The page writes that stylesheet itself from the theme's colour table, and again when the theme changes.
 
 Tried by hand in the same browser. `model.html?theme=<a theme's name>` opens the page in that theme.

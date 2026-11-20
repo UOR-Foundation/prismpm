@@ -5,6 +5,10 @@
 // worker; a wrong colour here changes no verdict.
 
 export const LEXLEAN = 'lexlean';
+// The tokenizer is registered under a name of its own, which no file has. The workbench cannot run a tokenizer of
+// this kind on an open file (it has no colour table of the kind that tokenizer writes into, and logs an error for
+// every line), so the tokenizer is only ever asked for a text's tokens, and those reach the file as semantic tokens.
+const TOKENS = 'lexlean-tokens';
 
 // The declarations a semantic module is made of, and the members they carry.
 const DECLARATIONS = ['structure', 'definition', 'theorem', 'inductive', 'axiom', 'lexeme'];
@@ -63,7 +67,7 @@ export function semanticTokens(monaco, text) {
   const data = [];
   const lines = text.split('\n');
   let lastLine = 0, lastStart = 0;
-  for (const [line, found] of monaco.editor.tokenize(text, LEXLEAN).entries()) {
+  for (const [line, found] of monaco.editor.tokenize(text, TOKENS).entries()) {
     for (const [i, token] of found.entries()) {
       const kind = kindOf(token.type);
       const end = i + 1 < found.length ? found[i + 1].offset : lines[line].replace(/\r$/, '').length;
@@ -76,12 +80,16 @@ export function semanticTokens(monaco, text) {
   return new Uint32Array(data);
 }
 
+/** The kinds of token in a text, line by line, for a test to read. */
+export const tokenTypes = (monaco, text) => monaco.editor.tokenize(text, TOKENS).map((line) => line.map((token) => token.type));
+
 /** Make the editor know LexLean. Call once, before a model of that file ending is opened. */
 export function registerLexLean(monaco) {
   registerLexLean.calls = 0; // how often the editor asked for colours, for a test to read
   monaco.languages.register({ id: LEXLEAN, aliases: ['LexLean'], extensions: ['.lex.tex'] });
   monaco.languages.setLanguageConfiguration(LEXLEAN, configuration);
-  monaco.languages.setMonarchTokensProvider(LEXLEAN, tokens);
+  monaco.languages.register({ id: TOKENS });
+  monaco.languages.setMonarchTokensProvider(TOKENS, tokens);
   monaco.languages.registerDocumentSemanticTokensProvider(LEXLEAN, {
     getLegend: () => ({ tokenTypes: KINDS, tokenModifiers: [] }),
     provideDocumentSemanticTokens: (model) => { registerLexLean.calls++; return { data: semanticTokens(monaco, model.getValue()) }; },
