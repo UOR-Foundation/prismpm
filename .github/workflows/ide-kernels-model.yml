@@ -81,6 +81,8 @@ jobs:
       # The IDE's page code that stands beside the models: tested, not proved.
       - name: The browser signature check agrees with the verdicts pinned for check
         run: node ide/tools/signature-test.mjs
+      - name: The keyless signature check accepts and refuses the Sigstore conformance bundles as their cases say
+        run: node ide/tools/keyless-test.mjs
       - name: The scope rules copy passes its cases
         run: node ide/tools/scope-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
