@@ -105,7 +105,7 @@ The workbench is not an imitation. `ide/` runs `@codingame/monaco-vscode-api`, w
 | Themes and icon themes | Same code; themes from Open VSX | Tried: two icon themes and a colour theme activate | |
 | Problems panel and diagnostics | Same code | Tried: markers shown, and drawn by an extension | |
 | Extensions that run in a browser | Same extension host, each call judged by the proved gate | Tried: 18 of the 25 most-downloaded web extensions activate | |
-| Extensions that need Node or native programs | Not possible in any browser; vscode.dev cannot run them either | 5 of the 25 fail for this reason | Phase 3 looks at a Node-compatible runtime, with no promise |
+| Extensions that need Node or native programs | Not possible in any browser; vscode.dev cannot run them either | 4 of the 25 fail for this reason; 1 more needs a built-in extension the page does not ship, and 2 time out for a reason not yet found | Phase 3 looks at a Node-compatible runtime, with no promise |
 | Extension marketplace | Open VSX. The Visual Studio Marketplace's terms limit it to Microsoft's products | A fixed list, fetched by script | Phase 2d: install from Open VSX by content label |
 | Open a local folder | The browser's File System Access API, where the browser has it | Not built | Phase 3 |
 | Search across files | Same code, over files held in the browser | Not built | Phase 3 |
