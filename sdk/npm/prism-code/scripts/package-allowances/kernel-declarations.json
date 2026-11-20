@@ -1,4 +1,4 @@
 {
-  "kib": 8,
-  "reason": "The declarations planner, vendored from lean-prover/kernel-path, and the prover over LexLean's own declarations (about 7 KiB)."
+  "kib": 13,
+  "reason": "The declarations planner, vendored from lean-prover/kernel-path, the prover over LexLean's own declarations, and the WebAssembly declare call that feeds it (about 12 KiB)."
 }
