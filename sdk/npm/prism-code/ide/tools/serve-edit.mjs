@@ -41,8 +41,10 @@ const fixed = {
   '/edit/pin.json': json({ commit: LEXLEAN_WASM.commit, kappa: LEXLEAN_WASM.kappa, encoding: LEXLEAN_WASM.encoding }),
 };
 // Longest prefix first.
-const roots = [['/edit/project/', project], ['/edit/prism-code/', resolve(src)], ['/edit/', resolve(editDir)]];
-const TYPES = { '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript', '.js': 'text/javascript', '.json': 'application/json', '.toml': 'text/plain; charset=utf-8', '.tex': 'text/plain; charset=utf-8', '.lock': 'text/plain; charset=utf-8' };
+// The model editor on the full workbench, when it has been built (npx vite build -c vite.model.config.js): its
+// files are served from the root, where its build expects them.
+const roots = [['/edit/project/', project], ['/edit/prism-code/', resolve(src)], ['/edit/', resolve(editDir)], ['/', resolve(editDir, '..', 'dist-model')]];
+const TYPES = { '.css': 'text/css', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript', '.js': 'text/javascript', '.json': 'application/json', '.toml': 'text/plain; charset=utf-8', '.tex': 'text/plain; charset=utf-8', '.lock': 'text/plain; charset=utf-8' };
 
 createServer(async (request, response) => {
   const path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
