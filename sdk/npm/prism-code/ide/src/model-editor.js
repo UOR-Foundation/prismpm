@@ -61,7 +61,21 @@ try {
   throw error;
 }
 const entry = '/' + listing.entry;
-const { ruleTable, tableWords, counterexample, OPS } = await import(/* @vite-ignore */ EDIT + 'prism-code/journey/rule-table.mjs');
+const { ruleTable, tableWords, tableShape, counterexample, OPS } = await import(/* @vite-ignore */ EDIT + 'prism-code/journey/rule-table.mjs');
+// The app this model was published with, if any: its record says what the app runs.
+const { appRecord, tableFacts, differences, verdict } = await import(/* @vite-ignore */ EDIT + 'app-match.mjs');
+const beside = await appRecord(PROJECT);
+const original = files[entry];
+const matchLine = document.getElementById('match');
+function compare(table, text) {
+  if (!PROJECT) { matchLine.hidden = true; state.app = null; return; }
+  const differs = beside && table ? differences(tableFacts(table, { tableWords, tableShape }), beside.record) : [];
+  const said = !beside ? verdict(null, [], false) : !table ? { state: 'unread', text: `This model is not read as a rule table here, so it is not compared with the app at ${beside.app}.` } : verdict(beside, differs, text !== original);
+  state.app = { found: !!beside, state: said.state, differs };
+  matchLine.textContent = said.text;
+  matchLine.dataset.state = said.state;
+  matchLine.hidden = false;
+}
 
 // One request at a time to each worker, matched by id.
 function channel(url, onNote) {
@@ -152,6 +166,7 @@ try {
       // A model that does not check has no meaning to prove anything about.
       markers.changeOne('prism-guarantees', resource, []);
       state.proof = null;
+      matchLine.hidden = true;
       // A problem in another file of the project has no place in this editor, so the strip names the first one.
       const elsewhere = result.diagnostics.find((d) => !own.includes(d));
       say(`${result.diagnostics.length} problem${result.diagnostics.length === 1 ? '' : 's'} from LexLean, in ${reply.ms} ms. Guarantees are not judged until the model checks.`
@@ -167,6 +182,7 @@ try {
     try { table = ruleTable(JSON.parse(taken.snapshot)); } catch (e) {
       markers.changeOne('prism-guarantees', resource, []);
       state.proof = { table: false };
+      compare(null, text);
       say(`The model checks, in ${reply.ms} ms. It is not a rule table, so its guarantees are not proved in this tab.`, 'ok');
       state.markers = markers.read({ resource }).length;
       state.ready = true;
@@ -175,6 +191,7 @@ try {
     const value = (f, v) => (f.values ? f.values[v] : v);
     const said = (g) => 'When ' + g.when.map(([f, op, v]) => table.fields[f].name + ' ' + OPS[op] + ' ' + value(table.fields[f], v)).join(' and ') + ', the answer is ' + (g.always ? 'always ' : 'never ') + table.answers[g.outcome];
     const found = table.guarantees.map((g) => counterexample(table, g));
+    compare(table, text);
     const shaped = tableWords(table);
     const judged = await kernel.ask({ words: shaped.words, guarantees: shaped.guarantees });
     if (mine !== latest) return;

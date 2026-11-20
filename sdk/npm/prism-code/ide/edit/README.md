@@ -111,7 +111,8 @@ Tried by hand on the assembled site, served from a subfolder as Pages serves it:
 A rule app built by prism-code publishes its model with its page: the build writes `model/` into the page's folder, with `model/project.json` listing it (`src/journey/model-files.mjs`). The audit page looks for that listing at the app's address and, when it is there, links to the editor with the app's model.
 
 - What is published is what LexLean reads to check the model. Left out: anything whose name starts with a dot, `session.json` (it names folders on the author's machine), every other `.json` but `lake-manifest.json`, notes and logs.
-- The listing carries the identity the build proved, `semanticId`. Neither page compares it yet with the identity LexLean gives the published files.
+- Both edit pages say whether the model they opened is the one its app runs (`app-match.mjs`). The app's record, `app.rule-app.json` beside `model/`, holds what the app runs: its rules as numbers, its guarantees, fields and answers. The page reads the model with LexLean and prism-code's `rule-table.mjs` and compares those four. Nothing is taken from what the listing says of itself, since the same host wrote both.
+- The edit pages do not check the record. The audit page does.
 
 Tried by hand, on a rule app built from `model/ide-command-table` by this checkout and served beside the assembled site, dot-files removed:
 
@@ -120,6 +121,20 @@ Tried by hand, on a rule app built from `model/ide-command-table` by this checko
 | The app's own page | proves its 5 guarantees in the tab, as before |
 | The audit page, given the app's address | 5 proved of 5, and "This app publishes its model. Open the model in the editor" |
 | That link | the workbench with the app's model; 5 of 5 proved; the identity `sha256:8307e81d…`, the one the build proved |
+
+The comparison, tried by hand in the workbench on that app and on a copy whose published model had one rule changed while its record was left alone:
+
+| Step | Shown |
+|---|---|
+| The app's model | "This is the model the app at … runs: it gives the app's own rules, guarantees, fields and answers." |
+| Change a rule in the editor | "Your changes differ from the app at … in its rules. The app itself is unchanged." |
+| Undo | the first line again |
+| A syntax error | the line is hidden: a model that does not check is compared with nothing |
+| The altered copy | in red: "This is NOT the model the app at … runs: as published it differs from the app's record in its rules." |
+| A model with no record beside it | "No app record is beside this model, so it is compared with no app." |
+| The model that comes with the page | no line |
+
+`tools/app-match-test.mjs` holds the comparison to a record the package's own build writes, with a record altered in each of the four.
 
 Apps published before this have no `model/`, so the audit page offers no editor for them until they are built again. A holo app's page is not written by prism-code and publishes no model.
 
