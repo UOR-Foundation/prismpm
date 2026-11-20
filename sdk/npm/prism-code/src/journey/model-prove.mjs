@@ -30,7 +30,7 @@ import { loadLibrary } from '../vendor/kernel-path/emit.mjs';
 import { COVERED, plan } from '../vendor/kernel-path/plan.mjs';
 
 export const MODEL_KERNEL_REPOSITORY = 'UOR-Foundation/PrismPM';
-export const MODEL_KERNEL_COMMIT = '8e949491b3b1ddaf771179f534bce87a41f89c8a';
+export const MODEL_KERNEL_COMMIT = '67ba3a17656fae808cfa9e6b7419591e35c977c6';
 /** The files, by name: where each lives in the repository, and the BLAKE3 κ-label of its decoded bytes. */
 export const MODEL_KERNEL_FILES = Object.freeze({
   'lean-kernel.mjs': { path: 'sdk/npm/lean-prover/kernel-path/kernel/lean-kernel.mjs', kappa: 'blake3:ec13d669b62c9a0223a937e04c3df18235fa67878ca53ba926f75904fe9c4610', encoding: 'identity', bytes: 62389 },
