@@ -1,0 +1,11 @@
+[application]
+name = "terminal-outside-effects"
+version = "0.1.0"
+description = "say what the terminal does with a request that acts outside its grid: ignore, apply or ask."
+
+[model]
+source = "src"
+watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]
+
+# Deny by default: an empty set grants the holo nothing.
+[capabilities]
