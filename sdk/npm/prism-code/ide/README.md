@@ -71,15 +71,19 @@ Tried by hand in one browser:
 | `fixtures/Calculator.holo` | level P0; 1 row, tested: "the holo carries no proof statement"; 22 of 22 examples the same |
 | The same holo, one byte flipped | refused: "the footer is not the BLAKE3 of the body"; examples not replayed |
 | Two published apps, their `app.holo` and `app.json` fetched from GitHub Pages on 2026-11-20 (a leap-year app, 1 claimed theorem; a tax-filing app, 6) | level P0; each claimed theorem listed with the app's own account of how it was proved, marked tested: "claimed by the app, not checked here: the holo carries no proof statement"; 12 of 12 and 62 of 62 examples the same |
-| `test/fixtures/signed/Calculator.signed.holo`, which carries a signed provenance and a signed proof statement | no level in this tab; both statements listed as carried, signatures not checked; its 5 theorems marked tested: "a browser cannot check that signature yet"; 22 of 22 examples the same |
-| `test/fixtures/signed/PaymentApproval.mismatch.holo`, whose proof statement is about another model | 5 theorems marked tested: "the proof statement is about another model" |
+| `test/fixtures/signed/Calculator.signed.holo`, with the key that signed it (`signer.pub.pem`) given to the page | **level P2; its 5 theorems proved**: "this tab checked the statement and its signature against the signer, not the proof itself"; both statements' signatures verify; 22 of 22 examples the same |
+| The same holo, no key given | level P0; 5 theorems tested: "no signer was named, and an unchecked signature is no evidence" |
+| The same holo, another key given | level P0; 5 theorems tested: "the signature does not verify against the key given" |
+| `test/fixtures/signed/PaymentApproval.mismatch.holo`, right key | level P1; 5 theorems tested: "the proof statement is about another model" |
 
 What the published apps showed: none of the 13 holos in this repository and neither published holo carries a proof statement, so every one is at level P0. For the two published apps GitHub holds signed build provenance (`gh attestation verify` passes, predicate `https://slsa.dev/provenance/v1`), which says which workflow built the bytes. The statement that Lean proved a named theorem exists only as text in the app's `app.json`. The audit view therefore shows those theorems as claimed and tested, never proved. Marking them proved needs the build to put its proof statement in the holo (`prism-code attest --statement`), which is outside this folder.
 
 Limits:
 
-- **No holo is ever shown as proved in a browser today.** A holo that carries statements cannot be given a level in a tab: the browser verifier (`src/vendor/verify.mjs`) refuses to read it and says `check` does, and `check` is Node only, because checking a signature needs the sigstore packages. The view reads the statements through the loader, lists the theorems, and marks them tested. In Node, `prism-code check --key test/fixtures/signed/signer.pub.pem` is expected to give that holo P2 (`test/check.test.mjs`); it could not be confirmed on the machine this was written on, which lacks the sigstore packages.
-- So the branch that marks a holo's theorems proved has still never been taken.
+- **A holo is shown as proved only for a key the auditor gives the page.** `audit/signature.mjs` checks a statement's signature with WebCrypto: a Sigstore bundle v0.3 with a DSSE envelope, signed by ECDSA P-256 with SHA-256. prism-code's verifier is then told which statements verified and gives the level, as `check --key` does in Node. `tools/signature-test.mjs` holds this to the five verdicts `test/fixtures/signed` pins for `check`.
+- **Keyless signatures are not checked**, and that is what GitHub Actions makes. A statement signed with a certificate never counts here. Checking one needs a pinned Sigstore trusted root, the certificate chain, the transparency log entry and the expected identity; none of that is written.
+- **This is a second place that tells the verifier a signature verified.** `src/verify.mjs` keeps that entry (`verifyWithStatements`) out of the package on purpose, "check's alone". The page calls the vendored verifier's `verify` with `statements` directly. It needs a maintainer's decision before anything ships.
+- **The key is trusted because the auditor supplied it.** A page that took the key from the app would prove nothing.
 - The app must be served from the audit page's origin.
 - Files are fetched by path. Fetching by content label is phase 2d.
 - An app that refuses itself is reported to the audit-status model as failing its examples. The model has no word for "the app did not admit its own record"; that is the conservative choice among the words it has, and a reason to give it one.

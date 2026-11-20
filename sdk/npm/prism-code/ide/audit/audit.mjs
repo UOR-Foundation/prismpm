@@ -183,12 +183,33 @@ async function auditHolo(holoBytes, lib) {
   try { info = verifier.inspect(holoBytes); } catch (e) { refusal = said(e); }
   try { app = await lib.loadArchive(holoBytes, { capabilities: null, capabilitySet: undefined, allowUnverified: false }); } catch (e) { refusal = said(e); }
   try { verdict = await verifier.verify(holoBytes); } catch (e) { unjudged = said(e); }
+
+  // A holo that carries statements: the browser verifier does not read it as it is. Its statements' signatures are
+  // checked here against the key this page was given (signature.mjs), and the verifier then judges the holo
+  // without the section, told only which statements verified. That is what `check --key` does in Node.
+  let signer = null, judged = null;
+  if (app && unjudged) {
+    try {
+      const [{ parseArchive }, { readAttestations, stripAttestations }, sig] = await Promise.all(
+        [import(mine('prism-code/archive.mjs')), import(mine('prism-code/attestations.mjs')), import(mine('signature.mjs'))]);
+      const pem = await bytesOrNull(params.get('key') ? new URL(params.get('key'), location.href).href : mine('signer.pub.pem'));
+      const spki = pem ? sig.spkiOfPem(dec.decode(pem)) : undefined;
+      signer = spki ? await sig.keyName(spki) : null;
+      const parsed = parseArchive(holoBytes);
+      const P = verifier.ASSURANCE.PREDICATES;
+      judged = await sig.statementsFor(readAttestations(parsed), { provenance: P.provenance, proof: P.proof }, spki);
+      verdict = await verifier.verify(stripAttestations(parsed), { statements: judged });
+      unjudged = null;
+    } catch (e) { unjudged = said(e); }
+  }
+  state.signer = signer;
   state.verdict = verdict;
   $('title').textContent = info?.name ?? 'A holo this tab refuses';
 
   show('verdictSection');
   if (refusal) row('verdict', [['th', 'Refused'], ['td', refusal, 'bad']]);
   if (unjudged) row('verdict', [['th', 'No level'], ['td', 'This tab could not give the holo a level: ' + unjudged]]);
+  if (judged) row('verdict', [['th', 'Signer'], ['td', signer ? `the key ${signer}, given to this page by whoever opened it, not by the app` : 'none named: no signature is counted', signer ? 'mono' : undefined]]);
   if (verdict) {
     row('verdict', [['th', 'Level'], ['td', `${verdict.level} (the default policy asks for ${verdict.policy.minimum})`]]);
     for (const r of verdict.reasons) row('verdict', [['th', r.withholds ? `Withholds ${r.withholds}` : 'Policy'], ['td', r.message]]);
@@ -217,10 +238,12 @@ async function auditHolo(holoBytes, lib) {
   let carried = [];
   try { carried = app ? await app.attestations() : []; } catch { carried = []; }
   const statements = carried.filter((a) => (a.statement?.predicateType ?? a.predicateType) === PROOF_PREDICATE);
-  const proof = statements[0]?.statement?.predicate ?? null;
+  // When the signature was checked, the statement judged is the signed payload itself.
+  const proof = (judged?.proof?.statement ?? statements[0]?.statement)?.predicate ?? null;
   const signed = statements[0]?.signed === true;
   state.statements = carried.map((a) => ({ type: a.statement?.predicateType ?? a.predicateType, signed: a.signed === true }));
-  for (const a of state.statements) row('verdict', [['th', 'Carries'], ['td', `${a.signed ? 'a signed' : 'an unsigned'} statement of type ${a.type}; its signature is not checked in this tab`]]);
+  const outcome = (type) => { const j = Object.values(judged ?? {}).find((x) => x.statement?.predicateType === type); return j ? (j.envelope.verified ? 'its signature verifies against the signer' : j.envelope.message) : 'its signature is not checked in this tab'; };
+  for (const a of state.statements) row('verdict', [['th', 'Carries'], ['td', `${a.signed ? 'a signed' : 'an unsigned'} statement of type ${a.type}: ${outcome(a.type)}`]]);
   const reachedP2 = verdict ? LEVELS.indexOf(verdict.level) >= 2 : false;
   const aboutThis = proof?.model?.document?.sha256 === info?.model?.digest?.sha256;
   const theorems = proof?.theorems ?? [];
@@ -254,11 +277,11 @@ async function auditHolo(holoBytes, lib) {
     const status = audit.ask ? await audit.ask(request) : 'unknown';
     settle(tr, i, request, status, !audit.ask ? 'the rule judge archive is not the verified one, so nothing is claimed'
       : refusal ? 'the holo is refused: ' + refusal
-      : status === 'proved' ? 'the build proved it with Lean; this tab checked the signed statement, not the proof'
+      : status === 'proved' ? 'the build proved it with Lean; this tab checked the statement and its signature against the signer, not the proof itself'
       : t.verdict !== 'PASSED' ? 'the proof statement records it as failed'
       : !aboutThis ? 'the proof statement is about another model'
       : !reachedP2 && !verdict ? `the holo's ${signed ? 'signed' : 'unsigned'} proof statement records it as passed, but a browser cannot check that signature yet, so it is not counted as proof here; prism-code check, given the signer, can`
-      : !reachedP2 ? `the proof statement is not accepted: the holo is at ${verdict?.level}`
+      : !reachedP2 ? `the proof statement is not accepted, so the holo is at ${verdict?.level}: ${verdict?.reasons.find((r) => r.withholds === 'P2' || r.withholds === 'P1')?.message ?? 'no reason given'}`
       : WHY[status] ?? 'an example gives a different answer than recorded');
   }
   summarise(verdict ? ` Level ${verdict.level}.` : unjudged ? ' No level in this tab.' : '');

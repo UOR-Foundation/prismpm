@@ -1,5 +1,6 @@
 // Serve the audit view beside one built app, on one origin, for trying it by hand or in a test.
-// Usage: node tools/serve-audit.mjs <app dir: a rule app's .prism/site, or a folder holding app.holo> [port]
+// Usage: node tools/serve-audit.mjs <app dir: a rule app's .prism/site, or a folder holding app.holo> [port] [signer.pub.pem]
+// The key, when given, is the signer the auditor expects of a holo's statements. It is served to the page apart from the app.
 // The page is also given this checkout's prism-code and the rule judge archive, so it need not trust the app's copies.
 // Then open http://localhost:<port>/audit/ . The app is at /audit/app/ .
 import { createServer } from 'node:http';
@@ -7,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const [siteDir, port = '4180'] = process.argv.slice(2);
+const [siteDir, port = '4180', signerKey] = process.argv.slice(2);
 if (!siteDir) { console.error('usage: node tools/serve-audit.mjs <rule app site dir> [port]'); process.exit(64); }
 const auditDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'audit');
 const package_ = join(auditDir, '..', '..');
@@ -19,6 +20,11 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript', 
 createServer(async (request, response) => {
   let path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   if (path === '/') { response.writeHead(302, { location: '/audit/' }).end(); return; }
+  if (path === '/audit/signer.pub.pem') {
+    if (!signerKey) { response.writeHead(404).end('not found'); return; }
+    response.writeHead(200, { 'content-type': 'application/x-pem-file', 'cache-control': 'no-store' }).end(await readFile(resolve(signerKey)));
+    return;
+  }
   const root = roots.find(([prefix]) => path.startsWith(prefix));
   if (!root) { response.writeHead(404).end('not found'); return; }
   let rest = path.slice(root[0].length);

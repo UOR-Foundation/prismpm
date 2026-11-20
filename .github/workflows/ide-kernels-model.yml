@@ -17,12 +17,14 @@ on:
     paths:
       - sdk/npm/prism-code/model/ide-*/**
       - sdk/npm/prism-code/model/ide-prove-rule-app.mjs
+      - sdk/npm/prism-code/ide/**
       - .github/workflows/ide-kernels-model.yml
   push:
     branches: [main]
     paths:
       - sdk/npm/prism-code/model/ide-*/**
       - sdk/npm/prism-code/model/ide-prove-rule-app.mjs
+      - sdk/npm/prism-code/ide/**
       - .github/workflows/ide-kernels-model.yml
 
 permissions:
@@ -76,6 +78,11 @@ jobs:
           grep -q '^FAILED' defect.log
           rm defect.log
           git checkout -- model/ide-audit/src/App.lex.tex
+      # The IDE's page code that stands beside the models: tested, not proved.
+      - name: The browser signature check agrees with the verdicts pinned for check
+        run: node ide/tools/signature-test.mjs
+      - name: The scope rules copy passes its cases
+        run: node ide/tools/scope-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
         shell: bash
         run: |
