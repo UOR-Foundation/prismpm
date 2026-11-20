@@ -284,7 +284,9 @@ async function buildRuleApp(dir, session, { log, env, snapshot, gaps, kernel, wa
   let site = null;
   if (acceptance.failed.length === 0) {
     const { writeRuleAppSite } = await import('./rule-app-site.mjs');
-    site = writeRuleAppSite(join(dir, '.prism', 'site'), made.bytes).directory;
+    const { modelFiles } = await import('./model-files.mjs');
+    // The model goes with the page, so anyone the page reaches can open, check and prove the model it was built from.
+    site = writeRuleAppSite(join(dir, '.prism', 'site'), made.bytes, { model: modelFiles(dir), semanticId: checked.semanticId }).directory;
   }
   const seconds = Math.round((Date.now() - started) / 100) / 10;
   session.status.ruleApp = { path, address: made.address, semanticId: checked.semanticId, site, at: new Date().toISOString(), seconds, passed: acceptance.passed, total: acceptance.total, holo: app.record.kernel.holo };
@@ -300,7 +302,7 @@ async function buildRuleApp(dir, session, { log, env, snapshot, gaps, kernel, wa
     site,
     vectors: { passed: acceptance.passed, total: acceptance.total },
     message: ok
-      ? `Built in ${seconds} s with nothing compiled: the app is the verified rule judge and the numbers of the model ${checked.semanticId}, named together as ${made.address}. Lean's kernel accepted all ${checked.table.guarantees.length} guarantees. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it. Its page is the folder ${relative(process.cwd(), site) || site}: static files any host serves, which check the app in the browser before it answers.`
+      ? `Built in ${seconds} s with nothing compiled: the app is the verified rule judge and the numbers of the model ${checked.semanticId}, named together as ${made.address}. Lean's kernel accepted all ${checked.table.guarantees.length} guarantees. Tested: ${acceptance.passed} of ${acceptance.total} acceptance vectors pass through it. Its page is the folder ${relative(process.cwd(), site) || site}: static files any host serves, which check the app in the browser before it answers. The folder also holds the model's source, in model/, so publishing the page publishes the model.`
       : `Written, but ${acceptance.failed.length} of ${acceptance.total} acceptance vectors fail through the rule judge: an example in the model answers otherwise than its rules do.`,
   };
 }

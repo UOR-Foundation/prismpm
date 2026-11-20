@@ -154,7 +154,7 @@
               # Independently released inputs must be public before a fresh
               # crates.io consumer can resolve the packaged PrismPM manifest.
               if [ "$UPLOAD" = true ]; then
-                wait_for_crate lexlean 0.4.0
+                wait_for_crate lexlean 0.4.3
               fi
               release_parent=$(mktemp -d)
               release_sources="$release_parent/release-crates"

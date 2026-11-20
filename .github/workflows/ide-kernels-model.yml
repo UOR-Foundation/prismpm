@@ -17,12 +17,14 @@ on:
     paths:
       - sdk/npm/prism-code/model/ide-*/**
       - sdk/npm/prism-code/model/ide-prove-rule-app.mjs
+      - sdk/npm/prism-code/ide/**
       - .github/workflows/ide-kernels-model.yml
   push:
     branches: [main]
     paths:
       - sdk/npm/prism-code/model/ide-*/**
       - sdk/npm/prism-code/model/ide-prove-rule-app.mjs
+      - sdk/npm/prism-code/ide/**
       - .github/workflows/ide-kernels-model.yml
 
 permissions:
@@ -52,6 +54,39 @@ jobs:
         run: node model/ide-prove-rule-app.mjs model/ide-capability-gate 13
       - name: The command table, 5 guarantees
         run: node model/ide-prove-rule-app.mjs model/ide-command-table 5
+      - name: The audit status, 14 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-audit 14
+      - name: "Planted defect: an audit that takes another model's attestation as proof is refused"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # Rule 4 is "a verified attestation that names this model -> proved". Make it accept one that names another.
+          path = 'model/ide-audit/src/App.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(record Rule {conditions := (cons (record Condition {field := 2, op := 4, value := 2}) (cons (record Condition {field := 3, op := 4, value := 1}) (nil Condition))), answer := 2})'
+          assert text.count(sound) == 1, 'the rule the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, sound.replace('field := 3, op := 4, value := 1', 'field := 3, op := 4, value := 0')))
+          PY
+          ! git diff --quiet -- model/ide-audit/src/App.lex.tex
+          set +e
+          node model/ide-prove-rule-app.mjs model/ide-audit 14 > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q '^FAILED' defect.log
+          rm defect.log
+          git checkout -- model/ide-audit/src/App.lex.tex
+      # The IDE's page code that stands beside the models: tested, not proved.
+      - name: The browser signature check agrees with the verdicts pinned for check
+        run: node ide/tools/signature-test.mjs
+      - name: The keyless signature check accepts and refuses the Sigstore conformance bundles as their cases say
+        run: node ide/tools/keyless-test.mjs
+      - name: The scope rules copy passes its cases
+        run: node ide/tools/scope-test.mjs
+      - name: A model is told apart from one its app does not run
+        run: node ide/tools/app-match-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
         shell: bash
         run: |

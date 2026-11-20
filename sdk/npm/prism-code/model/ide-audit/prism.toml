@@ -1,0 +1,11 @@
+[application]
+name = "audit-status"
+version = "0.1.0"
+description = "say what the audit view may claim of one guarantee: proved, tested, refused or unknown."
+
+[model]
+source = "src"
+watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]
+
+# Deny by default: an empty set grants the holo nothing.
+[capabilities]

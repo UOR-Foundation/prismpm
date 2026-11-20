@@ -1,0 +1,4 @@
+{
+  "kib": 3,
+  "reason": "a rule app's page carries its model's source, so it can be opened and checked in a browser: journey/model-files.mjs, and the model written by journey/rule-app-site.mjs and journey/engine.mjs (about 2.9 KiB)."
+}

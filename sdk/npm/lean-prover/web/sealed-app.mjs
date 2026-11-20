@@ -49,6 +49,7 @@ export function prover({ seal, sealLabel, link, files, holo }) {
   const t0 = performance.now(), timeline = { judges: [] };
   const mark = (k) => { timeline[k] ??= Math.round(performance.now() - t0); };
   const judges = [], wanted = judgesFor();
+  timeline.wanted = wanted;
   // LexLean's worker, which also keeps the project verdicts: all a returning visit needs.
   const start = () => (ready ??= (async () => {
     front = channel(link("web/lexlean-worker.mjs"));
@@ -77,7 +78,7 @@ export function prover({ seal, sealLabel, link, files, holo }) {
       const ready = first
         ? c.ask({ op: "init", ...boot, wantImage: wanted > 1 }).then((r) => { image = r.image ?? null; delete r.image; return r; })
         : judges[0].ready.then(() => c.ask({ op: "init", ...boot, image: copy() }));
-      ready.then((r) => timeline.judges.push({ at: Math.round(performance.now() - t0), ms: r.ms, resumed: r.resumed }), () => {});
+      ready.then((r) => timeline.judges.push({ at: Math.round(performance.now() - t0), ms: r.ms, resumed: r.resumed, ...(r.setAside ? { setAside: r.setAside } : {}) }), () => {});
       judges.push({ ...c, ready });
     }
   }

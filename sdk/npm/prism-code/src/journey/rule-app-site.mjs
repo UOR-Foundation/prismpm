@@ -13,6 +13,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readKernelFile } from './kernel-store.mjs';
+import { modelListing } from './model-files.mjs';
 import { ANSWER, RULE_APP_SCHEMA, admits, answerKind, greatestAt, kernelChecked, leastAt, pinnedHolo, rulesAt } from './rule-app.mjs';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -319,8 +320,12 @@ button { cursor: pointer; justify-self: start; }
 /**
  * Write the page's folder for a record. The same record gives the same files.
  * Returns `{ directory, files }`, the files relative to the folder, sorted.
+ *
+ * Given the app's `model` (`modelFiles` of its folder), the folder also carries the model's source in `model/`, with
+ * `model/project.json` listing it, so the model can be opened and checked in a browser from the app's own address.
+ * The page itself does not read it.
  */
-export function writeRuleAppSite(directory, recordBytes, { holo = null } = {}) {
+export function writeRuleAppSite(directory, recordBytes, { holo = null, model = null, semanticId = null } = {}) {
   const record = JSON.parse(new TextDecoder().decode(recordBytes));
   rmSync(directory, { recursive: true, force: true });
   const files = new Map([
@@ -334,6 +339,10 @@ export function writeRuleAppSite(directory, recordBytes, { holo = null } = {}) {
   files.set('kernel/manifest.json', readFileSync(join(SRC, 'journey', 'kernel', 'manifest.json')));
   for (const name of ['lean-kernel.mjs.gz', 'lean-kernel.wasm.gz', 'library.ndjson.gz']) files.set(`kernel/${name}`, Buffer.from(readKernelFile(name)));
   files.set('index.html', Buffer.from(indexHtml(record, [...files.keys()].filter((path) => path.startsWith('prism-code/') && path.endsWith('.mjs')).sort())));
+  if (model) {
+    for (const [path, bytes] of model.files) files.set(`model/${path}`, Buffer.from(bytes));
+    files.set('model/project.json', modelListing(model, { semanticId }));
+  }
   for (const [path, bytes] of files) {
     const at = join(directory, path);
     mkdirSync(dirname(at), { recursive: true });

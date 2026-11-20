@@ -2,13 +2,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from '../src/journey/engine.mjs';
 import { RULE_JUDGE_HOLO, admits, answerKind, greatestAt, kernelChecked, leastAt, rulesAt } from '../src/journey/rule-app.mjs';
 import { browserClosure, writeRuleAppSite } from '../src/journey/rule-app-site.mjs';
+import { modelFiles } from '../src/journey/model-files.mjs';
 import { PARKING, ruleAppSnapshot } from './support/snapshot.mjs';
 import { snapshotOf, startedApp } from './support/started-app.mjs';
 
@@ -54,9 +55,23 @@ test('a build writes the page beside the app, and the page carries the record, t
   assert.match(html, /<title>Parking fee tier<\/title>/);
   assert.match(html, /<script type="module" src="\.\/start\.mjs"><\/script>/);
   // The same record gives the same files, byte for byte.
-  const again = writeRuleAppSite(join(dir, '.prism', 'site-again'), at('app.rule-app.json'));
+  const model = modelFiles(dir);
+  const again = writeRuleAppSite(join(dir, '.prism', 'site-again'), at('app.rule-app.json'), { model, semanticId: r.semanticId });
   for (const file of again.files) assert.deepEqual(readFileSync(join(again.directory, file)), at(file), file);
-  assert.equal(again.files.length, 4 + browserClosure().length + 9);
+  assert.equal(again.files.length, 4 + browserClosure().length + 9 + model.files.size + 1);
+  // The model goes with the page: every file LexLean reads to check it, byte for byte, listed with the file to open
+  // and the identity the build proved. The page itself does not read it.
+  const listing = JSON.parse(at('model/project.json'));
+  assert.equal(listing.schema, 'prism/model-listing/1');
+  assert.equal(listing.semanticId, r.semanticId);
+  assert.equal(listing.entry, 'src/App.lex.tex');
+  assert.deepEqual(listing.files, [...model.files.keys()]);
+  for (const file of listing.files) assert.deepEqual(at(`model/${file}`), readFileSync(join(dir, file)), file);
+  for (const needed of ['lexlean.toml', 'lexlean.lock', 'src/App.lex.tex']) assert.ok(listing.files.includes(needed), needed);
+  assert.ok(!script.includes('model/'));
+  for (const file of listing.files) assert.ok(!file.split('/').some((part) => part.startsWith('.')), file);
+  // A site written without the model, as a caller that has only the record does, carries none.
+  assert.ok(!writeRuleAppSite(join(dir, '.prism', 'site-bare'), at('app.rule-app.json')).files.some((file) => file.startsWith('model/')));
   // Planted defect P2: the page proves the guarantees itself. It carries Lean's kernel and library, the pinned bytes,
   // and the same writer of proof terms this package runs, and it does not take the record's word for the proof.
   const manifest = JSON.parse(at('kernel/manifest.json'));
@@ -69,6 +84,27 @@ test('a build writes the page beside the app, and the page carries the record, t
   assert.match(script, /if \(g !== manifest\.glue\.sha256 \|\| w !== manifest\.wasm\.sha256 \|\| l !== manifest\.library\.sha256\) throw/);
   // Before its own proof is done the page says it is proving, never that anything is proved.
   assert.ok(!script.includes("'Checked by Lean"));
+});
+
+test('the published model is what a check reads: nothing of the machine it was written on, of a build, or that a static host would not serve', () => {
+  const { dir } = startedApp('rule-app');
+  // Planted defect: each of these is in the app's folder and none may be published. session.json names folders on
+  // the author's machine; a static host serves no dot-file, so a listing that named one asks for a file not there.
+  const planted = ['session.json', '.gitignore', '.prism/build/app.rule-app.json', '.lexlean/cache', 'notes.md', '.prism-last.log', 'run.log', 'node_modules/x/index.js', 'target/out'];
+  for (const file of planted) { mkdirSync(join(dir, file, '..'), { recursive: true }); writeFileSync(join(dir, file), 'x'); }
+  const model = modelFiles(dir);
+  for (const file of planted) assert.ok(!model.files.has(file), file);
+  for (const file of model.files.keys()) assert.ok(!file.split('/').some((part) => part.startsWith('.')), file);
+  for (const needed of ['lexlean.toml', 'lexlean.lock', 'lake-manifest.json', 'src/App.lex.tex']) assert.ok(model.files.has(needed), needed);
+  assert.equal(model.entry, 'src/App.lex.tex');
+  assert.deepEqual([...model.files.keys()], [...model.files.keys()].sort());
+  // A folder the caller names is left out too, and a project that names no entrypoint is refused.
+  mkdirSync(join(dir, 'tools'));
+  writeFileSync(join(dir, 'tools', 'gen.py'), 'x');
+  assert.ok(modelFiles(dir).files.has('tools/gen.py'));
+  assert.ok(!modelFiles(dir, { skip: ['tools'] }).files.has('tools/gen.py'));
+  writeFileSync(join(dir, 'lexlean.toml'), 'name = "x"');
+  assert.throws(() => modelFiles(dir), /names no entrypoint/);
 });
 
 test('a title cannot write markup into the page, and an app whose guarantee fails gets no page', { timeout: 120000 }, async () => {

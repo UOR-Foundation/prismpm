@@ -4,9 +4,10 @@
 // A kernel that has loaded the base library is suspended to a κ: its whole linear memory, filed under the BLAKE3 label
 // of those bytes, with a pointer from the labels of the kernel, its loader and the library. A judge resumes from that
 // image (a fresh instance, the memory copied in) instead of reading the library again: tens of milliseconds in place
-// of hundreds. The image is used only when it re-hashes to its label, and only this kernel, from this library, made it.
+// of hundreds. The image is used only when it re-hashes to its label, and only this kernel, from this library, made it;
+// a resumed kernel must then answer, or the image is set aside (`setAside` says why) and the library read again.
 //
-//   { op: "init", hologramJs, hologramWasm, seal, image?, wantImage? } -> { ok, resumed, ms, image? }
+//   { op: "init", hologramJs, hologramWasm, seal, image?, wantImage? } -> { ok, resumed, setAside?, ms, image? }
 // `image` is a sibling judge's image, handed over by the page: a judge started beside another resumes from it at once,
 // with no storage between them. `wantImage` asks for this judge's image back, to hand to the next.
 //   { op: "judge", text }                          -> { exit, axioms: { name: [axiom] }, output, ms }
@@ -27,8 +28,21 @@ async function init(data) {
   try { factory = (await import(url)).default; } finally { URL.revokeObjectURL(url); }
   const module = await WebAssembly.compile(wasm);
   const said = [];
-  const m = await factory({ instantiateWasm: (imports, ok) => { WebAssembly.instantiate(module, imports).then((i) => ok(i, module)); return {}; }, print: (x) => said.push(x), printErr: (x) => said.push(x) });
-  if (m.ccall("checker_ready", "number", [], []) !== 0) throw new Error("Lean's kernel did not start");
+  // A kernel, and its memory, taken from the instance: a view of memory made after it grows always reaches its end,
+  // where a view kept from before the growth does not.
+  const start = async () => {
+    let memory = null;
+    const made = await factory({
+      instantiateWasm: (imports, ok) => {
+        WebAssembly.instantiate(module, imports).then((i) => { memory = Object.values(i.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; ok(i, module); });
+        return {};
+      },
+      print: (x) => said.push(x), printErr: (x) => said.push(x),
+    });
+    if (made.ccall("checker_ready", "number", [], []) !== 0) throw new Error("Lean's kernel did not start");
+    return { made, heap: () => (memory ? new Uint8Array(memory.buffer) : made.HEAPU8) };
+  };
+  let { made: m, heap } = await start();
   const call = (entry, text) => {
     m.FS.writeFile("/f.ndjson", text); said.length = 0;
     let exit; try { exit = m.ccall(entry, "number", ["string"], ["/f.ndjson"]); } catch (e) { exit = 3; said.push("trap: " + (e?.message ?? e)); }
@@ -39,25 +53,41 @@ async function init(data) {
   const name = holo.address(new TextEncoder().encode(["lean-prover/kernel-image/1", seal.kernel.loader.kappa, seal.kernel.wasm.kappa, seal.base.kappa].join("\n"))).slice(7);
   let image = data.image ?? null;
   if (!image) { const label = await pointer(dir, name); image = label ? await recall(holo, dir, label) : null; }
-  let resumed = false;
+  // The image only saves time: when resuming from it fails for any reason, a fresh kernel reads the library and a new
+  // image is kept, so a cache never fails a proof.
+  let resumed = false, setAside = null;
   if (image) {
-    const need = image.length - m.HEAPU8.length;
-    if (need > 0 && !m._malloc(need)) throw new Error("the kernel could not grow to its image");
-    m.HEAPU8.set(image);
-    if (m.HEAPU8.length > image.length) m.HEAPU8.fill(0, image.length);
-    resumed = true;
-  } else {
+    try {
+      // The image is the whole memory of a kernel that loaded its library, which can be larger than a fresh kernel's
+      // (80.5 MB against 64 MB measured). malloc of only the difference can be met from free space inside the current
+      // memory, which then never grows; asking for the image's whole size makes the runtime grow memory past it.
+      if (image.length > heap().length && !m._malloc(image.length)) throw new Error("the kernel could not grow to its image");
+      const view = heap();
+      if (view.length < image.length) throw new Error(`the kernel grew to ${view.length} bytes, not its image's ${image.length}`);
+      view.set(image);
+      if (view.length > image.length) view.fill(0, image.length);
+      // The resumed kernel must answer as a kernel over its library: checking nothing is accepted, or it is not resumed.
+      const probe = call("check_suffix", "");
+      if (probe.exit !== 0) throw new Error(`the resumed kernel did not answer (${probe.said.join(" ").slice(0, 120)})`);
+      resumed = true;
+    } catch (e) {
+      // Why the image was set aside, said with the judge, so a slow start is never a mystery.
+      setAside = String(e?.message ?? e);
+      ({ made: m, heap } = await start());
+    }
+  }
+  if (!resumed) {
     const base = await admitted(holo, dir, seal.base);
     const loaded = call("load_library", new TextDecoder().decode(base));
     if (loaded.exit !== 0) throw new Error("the base library was refused: " + loaded.said.slice(-2).join(" "));
     // Suspended here, for the judges beside this one and, once filed, for every later visit. Filing does not hold up
     // this judge: it is ready as soon as the library is loaded.
-    image = m.HEAPU8.slice();
+    image = heap().slice();
     const kept = image.slice();
     keep(holo, dir, kept).then((label) => point(dir, name, label)).catch(() => {});
   }
-  kernel = { call, heapMB: () => Math.round(m.HEAPU8.length / 1048576) };
-  const out = { ok: true, resumed, ms: Math.round(now() - t), heapMB: kernel.heapMB() };
+  kernel = { call, heapMB: () => Math.round(heap().length / 1048576) };
+  const out = { ok: true, resumed, ...(setAside ? { setAside } : {}), ms: Math.round(now() - t), heapMB: kernel.heapMB() };
   if (data.wantImage) { out.image = image; out.transfer = [image.buffer]; }
   return out;
 }
