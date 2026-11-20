@@ -89,6 +89,39 @@ Gates: an app built from the template shows the control and opens its own audit 
 
 Budgets: the frame grows by under 2 KiB. An app's page pays nothing until the control is used.
 
+## The goal, stated so it can be checked
+
+The goal is the editing experience of vscode.dev, serverless and in any browser, without Microsoft's own services. It is not "feature complete with vscode.dev": parts of vscode.dev are services, and a page with no server cannot be one.
+
+The workbench is not an imitation. `ide/` runs `@codingame/monaco-vscode-api`, which packages the open-source VS Code workbench that vscode.dev is built from. Layout, editor, palette and keybindings are the same code. The Visual Studio Code name, logo and product icons are Microsoft's and are not used.
+
+"Tried" below means run in the phase 1 spike. "In the workbench" means the code is the same as vscode.dev's and is loaded, but nobody has exercised it here.
+
+| vscode.dev | Prism IDE | Today | Planned |
+|---|---|---|---|
+| Editor: tabs, split, minimap, multi-cursor, find in file | Same code | Tried: a file opens and edits in the full workbench | |
+| Layout: activity bar, side bar, panel, status bar | Same code | Tried: renders | |
+| Command palette, keybindings, settings editor | Same code | In the workbench, not exercised | Phase 3 check |
+| Themes and icon themes | Same code; themes from Open VSX | Tried: two icon themes and a colour theme activate | |
+| Problems panel and diagnostics | Same code | Tried: markers shown, and drawn by an extension | |
+| Extensions that run in a browser | Same extension host, each call judged by the proved gate | Tried: 18 of the 25 most-downloaded web extensions activate | |
+| Extensions that need Node or native programs | Not possible in any browser; vscode.dev cannot run them either | 5 of the 25 fail for this reason | Phase 3 looks at a Node-compatible runtime, with no promise |
+| Extension marketplace | Open VSX. The Visual Studio Marketplace's terms limit it to Microsoft's products | A fixed list, fetched by script | Phase 2d: install from Open VSX by content label |
+| Open a local folder | The browser's File System Access API, where the browser has it | Not built | Phase 3 |
+| Search across files | Same code, over files held in the browser | Not built | Phase 3 |
+| Source control (git) | git in the browser, speaking to the host the user names | Not built | Phase 3 |
+| Open a GitHub or Azure repository by address | vscode.dev does this with a closed Microsoft extension. Here: git over HTTPS to that host, which is the user's server, not Prism's | Not built | Phase 3 |
+| Terminal | No shell exists in a browser. vscode.dev has none either without a tunnel | Not built | Phase 3 looks at a sandboxed one, with no promise |
+| Debugging | Only for what can run in the browser | Not built | After phase 3 |
+| Settings Sync | Prism ID: the same id on every device, sealed to it | The id works on one device; linking and sync are untested | Phase 3 |
+| Sign in | None needed: Prism ID is made on first use | Tried | |
+| Copilot, Live Share, tunnels to a remote machine | Not offered: they are Microsoft services or need a machine | | |
+| Works offline | Yes, after the first visit | Not built | Phase 2d |
+| Extension permissions | A proved gate: deny, allow or ask per resource, grants signed by the user's id. vscode.dev has no equivalent | Tried on 25 extensions | |
+| Audit of the app being edited | The audit view. vscode.dev has no equivalent | Tried on 4 rule apps and 13 published apps | Phase 2a |
+
+Serverless means no server of Prism's own. Three things still reach a network, each one the user's own choice: Open VSX to install an extension, a git host to clone or push, and the place a Prism app is published.
+
 ## Not in phase 2
 
 - Saving an edit back to a repository. That needs git and write access in the browser.
