@@ -1,0 +1,90 @@
+name: IDE audit page
+
+# Publishes the Prism IDE's audit view (sdk/npm/prism-code/ide/audit) on this repository's GitHub Pages, at
+# <pages>/audit/. A visitor gives it the address of a published Prism app and it shows, in their tab, the app's
+# rules, each guarantee with what backs it, its examples replayed and its fingerprint.
+#
+# The site is files copied from this checkout by ide/tools/build-audit-site.mjs: the page, prism-code's src as the
+# page imports it, and the rule judge archive. Nothing is compiled and nothing is fetched.
+#
+# A Pages site holds one deployment. factory.yml can also deploy here, on a manual run with the repository
+# variable FACTORY_PAGES set to true. That is not set today. Whoever sets it must first make one of the two
+# workflows publish both, or the later deployment replaces the earlier.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - sdk/npm/prism-code/ide/audit/**
+      - sdk/npm/prism-code/ide/tools/build-audit-site.mjs
+      - sdk/npm/prism-code/src/**
+      - sdk/npm/prism-code/test/fixtures/kernel/**
+      - .github/workflows/ide-audit-pages.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ide-audit-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Assemble the audit site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: sdk/npm/prism-code
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      # What is published is what these hold: the signature checks against the verdicts pinned for `check` and
+      # the Sigstore conformance bundles.
+      - name: The page's signature checks pass
+        run: |
+          node ide/tools/signature-test.mjs
+          node ide/tools/keyless-test.mjs
+      - name: Assemble the site
+        run: node ide/tools/build-audit-site.mjs "$RUNNER_TEMP/audit-site" "$GITHUB_SHA"
+      - name: The site is what the page needs
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$RUNNER_TEMP/audit-site"
+          for f in index.html audit/index.html audit/audit.mjs audit/signature.mjs audit/keyless.mjs audit/audit-status.rule-app.json \
+                   audit/judge/kernel.holo audit/prism-code/index.mjs audit/prism-code/blake3.mjs audit/prism-code/vendor/verify.mjs audit/site.json; do
+            test -s "$site/$f" || { echo "missing: $f"; exit 1; }
+          done
+          # The rule judge archive is the one the audit-status record names.
+          python3 - "$site" <<'PY'
+          import hashlib, json, sys
+          site = sys.argv[1]
+          want = json.load(open(f'{site}/audit/audit-status.rule-app.json'))['kernel']['holo']
+          got = 'sha256:' + hashlib.sha256(open(f'{site}/audit/judge/kernel.holo', 'rb').read()).hexdigest()
+          assert got == want, f'the judge archive is {got}, the audit-status record names {want}'
+          PY
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          path: ${{ runner.temp }}/audit-site
+
+  deploy:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}audit/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346
