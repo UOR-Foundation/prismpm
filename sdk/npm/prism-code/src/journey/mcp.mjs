@@ -22,6 +22,20 @@ import { LEXLEAN_CARD } from './card.mjs';
 /** The card an agent writes LexLean from, named by its BLAKE3 label so every agent can say which card it read. */
 const LANGUAGE = Object.freeze({ card: LEXLEAN_CARD, label: kappa(new TextEncoder().encode(LEXLEAN_CARD)) });
 
+/**
+ * When the prism-code on disk is not the one this server started from (setup upgraded it, and the agent kept the
+ * server it had), every answer says so: an agent runs one canonical prism-code, the one setup installed.
+ */
+export function staleServer(running, file = new URL('../../package.json', import.meta.url)) {
+  let installed;
+  try {
+    installed = JSON.parse(readFileSync(file, 'utf8')).version;
+  } catch {
+    return null;
+  }
+  return installed && installed !== running ? `This Prism server runs prism-code ${running}, but ${installed} is installed. Restart the agent so it runs ${installed}.` : null;
+}
+
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json');
 
@@ -209,15 +223,17 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
     const session = load();
     const source = started() ? sourceDigest(dir) : null;
     const current = (record) => (record ? { ...record, current: record.source === source } : null);
+    // A rule app is proved by the rule judge's check and built as the judge: said here as proved and built, like any app.
+    const ruleBuilt = session.status.ruleApp && session.status.lastBuild ? { ...session.status.ruleApp, source: session.status.lastBuild.source } : null;
     return {
       project: dir,
       starter: session.starter,
       files: sourceFiles(dir),
       source,
       checked: current(session.status.checked),
-      proved: current(session.status.proved),
+      proved: current(session.status.proved ?? session.status.kernelChecked),
       kernelChecked: current(session.status.kernelChecked),
-      built: current(session.status.built),
+      built: current(session.status.built ?? ruleBuilt),
       ruleApp: session.status.ruleApp ?? null,
       holo: session.status.holo ?? null,
       jobs: [...jobs.values()].map((j) => ({ kind: j.kind, state: j.state, elapsed: Math.round((Date.now() - j.started) / 1000), latest: j.log.slice(-3) })),
@@ -324,7 +340,9 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
           if (wrong) return reply(id, { content: [{ type: 'text', text: wrong }], structuredContent: { issue: wrong }, isError: true });
           const token = params._meta?.progressToken;
           const progress = token === undefined ? null : (n, line) => send({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: n, message: line } });
-          const result = await tool(params.arguments ?? {}, progress);
+          let result = await tool(params.arguments ?? {}, progress);
+          const stale = staleServer(version);
+          if (stale && result && typeof result === 'object') result = { restart: stale, ...result };
           const isError = result && (result.ok === false || result.state === 'blocked');
           return reply(id, { content: [{ type: 'text', text: text(result) }], structuredContent: result, ...(isError ? { isError: true } : {}) });
         }
