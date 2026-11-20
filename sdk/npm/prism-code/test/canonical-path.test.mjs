@@ -28,14 +28,16 @@ function agentHome() {
   return { HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData'), XDG_CONFIG_HOME: join(home, '.config'), PRISM_HOME: join(home, '.prism') };
 }
 
-test('setup gives every agent the local Prism server, and the hosted one only when asked', () => {
+test('setup gives every agent the local Prism server and never the hosted one; --hosted is refused', () => {
   const env = agentHome();
   const plan = JSON.parse(run(['setup', '--dry-run', '--agents-only', '--json'], { env }).out);
   assert.ok(plan.journey.some((row) => row.status === 'configure'), 'the local prism server is added');
   assert.deepEqual(plan.agents.filter((row) => row.status === 'configure'), [], 'no agent is given the hosted server');
-  const asked = JSON.parse(run(['setup', '--dry-run', '--agents-only', '--json', '--hosted'], { env }).out);
-  assert.ok(asked.agents.some((row) => row.status === 'configure'), '--hosted adds it');
-  assert.match(run(['setup', '--dry-run', '--agents-only'], { env }).out, /not added; it stores models unlisted, not privately/);
+  const asked = run(['setup', '--dry-run', '--agents-only', '--json', '--hosted'], { env });
+  assert.equal(asked.code, 64, asked.err);
+  assert.match(asked.err, /setup no longer takes --hosted/);
+  assert.equal(asked.out, '');
+  assert.match(run(['setup', '--dry-run', '--agents-only'], { env }).out, /not added; every app is proved by Lean's kernel, as WebAssembly, on this machine, and nothing is sent/);
 });
 
 test('setup ends by telling the user that no step needs Docker, then to ask an agent for an app', () => {

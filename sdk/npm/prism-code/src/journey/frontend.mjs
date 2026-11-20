@@ -32,12 +32,17 @@ export function frontendUnavailable(why) {
 
 const offline = (env) => env.PRISM_CODE_TIER === 'offline';
 
-/** Where the front end runs: `hosted` when the user asked for it, else `wasm` when it is here, else `hosted` unless the user is offline. */
+/**
+ * Where the front end runs: `hosted` only when the user asked for it with PRISM_CODE_TIER=hosted, else `wasm`.
+ * With LexLean as WebAssembly missing the step is refused, never sent: nothing about an app leaves this machine
+ * unless the user chose the hosted verifier.
+ */
 export function frontendWhere({ env = process.env, hasWasm = () => false } = {}) {
   if (env.PRISM_CODE_TIER === 'hosted') return 'hosted';
   if (hasWasm()) return 'wasm';
-  if (!offline(env)) return 'hosted';
-  throw frontendUnavailable('LexLean as WebAssembly is not on this machine, and PRISM_CODE_TIER=offline sends nothing to the hosted verifier');
+  throw frontendUnavailable(offline(env)
+    ? 'LexLean as WebAssembly is not on this machine, and PRISM_CODE_TIER=offline fetches nothing'
+    : 'LexLean as WebAssembly is not on this machine and could not be fetched; nothing was sent anywhere');
 }
 
 /** Where an app's theorems are proved: Lean's kernel in this process, or the hosted verifier when the user asked for it. */

@@ -273,13 +273,18 @@ test('--dry-run prints every step under its agent and writes nothing', () => {
 test('prism-code setup --dry-run reads the home it is given, and refuses an unknown option', () => {
   const home = fixtureHome({ '.cursor': null });
   const env = { PATH: '', Path: '', SystemRoot: process.env.SystemRoot ?? '', HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData', 'Roaming'), XDG_CONFIG_HOME: join(home, '.config'), XDG_DATA_HOME: join(home, '.local', 'share'), PRISM_HOME: join(home, '.prism') };
-  const result = spawnSync(process.execPath, [bin, 'setup', '--dry-run', '--hosted'], { encoding: 'utf8', env });
+  const result = spawnSync(process.execPath, [bin, 'setup', '--dry-run'], { encoding: 'utf8', env });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /\n {2}cursor {10}would configure {5}/);
+  // The local prism server is the one cursor is given; the hosted lexlean server never is.
+  assert.match(result.stdout, /\n {2}cursor {10}would configure {5}.*mcp\.json\n {6}set mcpServers\.prism = /);
+  assert.doesNotMatch(result.stdout, /mcpServers\.lexlean/);
   // A machine with the Hologram app already has a holo:// handler, which setup leaves alone.
   assert.match(result.stdout, /\n {2}holo:\/\/ {9}(would register|manual|left alone) /);
   assert.equal(existsSync(join(home, '.cursor', 'mcp.json')), false);
   assert.equal(spawnSync(process.execPath, [bin, 'setup', '--yes'], { encoding: 'utf8', env }).status, 64);
+  const hosted = spawnSync(process.execPath, [bin, 'setup', '--dry-run', '--hosted'], { encoding: 'utf8', env });
+  assert.equal(hosted.status, 64, 'setup no longer adds the hosted server, so --hosted is usage');
+  assert.match(hosted.stderr, /^setup no longer takes --hosted: every app is proved by Lean's kernel, as WebAssembly, on this machine/);
   assert.equal(spawnSync(process.execPath, [bin, 'setup', '--agent'], { encoding: 'utf8', env }).status, 64);
 });
 
@@ -382,9 +387,11 @@ test('without --hosted, setup adds no hosted server to any agent; the local pris
     assert.notEqual(row.status, 'configure', `${row.agent} gets no hosted server`);
     for (const step of row.steps ?? []) assert.doesNotMatch(JSON.stringify(step), /mcp\.uor\.foundation/);
   }
-  assert.ok(plan.agents.some((row) => row.status === 'local-only'));
+  const local = plan.agents.filter((row) => row.status === 'local-only');
+  assert.ok(local.length > 0);
+  for (const row of local) assert.equal(row.detail, "the hosted lexlean server is not added; the local prism server proves on this machine, with Lean's kernel as WebAssembly");
   assert.ok((plan.journey ?? []).some((row) => row.status === 'configure'), 'the local prism server is added');
-  assert.match(formatSetup(plan), /not added; it stores models unlisted, not privately \(pass --hosted to add it\)/);
+  assert.match(formatSetup(plan), /not added; every app is proved by Lean's kernel, as WebAssembly, on this machine, and nothing is sent/);
 });
 
 test('without --hosted each agent is listed once, under the local server', () => {
@@ -392,9 +399,9 @@ test('without --hosted each agent is listed once, under the local server', () =>
   const home = fixtureHome({ '.cursor/mcp.json': '{"mcpServers":{"lexlean":{"url":"https://mcp.uor.foundation/"}}}', '.codex': null });
   const text = formatSetup(planSetup({ hosted: false }, context('linux', home)));
   for (const agent of ['cursor', 'codex', 'claude-code']) assert.equal(text.split('\n').filter((line) => line.startsWith(`  ${agent} `)).length, 1, `${agent} in:\n${text}`);
-  assert.match(text, /: not added; it stores models unlisted, not privately \(pass --hosted to add it\)\n {4}already in cursor from an earlier setup; left as it is\n {2}the server prism, local/);
+  assert.match(text, /: not added; every app is proved by Lean's kernel, as WebAssembly, on this machine, and nothing is sent\n {4}already in cursor from an earlier setup; left as it is\n {2}the server prism, local/);
   assert.match(text, /\n {2}claude-code {5}not found\n/);
-  // With --hosted the hosted server's rows are its own, as before.
+  // planSetup itself still takes hosted: true (setup never passes it); then the hosted server's rows are its own.
   const hosted = formatSetup(planSetup({ hosted: true }, context('linux', home)));
   assert.equal(hosted.split('\n').filter((line) => line.startsWith('  codex ')).length, 2);
 });
@@ -405,7 +412,7 @@ test('without --hosted no agent gets the hosted server, and each file changed is
   const before = '{"mcpServers":{"other":{"command":"other"}}}\n';
   const home = fixtureHome({ '.cursor/mcp.json': before, '.codex': null });
   const plan = planSetup({ hosted: false }, context('linux', home));
-  assert.match(formatSetup(plan), /: not added; it stores models unlisted, not privately \(pass --hosted to add it\)/);
+  assert.match(formatSetup(plan), /: not added; every app is proved by Lean's kernel, as WebAssembly, on this machine, and nothing is sent/);
   const dry = formatSetup(plan, { dryRun: true });
   assert.match(dry, /set mcpServers\.prism = .* in .*mcp\.json \(backup .*mcp\.json\.prism-backup\)/);
   assert.doesNotMatch(dry, /lexlean = /);

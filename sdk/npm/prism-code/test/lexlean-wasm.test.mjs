@@ -19,14 +19,14 @@ import { kernelProve } from '../src/journey/kernel-prove.mjs';
 process.env.PRISM_KERNEL_DIR = fileURLToPath(new URL('./fixtures/kernel/', import.meta.url));
 const scratch = () => mkdtempSync(join(tmpdir(), 'prism-lexlean-wasm-'));
 
-test('the front end is the user\'s choice of the hosted verifier, else LexLean as WebAssembly, else the hosted verifier unless offline', () => {
+test('the front end is LexLean as WebAssembly, and the hosted verifier only when the user asked for it', () => {
   const yes = () => true;
   const no = () => false;
   const offline = { PRISM_CODE_TIER: 'offline' };
   assert.equal(frontendWhere({ env: { PRISM_CODE_TIER: 'hosted' }, hasWasm: yes }), 'hosted');
   assert.equal(frontendWhere({ env: {}, hasWasm: yes }), 'wasm');
   assert.equal(frontendWhere({ env: offline, hasWasm: yes }), 'wasm');
-  assert.equal(frontendWhere({ env: {}, hasWasm: no }), 'hosted');
+  assert.throws(() => frontendWhere({ env: {}, hasWasm: no }), { code: 'build.frontend-unavailable' }, 'with no LexLean here, nothing is sent unless the user asked');
   assert.throws(() => frontendWhere({ env: offline, hasWasm: no }), { code: 'build.frontend-unavailable' });
   // An app's own theorems are proved by Lean's kernel in this process, offline too; the hosted verifier only on request.
   assert.equal(proverWhere({ env: {} }), 'kernel');

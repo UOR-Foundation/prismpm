@@ -35,7 +35,7 @@
  *   prism-code push <app.holo> <reference>            put the holo and its attestations in a registry or a local store
  *   prism-code pull <reference> [<out.holo>]          fetch a holo, verify it, then write it
  *   prism-code build [--check]|verify|conformance ... run prismpm in the locked SDK image
- *   prism-code setup [--agent <id>] [--hosted] [--pull] [--dry-run] add the local Prism server to every agent here, register holo:// (experimental)
+ *   prism-code setup [--agent <id>] [--pull] [--dry-run] add the local Prism server to every agent here, register holo:// (experimental)
  *   prism-code open <holo://build?agent=<id>&q=<sentence>> [--dry-run]
  *                                                     hand the sentence to the agent the link names (experimental)
  *   prism-code <plugin> [args]                        run prism-<plugin> from the PATH (experimental)
@@ -153,11 +153,11 @@ Usage:
                                                     fetch a holo and write it only after it verifies: digests, archive,
                                                     verdict, attestations; the verify-attestation flags add a signer policy;
                                                     a verified holo is also kept in the local image store
-  prism-code build --check [--hosted | --local] [args]
-                                                    validate the model, write nothing: prismpm check in the SDK image
-                                                    the nearest prismpm.lock pins, on this machine. Only --hosted sends
-                                                    src/ to the hosted verifier for lexlean check (stored unlisted, not
-                                                    private): syntax and types, not proofs, and it says what it skipped
+  prism-code build --check [--project <dir>] [--hosted]
+                                                    validate the model, write nothing: prism.toml, then lexlean check of
+                                                    the LexLean project as WebAssembly, in this process: syntax and
+                                                    types, not proofs. No Docker. Only --hosted sends src/ to the hosted
+                                                    verifier (stored unlisted, not private)
   prism-code build [args]                           prismpm build (needs the Docker socket)
   prism-code build --remote github [--repo <owner/name>] [--ref <commit>] [--timeout <s>] [--allow-dirty] [--policy <file>] [--json]
                                                     the repository's own GitHub Actions builds one commit (pushed to
@@ -166,32 +166,31 @@ Usage:
                                                     verdict and every vector, before anything lands under .prism/build/.
                                                     No Docker here. Token: GITHUB_TOKEN, GH_TOKEN or gh (experimental)
   prism-code verify [args]                          prismpm verify (needs the Docker socket)
-  prism-code verify --lean [--hosted | --local] [--project <dir>] [--all] [args]
-                                                    lexlean verify on the project's LexLean project: every theorem through
-                                                    Lean and leanchecker with its exact axioms, and nothing after; about a
-                                                    minute, in the SDK image on this machine. Only --hosted uses the
-                                                    hosted verifier, which sends src/ (stored unlisted: not searchable, but
-                                                    readable by anyone with the draft's ID), passes only
-                                                    when every entrypoint is verified, and writes .lexlean/hosted/ (experimental)
+  prism-code verify --lean [--project <dir>] [--all] [--hosted]
+                                                    prove every theorem of the project's LexLean model with Lean's own
+                                                    kernel, as WebAssembly, in this process: the model's semantic
+                                                    snapshot lowered to kernel declarations, a proof found for each
+                                                    theorem, and the kernel judging all of it within the declared axioms.
+                                                    Seconds, no Docker, nothing sent. Only --hosted uses the hosted
+                                                    verifier, which stores src/ unlisted, not privately (experimental)
   prism-code conformance [args]                     prismpm conformance
   prism-code axioms [--write] [--json] [--project <dir>]
                                                     the axiom set Lean observes for every definition and theorem, in one
                                                     pass, beside the set the source declares; --write sets each axioms
                                                     member to the observed set and formats the project (experimental)
-  prism-code setup [--agent <id>] [--hosted] [--local] [--pull] [--image <ref>] [--agents-only] [--machine-only] [--json] [--dry-run]
-                                                    get this machine ready, no Docker needed: check Node and the GitHub
-                                                    sign-in, keep sources LF (--local also finds Docker, also inside WSL,
-                                                    notes the SDK image the lockfile pins and creates its cache volume);
-                                                    then add the local Prism server (prism, the mcp verb below) to every
-                                                    agent found here: Claude Code, Codex, Cursor, VS Code, Claude Desktop;
-                                                    with --hosted also add the UOR MCP server (lexlean,
-                                                    https://mcp.uor.foundation/, stores models unlisted, not privately);
-                                                    install the Prism
+  prism-code setup [--agent <id>] [--local] [--pull] [--image <ref>] [--agents-only] [--machine-only] [--json] [--dry-run]
+                                                    get this machine ready, no Docker needed: every app is proved by
+                                                    Lean's kernel as WebAssembly here. Check Node and the GitHub
+                                                    sign-in, keep sources LF (--local also finds Docker for full builds,
+                                                    also inside WSL, notes the SDK image the lockfile pins and creates
+                                                    its cache volume); then add the local Prism server (prism, the mcp
+                                                    verb below) to every agent found here: Claude Code, Codex, Cursor,
+                                                    VS Code, Claude Desktop; install the Prism
                                                     skill; register the holo:// handler; remember the agent; print the
                                                     next steps. Run it as npx prism-code@latest setup
   prism-code mcp [--project <dir>]                  the Prism MCP server on stdio (experimental): the app starts from a
-                                                    starter LexLean module the agent writes; Lean proves it, and it is
-                                                    built in the SDK image (no Docker-free build until LexLean runs as WASM)
+                                                    starter LexLean module the agent writes; Lean's kernel proves it as
+                                                    WebAssembly in this process (a holo build still needs the SDK image)
   prism-code open <holo://build?agent=<id>&q=<sentence>> [--dry-run]
                                                     hand the sentence to the agent: a terminal running claude or codex
                                                     (after Enter), Cursor's or VS Code's install link with the sentence
@@ -263,8 +262,6 @@ Options for export:   --out <dir>                  a new directory name in the p
 Options for closures: --model <model.prism.json>   the model document (numeric-profile closures need it)
 Options for setup:    --agent <id>                 configure only this agent and make it the preferred one: claude-code,
                                                    codex, cursor, vscode, claude-desktop, claude, chatgpt
-                      --hosted                     also add the hosted lexlean server, which stores models unlisted, not
-                                                   privately; without it every proof runs on this machine
                       --local                      also ready local builds: Docker (also inside WSL), the image, its cache;
                                                    without it setup needs no Docker, and apps build on GitHub Actions
                       --image <ref>                the SDK image to pull and cache, NAME@sha256:DIGEST; default the one
@@ -930,129 +927,56 @@ function takeProject(args) {
 }
 
 /**
- * The nearest `prismpm.lock` at or above `cwd`, stopping at the repository's
- * root: `{ path, dir }`, or null. A template instance keeps it at the root and
- * its LexLean project in app/, where the tiers run.
+ * The model tiers run the journey's own steps (journey/engine.mjs), so the CLI and `prism_prove` give one answer:
+ * LexLean as WebAssembly checks the model, and Lean's kernel, as WebAssembly, proves every theorem in this process.
+ * No Docker and no image. `--hosted` is the user's explicit choice of the hosted verifier, as PRISM_CODE_TIER=hosted.
  */
-function findLock(cwd) {
-  for (let dir = resolve(cwd); ; ) {
-    const path = resolve(dir, 'prismpm.lock');
-    if (existsSync(path)) return { path, dir };
-    const parent = dirname(dir);
-    if (existsSync(resolve(dir, '.git')) || parent === dir) return null;
-    dir = parent;
-  }
-}
-
-/** Why a tier runs hosted, as its first line says. Only `--hosted` sends a project anywhere. */
-const HOSTED_WHY = {
-  asked: '--hosted asked for it',
-};
-
-/**
- * Refuse a local tier with no lockfile to name its image, and name the opt-in
- * to the hosted verifier. Prism never falls back to it on its own. Exit 64, as
- * a missing lockfile always has.
- */
-function localUnavailable(verb) {
-  process.stderr.write(`prismpm.lock not found here or above. ${verb} runs on this machine, in the SDK image the lockfile pins; Prism does not send your project anywhere on its own. Pass --hosted to use the hosted verifier, which stores src/ unlisted, not privately.\n`);
-  return 64;
-}
-
-/**
- * Where a LexLean tier runs: in the image on this machine, unless `--hosted`
- * sends it to the UOR MCP server. With neither flag it is local; a missing
- * image is pulled or reported by the local tier itself, and `missing` says
- * there is no lockfile, so the caller refuses instead of sending the project
- * away. Returns `{ where, image, rest, forced, why, missing }` or `{ problem }`.
- */
-function tierRoute(cwd, args) {
-  const local = args.includes('--local');
-  const hosted = args.includes('--hosted');
-  if (local && hosted) return { problem: '--local and --hosted name opposite places; give one' };
-  const rest = args.filter((a) => a !== '--local' && a !== '--hosted');
-  const lock = findLock(cwd);
-  const image = lock ? sdkImageFromLock(readFileSync(lock.path, 'utf8')) : null;
-  if (local) return { where: 'local', image, rest, forced: true };
-  if (hosted) return { where: 'hosted', image, rest, forced: true, why: 'asked' };
-  return { where: 'local', image, rest, forced: false, missing: image === null };
-}
-
-/** What a hosted tier tells the user about the files it sends. */
-const SENT = 'which the server stores unlisted: not searchable, but readable by anyone with the draft\'s ID';
-
-/** The hosted tier's project, or the exit code of a refusal printed with the way to run it in the image. */
-async function hostedTier(cwd, explicit, verb, image) {
-  const hosted = await import('../src/hosted.mjs');
-  let dir;
-  try {
-    dir = lexleanProjectDir(cwd, await modelSource(cwd), explicit);
-  } catch (error) {
-    // With no lockfile and no LexLean project this is not a project at all, as before the hosted tier.
-    if (error.code !== 'tier.project' || image !== null || explicit) throw error;
-    process.stderr.write(`prismpm.lock not found in the current directory, and no LexLean project here\n`);
-    return { code: 64 };
-  }
-  try {
-    return { hosted, dir, project: hosted.hostedProject(resolve(cwd, dir)) };
-  } catch (error) {
-    if (error.code !== 'hosted.layout') throw error;
-    process.stderr.write(`hosted.layout: ${error.message}\nThis project cannot be ${verb} on the hosted verifier; run it in the SDK image with --local.\n`);
-    return { code: 2 };
-  }
-}
-
-/** T1 of the tiers: `lexlean verify` on the project's LexLean project, hosted or in the image with no Docker socket. */
-async function commandLean(args) {
+async function modelTier(verb, args) {
+  if (args.includes('--local')) return { code: usage(`${verb} no longer takes --local: it runs in this process, LexLean and Lean's kernel as WebAssembly, with no Docker`) };
+  const hostedAsked = args.includes('--hosted');
+  const taken = takeProject(args.filter((a) => a !== '--hosted'));
+  if (taken.problem) return { code: usage(taken.problem) };
   const cwd = process.cwd();
-  const route = tierRoute(cwd, args);
-  if (route.problem) return usage(route.problem);
-  // `--project <dir>` names the LexLean project on the host; everything else goes to lexlean verify.
-  const taken = takeProject(route.rest);
-  if (taken.problem) return usage(taken.problem);
-  const { explicit, rest } = taken;
-  const all = rest.includes('--all');
-  const unknown = rest.filter((a) => a !== '--all');
-  if (route.where === 'local') {
-    if (route.missing) return localUnavailable('verify --lean');
-    const dir = lexleanProjectDir(cwd, await modelSource(cwd), explicit);
-    return commandDelegate('verify', ['--project', lexleanProjectArgument(cwd, dir), ...rest], { program: 'lexlean', image: route.image });
+  const dir = lexleanProjectDir(cwd, await modelSource(cwd), taken.explicit);
+  const env = hostedAsked ? { ...process.env, PRISM_CODE_TIER: 'hosted' } : process.env;
+  return { cwd, dir, rest: taken.rest, env };
+}
+
+/** What a journey step answered, as lines, and its exit code. */
+function printStep(result, { ok, failed }) {
+  if (result.ok) process.stdout.write(`ok       ${ok}: ${result.message}\n`);
+  else {
+    process.stdout.write(`failed   ${failed}: ${result.code ? `${result.code}: ` : ''}${result.message ?? ''}\n`);
+    for (const d of result.diagnostics ?? []) process.stdout.write(`  ${d.at ? `${d.at}: ` : ''}${d.code ? `${d.code}: ` : ''}${String(d.message).replace(/\n/g, '\n    ')}\n`);
   }
-  if (unknown.length > 0) return usage(`the hosted verifier takes only --project and --all, not ${unknown.join(' ')}; run lexlean's own flags in the image with --local`);
-  const tier = await hostedTier(cwd, explicit, 'verified', route.image);
+  for (const t of result.theorems ?? []) process.stdout.write(`  ${t.status.startsWith('proved') ? 'proved  ' : 'not     '} ${t.theorem} (${t.proof ?? 'no proof'})${t.status.startsWith('proved') ? '' : `: ${t.status}`}\n`);
+  return result.ok ? 0 : 1;
+}
+
+/** T1 of the tiers: every theorem of the project's LexLean model, proved by Lean's kernel in this process. */
+async function commandLean(args) {
+  const tier = await modelTier('verify --lean', args);
   if (tier.code !== undefined) return tier.code;
-  const { hosted, dir } = tier;
-  const project = all ? { ...tier.project, entrypoints: tier.project.files.map((f) => f.path).filter((p) => hosted.moduleOf(p)) } : tier.project;
-  const url = hosted.hostedUrl();
-  process.stderr.write(`verify --lean on the hosted verifier ${url} (profile ${hosted.HOSTED_PROFILE}), because ${HOSTED_WHY[route.why]}: sending the ${project.files.length} file${project.files.length === 1 ? '' : 's'} under ${dir === '.' ? '' : `${dir}/`}src/, ${SENT}; --local verifies in the SDK image instead.\n`);
+  const unknown = tier.rest.filter((a) => a !== '--all');
+  if (unknown.length > 0) return usage(`verify --lean takes only --project, --all and --hosted, not ${unknown.join(' ')}`);
   if (process.env.PRISM_CODE_DRY_RUN) {
-    process.stdout.write(`hosted lexlean_verify ${url} profile ${hosted.HOSTED_PROFILE} files ${project.entrypoints.join(' ')}\n`);
+    process.stdout.write(`${tier.env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : 'kernel'} prove ${tier.dir}\n`);
     return 0;
   }
-  const client = hosted.hostedClient({ url, version: VERSION });
-  const outcome = await hosted.hostedVerify(client, project, { onWait: (s) => s % 30 < 5 && process.stderr.write(`  verifying, ${s} s\n`) });
-  if (outcome.state === 'failed') {
-    process.stdout.write(`not verified: Lean refused the project\n${hosted.formatDiagnostics(outcome.diagnostics, { dir })}\n`);
-    return 1;
-  }
-  const path = hosted.writeHostedRecord(resolve(cwd, dir), { ...outcome, url, entrypoints: project.entrypoints });
-  process.stdout.write(`verified ${outcome.record.modules.join(', ')}\nattestation ${outcome.record.attestation_id}\nrecord ${path}\n`);
-  return 0;
+  const { prove } = await import('../src/journey/engine.mjs');
+  const result = await prove(resolve(tier.cwd, tier.dir), { starter: null, status: {} }, { env: tier.env, log: (s) => process.stderr.write(`${s}\n`) });
+  return printStep(result, { ok: 'verify --lean', failed: 'verify --lean' });
 }
 
-/** T0 of the tiers: `prismpm check` in the image, or, with no image, the manifest here and `lexlean check` of the draft's files hosted. */
+/** T0 of the tiers: prism.toml here, and LexLean's check of the model as WebAssembly; proves nothing. */
 async function commandTierCheck(args) {
-  const cwd = process.cwd();
-  const route = tierRoute(cwd, args);
-  if (route.problem) return usage(route.problem);
-  const taken = takeProject(route.rest);
-  if (taken.problem) return usage(taken.problem);
-  if (route.where === 'local') return route.missing ? localUnavailable('build --check') : commandDelegate('check', route.rest, { image: route.image });
-  if (taken.rest.length > 0) return usage(`the hosted check takes only --project, not ${taken.rest.join(' ')}; run prismpm check's own flags in the image with --local`);
+  const tier = await modelTier('build --check', args);
+  if (tier.code !== undefined) return tier.code;
+  if (tier.rest.length > 0) return usage(`build --check takes only --project and --hosted, not ${tier.rest.join(' ')}`);
   let failed = false;
-  if (existsSync(resolve(cwd, 'prism.toml'))) {
+  if (existsSync(resolve(tier.cwd, 'prism.toml'))) {
     try {
-      const { manifest, warnings } = await readManifest(cwd);
+      const { manifest, warnings } = await readManifest(tier.cwd);
       process.stdout.write(`ok       prism.toml: ${manifest.application?.name ?? 'application'} ${manifest.application?.version ?? ''}`.trimEnd() + '\n');
       for (const w of warnings) process.stderr.write(`warning: ${w.rule}: ${w.message}\n`);
     } catch (error) {
@@ -1061,24 +985,13 @@ async function commandTierCheck(args) {
       failed = true;
     }
   }
-  const tier = await hostedTier(cwd, taken.explicit, 'checked', route.image);
-  if (tier.code !== undefined) return tier.code;
-  const { hosted, dir, project } = tier;
-  const url = hosted.hostedUrl();
-  process.stderr.write(`build --check: lexlean check on the hosted verifier ${url} (profile ${hosted.HOSTED_PROFILE}), because ${HOSTED_WHY[route.why]}: sending ${project.files.length} file${project.files.length === 1 ? '' : 's'} under src/, ${SENT}.\n`);
   if (process.env.PRISM_CODE_DRY_RUN) {
-    process.stdout.write(`hosted lexlean_check ${url} profile ${hosted.HOSTED_PROFILE} draft\n`);
-  } else {
-    const { outcome } = await hosted.hostedCheck(hosted.hostedClient({ url, version: VERSION }), project);
-    if (outcome.success) process.stdout.write(`ok       lexlean check: ${outcome.modules.length} module${outcome.modules.length === 1 ? '' : 's'} parse and type-check; proofs are not checked here, verify --lean proves them\n`);
-    else {
-      process.stdout.write(`failed   lexlean check\n${hosted.formatDiagnostics(outcome.diagnostics ?? [], { dir })}\n`);
-      failed = true;
-    }
+    process.stdout.write(`${tier.env.PRISM_CODE_TIER === 'hosted' ? 'hosted' : 'wasm'} check ${tier.dir}\n`);
+    return failed ? 1 : 0;
   }
-  const skipped = 'the lockfile and its SDK pins are checked only in the image; run without --hosted to check them there';
-  process.stdout.write(`skipped  prismpm check: ${skipped}\n`);
-  return failed ? 1 : 0;
+  const { check } = await import('../src/journey/engine.mjs');
+  const result = await check(resolve(tier.cwd, tier.dir), { starter: null, status: {} }, { env: tier.env, log: (s) => process.stderr.write(`${s}\n`) });
+  return printStep(result, { ok: 'lexlean check', failed: 'lexlean check' }) || (failed ? 1 : 0);
 }
 
 /** One verb's usage lines and its options block, from the usage text, or null when the usage text has none. */

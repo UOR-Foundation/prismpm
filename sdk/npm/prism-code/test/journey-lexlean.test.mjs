@@ -80,12 +80,13 @@ test('offline, with no LexLean as WebAssembly, every step fails with build.front
   }
 });
 
-test('with nothing set, a rule app is proved from the hosted snapshot, and an app that needs a holo is refused before anything is sent', { timeout: 120000 }, async () => {
+test('with nothing set and no LexLean as WebAssembly here, a rule app is refused, never sent, and an app that needs a holo is refused before anything is sent', { timeout: 120000 }, async () => {
   const rule = startedApp('rule-app');
   const hosted = standIn({ snapshot: ruleAppSnapshot() });
   const r = await prove(rule.dir, rule.session, { env: {}, client: hosted.client, wasm: () => false });
-  assert.equal(r.ok, true, r.message);
-  assert.deepEqual(hosted.calls.map((c) => c.tool), ['lexlean_profiles', 'lexlean_draft_write', 'lexlean_snapshot']);
+  assert.equal(r.ok, false);
+  assert.equal(r.code, 'build.frontend-unavailable');
+  assert.deepEqual(hosted.calls, [], 'only PRISM_CODE_TIER=hosted sends a model');
   const other = startedApp('decision-app');
   const none = standIn({ snapshot: ruleAppSnapshot() });
   const b = await build(other.dir, other.session, { env: {}, client: none.client, wasm: () => false });

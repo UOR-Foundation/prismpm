@@ -28,8 +28,8 @@ function options(argv, { values = [], flags = [] }) {
 }
 
 /**
- * `setup [--agent <id>] [--hosted] [--local] [--pull] [--image <ref>] [--no-pull] [--agents-only] [--machine-only] [--json] [--dry-run]`.
- * `--hosted` also adds the hosted lexlean server to each agent; without it no agent is sent anywhere.
+ * `setup [--agent <id>] [--local] [--pull] [--image <ref>] [--no-pull] [--agents-only] [--machine-only] [--json] [--dry-run]`.
+ * No agent is given the hosted lexlean server: every app is proved by Lean's kernel, as WebAssembly, in this process.
  * The machine half runs first and is applied first, so the agent half's write of
  * `config.json` sees the Docker record. Docker, the image and the cache are
  * looked at only with `--local`, or a flag that implies it: `--pull`,
@@ -38,6 +38,7 @@ function options(argv, { values = [], flags = [] }) {
 export async function runSetup(argv, usage, context = hostSetupContext(), machineContext = hostMachineContext({ env: context.env, platform: context.platform, configDir: context.configDir })) {
   const { problem, positional, named } = options(argv, { values: ['agent', 'image'], flags: ['dry-run', 'local', 'pull', 'no-pull', 'agents-only', 'machine-only', 'json', 'hosted'] });
   if (problem) return usage(problem);
+  if (named.hosted) return usage("setup no longer takes --hosted: every app is proved by Lean's kernel, as WebAssembly, on this machine, and nothing is sent anywhere");
   if (positional.length > 0) return usage('setup takes no arguments');
   if (named.pull && named['no-pull']) return usage('--pull and --no-pull name opposite things; give one');
   const dryRun = named['dry-run'] === true;
@@ -49,7 +50,7 @@ export async function runSetup(argv, usage, context = hostSetupContext(), machin
   const agentsHalf = !named['machine-only'];
   // The skill ships in the package, so there is nothing to fetch.
   const skills = agentsHalf ? bundledSkills() : undefined;
-  const plan = agentsHalf ? planSetup({ agent: named.agent, skills, hosted: named.hosted === true }, context) : { agents: [], handler: { status: 'not-found', steps: [] }, preferred: { agent: null, steps: [] } };
+  const plan = agentsHalf ? planSetup({ agent: named.agent, skills, hosted: false }, context) : { agents: [], handler: { status: 'not-found', steps: [] }, preferred: { agent: null, steps: [] } };
   if (!dryRun && agentsHalf) applySetup(plan);
   const rows = [...plan.agents, ...(plan.journey ?? []), plan.handler, ...(plan.skills ? [plan.skills] : [])];
   const failed = (machine ? machineFailed(machine) : false) || rows.some((row) => row.status === 'failed');

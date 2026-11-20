@@ -86,15 +86,19 @@ test('the docker invocation is the template\'s, minus the socket unless building
   assert.ok(windows.includes('/work'));
 });
 
-test('build --check runs docker with the lock\'s image (dry run)', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'prism-code-lock-'));
-  writeFileSync(join(dir, 'prismpm.lock'), JSON.stringify({ spec: 'prismpm/sdk-lock/2', sdk_image: IMAGE }));
-  const { code, out } = run(['build', '--check', '--verbose'], { cwd: dir, env: { ...process.env, PRISM_CODE_DRY_RUN: '1', PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-home-')) } });
-  assert.equal(code, 0, out);
-  assert.match(out, /^docker run --rm /);
-  assert.ok(out.includes(`${IMAGE} prismpm check --verbose`));
-  const missing = run(['build', '--check'], { cwd: mkdtempSync(join(tmpdir(), 'prism-code-nolock-')), env: { ...process.env, PRISM_CODE_DRY_RUN: '1', PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-home-')) } });
-  assert.equal(missing.code, 64);
+test('build --check checks the LexLean project as WebAssembly, needing no lockfile and no Docker (dry run)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'prism-code-nolock-'));
+  writeFileSync(join(dir, 'lexlean.toml'), 'spec = "lexlean/project/1"\n');
+  const env = { ...process.env, PRISM_CODE_DRY_RUN: '1', PRISM_HOME: mkdtempSync(join(tmpdir(), 'prism-home-')) };
+  const { code, out, err } = run(['build', '--check'], { cwd: dir, env });
+  assert.equal(code, 0, err);
+  assert.equal(out, 'wasm check .\n');
+  assert.doesNotMatch(out + err, /docker|prismpm\.lock/);
+  assert.equal(run(['build', '--check', '--local'], { cwd: dir, env }).code, 64);
+  assert.equal(run(['build', '--check', '--verbose'], { cwd: dir, env }).code, 64, 'an unknown argument is usage');
+  const none = run(['build', '--check'], { cwd: mkdtempSync(join(tmpdir(), 'prism-code-empty-')), env });
+  assert.equal(none.code, 2, 'no LexLean project here');
+  assert.match(none.err, /^tier\.project: no lexlean\.toml/);
 });
 
 test('vectors refuses an altered holo, and with --allow-unverified runs it and still exits 1 (#583)', () => {
