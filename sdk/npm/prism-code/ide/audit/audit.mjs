@@ -176,17 +176,19 @@ async function auditHolo(holoBytes, lib) {
   const audit = await auditJudge(lib.loadArchive, await bytesOrNull(mine('judge/kernel.holo')));
 
   // Judge, read and load the holo. Any of the three refusing it is the finding.
-  let verdict = null, info = null, app = null, refusal = null;
-  try {
-    verdict = await verifier.verify(holoBytes);
-    info = verifier.inspect(holoBytes);
-    app = await lib.loadArchive(holoBytes, { capabilities: null, capabilitySet: undefined, allowUnverified: false });
-  } catch (e) { refusal = `${e?.code ? e.code + ': ' : ''}${e?.message ?? e}`; }
+  // Loading refuses an altered holo. The verifier gives the level; the copy that runs in a browser does not read a
+  // holo that carries statements, and says so. That is a limit of this tab, not a fault of the holo.
+  const said = (e) => `${e?.code ? e.code + ': ' : ''}${e?.message ?? e}`;
+  let verdict = null, info = null, app = null, refusal = null, unjudged = null;
+  try { info = verifier.inspect(holoBytes); } catch (e) { refusal = said(e); }
+  try { app = await lib.loadArchive(holoBytes, { capabilities: null, capabilitySet: undefined, allowUnverified: false }); } catch (e) { refusal = said(e); }
+  try { verdict = await verifier.verify(holoBytes); } catch (e) { unjudged = said(e); }
   state.verdict = verdict;
   $('title').textContent = info?.name ?? 'A holo this tab refuses';
 
   show('verdictSection');
   if (refusal) row('verdict', [['th', 'Refused'], ['td', refusal, 'bad']]);
+  if (unjudged) row('verdict', [['th', 'No level'], ['td', 'This tab could not give the holo a level: ' + unjudged]]);
   if (verdict) {
     row('verdict', [['th', 'Level'], ['td', `${verdict.level} (the default policy asks for ${verdict.policy.minimum})`]]);
     for (const r of verdict.reasons) row('verdict', [['th', r.withholds ? `Withholds ${r.withholds}` : 'Policy'], ['td', r.message]]);
@@ -210,8 +212,15 @@ async function auditHolo(holoBytes, lib) {
   }
 
   // What Lean proved, by the holo's own signed account. Lean does not run here for a holo.
-  const statements = (info?.attestations ?? []).map((a) => a.statement ?? a).filter((s) => s?.predicateType === PROOF_PREDICATE);
-  const proof = statements[0]?.predicate ?? null;
+  // The statements are read through the loaded holo. Their signatures are not checked here: a browser has no
+  // checker for them yet, so a statement counts as verified only when the verifier itself granted P2.
+  let carried = [];
+  try { carried = app ? await app.attestations() : []; } catch { carried = []; }
+  const statements = carried.filter((a) => (a.statement?.predicateType ?? a.predicateType) === PROOF_PREDICATE);
+  const proof = statements[0]?.statement?.predicate ?? null;
+  const signed = statements[0]?.signed === true;
+  state.statements = carried.map((a) => ({ type: a.statement?.predicateType ?? a.predicateType, signed: a.signed === true }));
+  for (const a of state.statements) row('verdict', [['th', 'Carries'], ['td', `${a.signed ? 'a signed' : 'an unsigned'} statement of type ${a.type}; its signature is not checked in this tab`]]);
   const reachedP2 = verdict ? LEVELS.indexOf(verdict.level) >= 2 : false;
   const aboutThis = proof?.model?.document?.sha256 === info?.model?.digest?.sha256;
   const theorems = proof?.theorems ?? [];
@@ -247,10 +256,12 @@ async function auditHolo(holoBytes, lib) {
       : refusal ? 'the holo is refused: ' + refusal
       : status === 'proved' ? 'the build proved it with Lean; this tab checked the signed statement, not the proof'
       : t.verdict !== 'PASSED' ? 'the proof statement records it as failed'
+      : !aboutThis ? 'the proof statement is about another model'
+      : !reachedP2 && !verdict ? `the holo's ${signed ? 'signed' : 'unsigned'} proof statement records it as passed, but a browser cannot check that signature yet, so it is not counted as proof here; prism-code check, given the signer, can`
       : !reachedP2 ? `the proof statement is not accepted: the holo is at ${verdict?.level}`
-      : !aboutThis ? 'the proof statement is about another model' : WHY[status] ?? 'an example gives a different answer than recorded');
+      : WHY[status] ?? 'an example gives a different answer than recorded');
   }
-  summarise(verdict ? ` Level ${verdict.level}.` : '');
+  summarise(verdict ? ` Level ${verdict.level}.` : unjudged ? ' No level in this tab.' : '');
 }
 
 async function main() {
