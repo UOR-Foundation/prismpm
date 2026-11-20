@@ -291,8 +291,22 @@ async function auditHolo(holoBytes, lib) {
   summarise(verdict ? ` Level ${verdict.level}.` : unjudged ? ' No level in this tab.' : '');
 }
 
+// An app may publish its model beside its page (model/project.json, as prism-code's rule-app build writes it). When
+// it does, the editor can open it from the app's own address. This page checks nothing about the model: the editor
+// has LexLean check it and Lean's kernel judge its guarantees, in its own tab.
+async function offerEditor() {
+  let listing = null;
+  try { listing = JSON.parse(dec.decode(await bytesOrNull(appBase + 'model/project.json') ?? enc.encode('null'))); } catch { listing = null; }
+  if (!listing || !Array.isArray(listing.files) || typeof listing.entry !== 'string') { state.model = null; return; }
+  state.model = { files: listing.files.length, entry: listing.entry, semanticId: listing.semanticId ?? null };
+  const link = $('editLink');
+  link.href = new URL('../edit/ide/', location.href).href + '?project=' + encodeURIComponent(appBase + 'model/');
+  $('edit').hidden = false;
+}
+
 async function main() {
   $('app').textContent = appBase;
+  if (params.get('app')) offerEditor();
   // prism-code comes from this page's origin. Only an app on the same origin may stand in with its own copy.
   const sameOrigin = new URL(appBase).origin === location.origin;
   const prismCode = await importFirst(mine('prism-code/index.mjs'), ...(sameOrigin ? [appBase + 'prism-code/src/index.mjs'] : []));
