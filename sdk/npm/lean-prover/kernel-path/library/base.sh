@@ -8,7 +8,7 @@
 # Needs Lean 4.32.2 (elan toolchain leanprover/lean4:v4.32.2).
 set -euo pipefail
 export ELAN_TOOLCHAIN=leanprover/lean4:v4.32.2
-: "${RUNTIME:?}" "${REFLECT:?}" "${LEAN4EXPORT:?}"
+: "${RUNTIME:?}" "${REFLECT:?}" "${LEAN4EXPORT:?}" "${LEXLEAN_ROOTS:?}"
 here=$(cd "$(dirname "$0")" && pwd)
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 export LEAN_PATH="$RUNTIME:$REFLECT"
@@ -30,7 +30,7 @@ ROOTS=$(grep -v "[^A-Za-z0-9_.']" "$W/names.txt" | tr '\n' ' ')
 INIT="Prod.mk Prod.fst Prod.snd List List.cons List.nil List.foldl List.append List.length List.rec List.toArray
 Option Option.some Option.none Option.rec String Int Int.ofNat Int.negSucc Int.tdiv Int.tmod
 Nat Nat.div Nat.mod Nat.add Nat.succ Nat.blt Nat.ble Nat.beq Nat.rec Eq Eq.refl Iff Iff.refl Eq.symm Eq.mpr congrArg
-Bool Bool.true Bool.false Bool.and Bool.or Bool.not Bool.rec And And.intro Or Or.elim
+Bool Bool.true Bool.false Bool.and Bool.or Bool.not Bool.rec Bool.or_eq_false_iff And And.intro Or Or.elim
 LE.le LT.lt Int.instLEInt Int.instLTInt instLTNat instLENat HAdd.hAdd instHAdd Int.instAdd instAddNat
 HSub.hSub instHSub Int.instSub HMul.hMul instHMul Int.instMul OfNat.ofNat instOfNat instOfNatNat UInt8.toNat Int8.toInt
 ite instDecidableEqBool instSubNat instMulNat instBEqOfDecidableEq instDecidableEqString
@@ -39,6 +39,9 @@ UInt8.ofNat UInt8.instOfNat UInt32.instOfNat UInt64.instOfNat Ordering
 LexLeanRuntime.multiply LexLeanRuntime.subtract LexLeanRuntime.quotient LexLeanRuntime.remainder LexLeanRuntime.equal
 LexLeanRuntime.length LexLeanRuntime.index LexLeanRuntime.instQuotientNat LexLeanRuntime.instLengthableByteArray
 LexLeanRuntime.instIndexableByteArrayUInt8"
-"$LEAN4EXPORT" LexReflect -- $ROOTS $INIT > "$W/base.ndjson"
+LEXLEAN=$(grep -v '^$' "$LEXLEAN_ROOTS" | tr '\n' ' ')
+MODULES=$(cd "$RUNTIME" && find LexLeanRuntime -name '*.olean' | sed 's/\.olean$//; s#/#.#g' | sort | tr '\n' ' ')
+ALL=$(printf '%s\n' $ROOTS $INIT $LEXLEAN | sort -u | tr '\n' ' ')
+"$LEAN4EXPORT" LexReflect $MODULES -- $ALL > "$W/base.ndjson"
 gzip -9 -n -c "$W/base.ndjson" > "$here/base.ndjson.gz"
 echo "base library: $(wc -c < "$W/base.ndjson") bytes, $(wc -c < "$here/base.ndjson.gz") compressed"
