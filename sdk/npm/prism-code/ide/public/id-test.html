@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Own origin only. The relay (https://ntfy.sh wss://ntfy.sh) is left out of connect-src on purpose:
+     the frame reads this tag, sees the relay is not admitted, and keeps the id on this device.
+     Add both origins to connect-src to allow linking devices and sync. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-src 'none'">
+<title>Prism ID test</title>
+<!-- The brand tokens the frame draws with. Without them the frame adopts its own baked copy, which an unbaked frame.mjs does not have. -->
+<link rel="stylesheet" href="./prism-frame/site/brand/hologram-warm.css">
+<script type="module" src="./prism-frame/frame/frame.mjs"></script>
+<style>
+  body { margin: 0; font: 14px/1.5 ui-monospace, Consolas, monospace; background: var(--background); color: var(--foreground); }
+  pre { margin: 1.5rem; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<prism-frame name="Prism ID test"></prism-frame>
+<pre id="out">waiting for the Prism id</pre>
+<script type="module">
+// The same module instance the frame loads: one URL, one copy.
+import { verifySession, sheet as panelsSheet } from "./prism-frame/frame/panels.mjs";
+
+const result = (window.__idTest = { ok: false, done: false, prismId: null, signed: null, verified: false, sealedRoundTrip: false, errors: [] });
+const out = document.getElementById("out");
+const show = () => (out.textContent = JSON.stringify(result, null, 2));
+const step = async (name, work) => {
+  try {
+    return await work();
+  } catch (error) {
+    result.errors.push(`${name}: ${error?.code ? error.code + ": " : ""}${error?.message ?? error}`);
+    return undefined;
+  }
+};
+const unb64u = (text) => Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+const b64u = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+await customElements.whenDefined("prism-frame");
+const frame = document.querySelector("prism-frame");
+
+// Looks only. The template bakes these two sheets into the modules at publish;
+// the unmodified files carry placeholders, so the page hands the same CSS over.
+await step("styles", async () => {
+  const [frameCss, panelsCss] = await Promise.all(["frame.css", "panels.css"].map(async (name) => (await fetch(`./prism-frame/frame/${name}`)).text()));
+  const frameSheet = new CSSStyleSheet();
+  frameSheet.replaceSync(frameCss);
+  frame.shadowRoot.adoptedStyleSheets = [...frame.shadowRoot.adoptedStyleSheets, frameSheet];
+  panelsSheet.replaceSync(panelsCss);
+});
+
+// (a) The id. workspaceKey() makes the device, the id and this origin's session
+// if they are missing, with no click, and resolves once they exist.
+const workspaceKey = await step("workspaceKey", () => frame.workspaceKey());
+const account = frame.account; // { id, key, expires } or null
+if (!account) result.errors.push("account: the frame has no Prism id after workspaceKey()");
+result.prismId = account?.id ?? null;
+result.account = account;
+result.workspaceKeyBytes = workspaceKey?.length ?? null;
+
+// (b) Sign, then check as a third party would: from the signed bytes and what sign() returned, nothing else.
+const message = new TextEncoder().encode("prism-ide grant test");
+const signed = account && (await step("sign", () => frame.sign(message)));
+if (signed) {
+  result.signed = { message: "prism-ide grant test", signature: signed.signature, delegation: signed.delegation };
+  await step("verify", async () => {
+    // 1. The delegation: the id's device let this session key act for it on this origin.
+    const who = await verifySession(signed.delegation, { fresh: 0 });
+    if (signed.delegation.app !== location.origin) throw new Error("the session is for another app");
+    // 2. The signature: ECDSA P-256 / SHA-256 by that session key, raw r||s (64 bytes).
+    const key = await crypto.subtle.importKey("raw", unb64u(who.sessionKey), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const good = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, unb64u(signed.signature), message);
+    const tampered = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, unb64u(signed.signature), new TextEncoder().encode("prism-ide grant tesT"));
+    result.verifiedAs = who;
+    result.verified = good && !tampered && who.account === account.id;
+    if (!result.verified) throw new Error(`good=${good} tampered=${tampered} account=${who.account}`);
+  });
+}
+
+// (c) Seal a small JSON with the workspace key and open it again.
+if (workspaceKey) {
+  await step("seal", async () => {
+    const key = await crypto.subtle.importKey("raw", workspaceKey, "AES-GCM", false, ["encrypt", "decrypt"]);
+    const value = { grant: "prism-ide grant test", n: 1 };
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const sealed = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(value)));
+    const opened = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, sealed)));
+    result.sealed = { iv: b64u(iv), ciphertext: b64u(sealed) };
+    result.sealedRoundTrip = JSON.stringify(opened) === JSON.stringify(value);
+    // The same key comes back on the next call, and on the next load.
+    const again = await frame.workspaceKey();
+    result.workspaceKeyStable = again.length === 32 && again.every((b, i) => b === workspaceKey[i]);
+    result.workspaceKeySha256 = b64u(await crypto.subtle.digest("SHA-256", workspaceKey));
+    if (!result.sealedRoundTrip || !result.workspaceKeyStable) throw new Error("the sealed value did not come back");
+  });
+}
+
+result.ok = Boolean(result.prismId) && result.verified && result.sealedRoundTrip && result.errors.length === 0;
+result.done = true;
+show();
+</script>
+</body>
+</html>

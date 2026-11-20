@@ -1,0 +1,12 @@
+{
+ "setcontext": [
+  "_setContext",
+  "setContext"
+ ],
+ "reloadwebview": [
+  "workbench.action.webview.reloadWebviewAction"
+ ],
+ "wordhighlight": [
+  "editor.action.wordHighlight.trigger"
+ ]
+}

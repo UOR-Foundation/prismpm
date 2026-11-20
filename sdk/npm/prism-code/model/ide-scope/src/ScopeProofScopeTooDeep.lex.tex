@@ -1,0 +1,37 @@
+\begin{lexlean}{ScopeProofScopeTooDeep}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{Scope}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: breaksScopeTooDeep,
+  parameters: [r : Scope::Request],
+  result: Bool,
+  body: (((Scope::judge r) =? (Scope::answerInside)) && ((Scope::scopeSlots) <? (project r scopeDepth)))
+}
+
+theorem{
+  name: neverScopeTooDeep,
+  parameters: [r : Scope::Request],
+  statement: ((breaksScopeTooDeep r) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      Scope::answerInside,
+      Scope::answerOutside,
+      Scope::firstName,
+      Scope::inside,
+      Scope::judge,
+      Scope::prefixMatches,
+      Scope::scopeNamed,
+      Scope::scopeSlots,
+      Scope::targetNamed,
+      Scope::targetSlots,
+      Scope::wellFormed,
+      breaksScopeTooDeep
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

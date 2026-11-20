@@ -1,0 +1,463 @@
+{
+ "schema": "prism/rule-app/1",
+ "name": "extension-capability-gate",
+ "title": "Extension capability gate",
+ "kernel": {
+  "holo": "sha256:e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee"
+ },
+ "fields": [
+  {
+   "name": "resource",
+   "kind": "choice",
+   "values": [
+    "show",
+    "read",
+    "write",
+    "network",
+    "secrets",
+    "exec"
+   ]
+  },
+  {
+   "name": "declared",
+   "kind": "choice",
+   "values": [
+    "no",
+    "yes"
+   ]
+  },
+  {
+   "name": "denied",
+   "kind": "choice",
+   "values": [
+    "no",
+    "yes"
+   ]
+  },
+  {
+   "name": "trusted",
+   "kind": "choice",
+   "values": [
+    "no",
+    "yes"
+   ]
+  },
+  {
+   "name": "target",
+   "kind": "choice",
+   "values": [
+    "outside",
+    "workspace",
+    "storage"
+   ]
+  },
+  {
+   "name": "granted",
+   "kind": "choice",
+   "values": [
+    "no",
+    "yes"
+   ]
+  }
+ ],
+ "outcomes": [
+  "deny",
+  "allow",
+  "ask"
+ ],
+ "words": [
+  1,
+  6,
+  0,
+  5,
+  0,
+  1,
+  0,
+  1,
+  0,
+  1,
+  0,
+  2,
+  0,
+  1,
+  2,
+  6,
+  1,
+  0,
+  2,
+  4,
+  1,
+  1,
+  0,
+  1,
+  4,
+  0,
+  1,
+  0,
+  4,
+  4,
+  0,
+  3,
+  1,
+  4,
+  4,
+  2,
+  0,
+  3,
+  1,
+  0,
+  1,
+  2,
+  2,
+  0,
+  3,
+  4,
+  0,
+  0,
+  2,
+  1,
+  1,
+  1,
+  5,
+  4,
+  1
+ ],
+ "guarantees": [
+  {
+   "always": true,
+   "when": [
+    [
+     2,
+     4,
+     1
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     1,
+     4,
+     0
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     4,
+     4,
+     0
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     3,
+     4,
+     0
+    ],
+    [
+     0,
+     2,
+     2
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     3,
+     4,
+     0
+    ],
+    [
+     0,
+     2,
+     1
+    ],
+    [
+     4,
+     4,
+     1
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": false,
+   "when": [
+    [
+     5,
+     4,
+     0
+    ],
+    [
+     4,
+     4,
+     1
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": false,
+   "when": [
+    [
+     5,
+     4,
+     0
+    ],
+    [
+     0,
+     2,
+     2
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": false,
+   "when": [
+    [
+     5,
+     4,
+     0
+    ],
+    [
+     0,
+     4,
+     0
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     4,
+     4,
+     2
+    ],
+    [
+     0,
+     3,
+     1
+    ],
+    [
+     0,
+     1,
+     2
+    ],
+    [
+     2,
+     4,
+     0
+    ],
+    [
+     1,
+     4,
+     1
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     0,
+     4,
+     5
+    ],
+    [
+     3,
+     4,
+     0
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": false,
+   "when": [
+    [
+     0,
+     4,
+     5
+    ],
+    [
+     5,
+     4,
+     0
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     5,
+     4,
+     1
+    ],
+    [
+     2,
+     4,
+     0
+    ],
+    [
+     1,
+     4,
+     1
+    ],
+    [
+     4,
+     4,
+     1
+    ],
+    [
+     3,
+     4,
+     1
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     5,
+     4,
+     1
+    ],
+    [
+     2,
+     4,
+     0
+    ],
+    [
+     1,
+     4,
+     1
+    ],
+    [
+     4,
+     4,
+     2
+    ],
+    [
+     3,
+     4,
+     1
+    ]
+   ],
+   "outcome": 1
+  }
+ ],
+ "vectors": [
+  {
+   "request": "6e6574776f726b20796573206e6f2079657320776f726b737061636520796573",
+   "response": "616c6c6f77"
+  },
+  {
+   "request": "6e6574776f726b20796573206e6f2079657320776f726b7370616365206e6f",
+   "response": "61736b"
+  },
+  {
+   "request": "6e6574776f726b20796573207965732079657320776f726b737061636520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "777269746520796573206e6f206e6f20776f726b737061636520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "7265616420796573206e6f206e6f20776f726b737061636520796573",
+   "response": "616c6c6f77"
+  },
+  {
+   "request": "73686f77206e6f206e6f2079657320776f726b737061636520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "7365637265747320796573206e6f20796573206f75747369646520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "6578656320796573206e6f2079657320776f726b737061636520796573",
+   "response": "616c6c6f77"
+  },
+  {
+   "request": "6578656320796573206e6f2079657320776f726b7370616365206e6f",
+   "response": "61736b"
+  },
+  {
+   "request": "6578656320796573206e6f206e6f20776f726b737061636520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "777269746520796573206e6f207965732073746f72616765206e6f",
+   "response": "616c6c6f77"
+  },
+  {
+   "request": "7265616420796573206e6f206e6f2073746f72616765206e6f",
+   "response": "616c6c6f77"
+  },
+  {
+   "request": "777269746520796573206e6f206e6f2073746f72616765206e6f",
+   "response": "616c6c6f77"
+  },
+  {
+   "request": "77726974652079657320796573207965732073746f7261676520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "6578656320796573206e6f207965732073746f72616765206e6f",
+   "response": "61736b"
+  },
+  {
+   "request": "6e6574776f726b20796573206e6f206e6f2073746f7261676520796573",
+   "response": "64656e79"
+  },
+  {
+   "request": "73686f7720796573206e6f207965732073746f72616765206e6f",
+   "response": "61736b"
+  },
+  {
+   "request": "777269746520796573206e6f2079657320776f726b7370616365206e6f",
+   "response": "61736b"
+  },
+  {
+   "request": "30203020302030203020302030",
+   "response": "696e76616c6964"
+  }
+ ],
+ "proof": {
+  "lean": {
+   "version": "4.32.1",
+   "commit": "f054605aea4b840552cca2e725580bffd1e1b704"
+  },
+  "kernel": "sha256:4b48480b9c03ae4aa3bf1a37256b59bff2d41d6cf452a2f8aa9de41a28ccd118",
+  "library": "sha256:a22cb8e581310c1c4a03e120e277dd99d37c66f8159188e866f68177836aa560",
+  "bundle": "sha256:f3e508f4726fe948f05df506d8a2cf584b4e16fc630f71e22f3a37404b0800c9",
+  "statement": "sha256:549937f1625ee1a7a80eee2e097bcd16a2dfb15641d7a0df7de6cf97d123b326",
+  "axioms": [
+   "Quot.sound",
+   "propext"
+  ],
+  "verdict": "proved"
+ }
+}

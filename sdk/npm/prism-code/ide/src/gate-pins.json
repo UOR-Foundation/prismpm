@@ -1,0 +1,20 @@
+{
+ "schema": "prism-ide/gate-pins/1",
+ "files": {
+  "app.rule-app.json": {
+   "kappa": "blake3:26c053f1bc5f88e9b1ad0a6f91f4c9b4b6a24c50592fb9db708d0781b6cf5dc7",
+   "sha256": "sha256:7af80bf9c41450dff6ceed9729aef61e80ed65acedc448a59a5f05fd443f99ab",
+   "bytes": 5840
+  },
+  "commands.rule-app.json": {
+   "kappa": "blake3:19c0796290e5d1da5aba99be263fff377d7c9f3ce517e3ccb995802bdfd33b43",
+   "sha256": "sha256:99576bf94f69e198ff5e8b7696cec596d6c9a649db279f48b3f1b4966412cbf5",
+   "bytes": 1941
+  },
+  "kernel.holo": {
+   "kappa": "blake3:9a26402323b5918c8db5568bdec2ebdd5a1579f907d223e9fbbeb2a4bc192af9",
+   "sha256": "sha256:e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee",
+   "bytes": 657131
+  }
+ }
+}

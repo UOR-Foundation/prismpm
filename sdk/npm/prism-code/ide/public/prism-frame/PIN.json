@@ -1,0 +1,62 @@
+{
+  "repository": "UOR-Foundation/template",
+  "commit": "b64cc73c94773ed5bcc9d0549b1ae2c836fa1e0b",
+  "frameLockSpec": "prism/frame-lock/1",
+  "note": "Unmodified copies. Nothing is baked: frame.mjs imports ./panels.mjs, which imports ../identity/prism-id.mjs.",
+  "files": [
+    {
+      "path": "frame.lock",
+      "size": 7238,
+      "sha256": "b4a909cd44caaab70fdc742f66b636df0357034b0c3d9300256c71680d21bd16",
+      "frameLock": "not listed"
+    },
+    {
+      "path": "frame/frame.mjs",
+      "size": 77428,
+      "sha256": "742ac476182099bcc4d93b142fdbd89ba2ce28085a24ab199d23a8f9698b2018",
+      "frameLock": "match"
+    },
+    {
+      "path": "frame/frame.css",
+      "size": 21928,
+      "sha256": "ac8c9cfe2f1e7fe0c7c3725c840e0296fae76314521860d7840ce66876f65869",
+      "frameLock": "match"
+    },
+    {
+      "path": "frame/panels.mjs",
+      "size": 60179,
+      "sha256": "d818b1d511508ff46ad57224779aae00323309dc6aba766a61ecbfbe8f6dfdef",
+      "frameLock": "match"
+    },
+    {
+      "path": "frame/panels.css",
+      "size": 22830,
+      "sha256": "c6faa6a4ddf50444ca887a60e18530390ed52adf38a9d69fb257d3ed7254eb7d",
+      "frameLock": "match"
+    },
+    {
+      "path": "identity/prism-id.mjs",
+      "size": 174762,
+      "sha256": "68482230e97b35a042295ec003687e745b34ba92275f0fc6a671bc1510f6d0d0",
+      "frameLock": "match"
+    },
+    {
+      "path": "identity/stitch.lock",
+      "size": 2298,
+      "sha256": "0ecf5b500675c268d486bbd111246f2087ce0ec79c57540fe635089c6d7a3d0c",
+      "frameLock": "match"
+    },
+    {
+      "path": "identity/PROTOCOL.md",
+      "size": 9323,
+      "sha256": "b3a7e40635ea891aca2c3f228e01dfc816acc2531c0c1db7e4fdc445e942c9bd",
+      "frameLock": "match"
+    },
+    {
+      "path": "site/brand/hologram-warm.css",
+      "size": 3705,
+      "sha256": "86297939f26618556c560542f105cf1be1f0a718180aed7617d6e3018bf0339a",
+      "frameLock": "not listed"
+    }
+  ]
+}

@@ -1,0 +1,432 @@
+[
+ {
+  "id": "ms-python.python",
+  "version": "2026.4.0",
+  "license": "MIT",
+  "bytes": 6826731,
+  "downloads": 62986452,
+  "sha256": "232aeafb01f069824fdd92d3e628c1c442bbcfa1d3cc945ff97076340bb2b4a6",
+  "files": 2380,
+  "activationEvents": [
+   "onDebugInitialConfigurations",
+   "onLanguage:python",
+   "onDebugResolve:python",
+   "onCommand:python.copilotSetupTests",
+   "workspaceContains:mspythonconfig.json",
+   "workspaceContains:pyproject.toml",
+   "workspaceContains:Pipfile",
+   "workspaceContains:setup.py",
+   "workspaceContains:requirements.txt",
+   "workspaceContains:pylock.toml",
+   "workspaceContains:**/pylock.*.toml",
+   "workspaceContains:manage.py",
+   "workspaceContains:app.py",
+   "workspaceContains:.venv",
+   "workspaceContains:.conda",
+   "onLanguageModelTool:get_python_environment_details",
+   "onLanguageModelTool:get_python_executable_details",
+   "onLanguageModelTool:install_python_packages",
+   "onLanguageModelTool:configure_python_environment",
+   "onLanguageModelTool:create_virtual_environment",
+   "onTerminalShellIntegration:python"
+  ],
+  "browser": "./dist/extension.browser.js"
+ },
+ {
+  "id": "eamodio.gitlens",
+  "version": "2026.11.200409",
+  "license": "%gitlens.license%",
+  "bytes": 5099332,
+  "downloads": 19562966,
+  "sha256": "ae41cd7c61be3668ab28db2a47bf16a6b3db6c3a1fb036453976ab44eaa9d76c",
+  "files": 236,
+  "activationEvents": [
+   "onFileSystem:gitlens",
+   "onStartupFinished",
+   "onTerminal:*",
+   "onUri",
+   "onWebviewPanel:gitlens.graph",
+   "onWebviewPanel:gitlens.patchDetails",
+   "onWebviewPanel:gitlens.settings",
+   "onWebviewPanel:gitlens.timeline"
+  ],
+  "browser": "./dist/browser/gitlens.js"
+ },
+ {
+  "id": "ms-toolsai.jupyter",
+  "version": "2025.9.1",
+  "license": "MIT",
+  "bytes": 12619012,
+  "downloads": 11651487,
+  "sha256": "110660656944c4ab0ff687db488c2e8c59c67ec121dcf09bcaa54b6edd9ce71f",
+  "files": 148,
+  "activationEvents": [
+   "onLanguage:python",
+   "onLanguage:jupyter",
+   "onNotebook:jupyter-notebook",
+   "onNotebook:interactive",
+   "onWebviewPanel:jupyter-variables",
+   "onWebviewPanel:jupyter",
+   "onLanguageModelTool:configure_notebook",
+   "onLanguageModelTool:notebook_list_packages",
+   "onLanguageModelTool:notebook_install_packages"
+  ],
+  "browser": "./dist/extension.web.bundle.js"
+ },
+ {
+  "id": "Vue.volar",
+  "version": "3.3.14",
+  "license": null,
+  "bytes": 1028929,
+  "downloads": 11443666,
+  "sha256": "7aa5abe7c5e5a86dcb5b027dcd651fdf965d4d38cc4159e1221cdaafffa32bc2",
+  "files": 38,
+  "activationEvents": [
+   "onLanguage"
+  ],
+  "browser": "./web.js"
+ },
+ {
+  "id": "ms-toolsai.jupyter-renderers",
+  "version": "1.3.0",
+  "license": "MIT",
+  "bytes": 7679650,
+  "downloads": 11128327,
+  "sha256": "d09f6c517a8090a932bb4e2c31bcb2de34ddb2a71133477f6c47f28f36eb76ae",
+  "files": 37,
+  "activationEvents": [],
+  "browser": "./out/extension_renderer/index.js"
+ },
+ {
+  "id": "esbenp.prettier-vscode",
+  "version": "12.4.0",
+  "license": "MIT",
+  "bytes": 3643663,
+  "downloads": 10008970,
+  "sha256": "fb730ea4306d09cdc0a3aaa9e9baae28058cc97a4fbfce8b056b377a0639a9fe",
+  "files": 88,
+  "activationEvents": [
+   "onStartupFinished"
+  ],
+  "browser": "./dist/web-extension.cjs"
+ },
+ {
+  "id": "redhat.vscode-yaml",
+  "version": "2.1.2026112008",
+  "license": "MIT",
+  "bytes": 1106344,
+  "downloads": 9401383,
+  "sha256": "12dfc52196604b16a060c7e57c8188b1b9975fd5f2a2426e99d0bee8ab6733e4",
+  "files": 45,
+  "activationEvents": [
+   "onLanguage:yaml",
+   "onLanguage:yaml-textmate",
+   "onLanguage:yaml-tmlanguage",
+   "onLanguage:ansible",
+   "onLanguage:azure-pipelines",
+   "onLanguage:dockercompose",
+   "onLanguage:github-actions-workflow",
+   "onLanguage:home-assistant",
+   "onLanguage:manifest-yaml",
+   "onLanguage:spring-boot-properties-yaml"
+  ],
+  "browser": "./dist/extension-web"
+ },
+ {
+  "id": "ms-toolsai.vscode-jupyter-cell-tags",
+  "version": "0.1.9",
+  "license": null,
+  "bytes": 180458,
+  "downloads": 9393760,
+  "sha256": "7cd43af55cf562a001dc475e92d9f3fd4b7173011adca0c02da22fbf891c274b",
+  "files": 27,
+  "activationEvents": [
+   "onNotebook:jupyter-notebook",
+   "onCommand:jupyter-cell-tags.removeTag",
+   "onCommand:jupyter-cell-tags.addTag",
+   "onCommand:jupyter-cell-tags.editTagsInJSON",
+   "onCommand:jupyter-cell-tags.paramaterize"
+  ],
+  "browser": "./out/extension-web.js"
+ },
+ {
+  "id": "ms-toolsai.vscode-jupyter-slideshow",
+  "version": "0.1.6",
+  "license": null,
+  "bytes": 174914,
+  "downloads": 9343694,
+  "sha256": "5b8dee0d569b7e0990bb4847c34748cdc0102078779351ed415d9d71cfa3e945",
+  "files": 21,
+  "activationEvents": [
+   "onNotebook:jupyter-notebook",
+   "onCommand:jupyter-slideshow.switchSlideType",
+   "onCommand:jupyter-slideshow.editSlideShowInJSON"
+  ],
+  "browser": "./out/extension-web.js"
+ },
+ {
+  "id": "PKief.material-icon-theme",
+  "version": "5.40.0",
+  "license": "MIT",
+  "bytes": 893199,
+  "downloads": 6966157,
+  "sha256": "55b565f200881abfd807baf9be52fce45fd52fef013ba71b0f8394984ce1ae06",
+  "files": 1281,
+  "activationEvents": [
+   "onStartupFinished"
+  ],
+  "browser": "./dist/extension/web/extension.cjs"
+ },
+ {
+  "id": "GitHub.vscode-pull-request-github",
+  "version": "0.174.0",
+  "license": "MIT",
+  "bytes": 1642713,
+  "downloads": 6768452,
+  "sha256": "d777b9c7d59bc1e34a93366633ac254a4299110df3fa77eb4e5fa3ba2d49ed5f",
+  "files": 25,
+  "activationEvents": [
+   "onStartupFinished",
+   "onOpenExternalUri:http",
+   "onOpenExternalUri:https",
+   "onFileSystem:newIssue",
+   "onFileSystem:pr",
+   "onFileSystem:githubpr",
+   "onFileSystem:githubcommit",
+   "onFileSystem:review",
+   "onWebviewPanel:IssueOverview",
+   "onWebviewPanel:PullRequestOverview",
+   "onChatContextProvider:githubpr",
+   "onChatContextProvider:githubissue"
+  ],
+  "browser": "./dist/browser/extension"
+ },
+ {
+  "id": "quarto.quarto",
+  "version": "1.139.0",
+  "license": "MIT",
+  "bytes": 11807954,
+  "downloads": 4879795,
+  "sha256": "f81a865c511a1c674d020d727b30b0cf499365fe0908ee1edbeb579f116cf22b",
+  "files": 173,
+  "activationEvents": [
+   "onLanguage:r",
+   "workspaceContains:**/*.{qmd,rmd}",
+   "workspaceContains:**/_quarto.{yml,yaml}",
+   "workspaceContains:**/_brand.{yml,yaml}",
+   "workspaceContains:**/_extension.{yml,yaml}",
+   "onWebviewPanel:quarto.previewView",
+   "onWebviewPanel:quarto.diagramView"
+  ],
+  "browser": "./browser.js"
+ },
+ {
+  "id": "GitHub.vscode-github-actions",
+  "version": "0.32.3",
+  "license": "MIT",
+  "bytes": 2620843,
+  "downloads": 4623598,
+  "sha256": "058462162cb29d4d22341d912c15dcfa2194774b1e92fc30fcba1a6ca3c91abd",
+  "files": 90,
+  "activationEvents": [
+   "onView:workflows",
+   "onView:settings",
+   "onDebugResolve:github-actions-job",
+   "onCommand:github-actions.debugger.connect",
+   "workspaceContains:**/.github/workflows/**",
+   "workspaceContains:**/action.yml",
+   "workspaceContains:**/action.yaml"
+  ],
+  "browser": "./dist/extension-web.js"
+ },
+ {
+  "id": "amazonwebservices.aws-toolkit-vscode",
+  "version": "4.20.0",
+  "license": "Apache-2.0",
+  "bytes": 19344221,
+  "downloads": 4027417,
+  "sha256": "3d0ae6cdda5e90487cc95cb7318839da9cf9d650e25ca7d76b38373f6b1b93ad",
+  "files": 519,
+  "activationEvents": [
+   "onStartupFinished",
+   "onUri",
+   "onDebugResolve:aws-sam",
+   "onDebugInitialConfigurations",
+   "onLanguage:javascript",
+   "onLanguage:java",
+   "onLanguage:python",
+   "onLanguage:csharp",
+   "onLanguage:yaml",
+   "onLanguage:cloudformation",
+   "onFileSystem:s3",
+   "onFileSystem:s3-readonly"
+  ],
+  "browser": "./dist/src/extensionWeb"
+ },
+ {
+  "id": "mechatroner.rainbow-csv",
+  "version": "3.24.1",
+  "license": "MIT",
+  "bytes": 880552,
+  "downloads": 3505092,
+  "sha256": "0ecb7da3fb2a54517cd41fce8e858d6276ea8523bed6fbfd64d5ed281bd7514a",
+  "files": 57,
+  "activationEvents": [
+   "onLanguage:csv",
+   "onLanguage:tsv",
+   "onLanguage:csv (semicolon)",
+   "onLanguage:csv (pipe)",
+   "onLanguage:csv (whitespace)",
+   "onLanguage:dynamic csv",
+   "onLanguage:plaintext",
+   "onCommand:rainbow-csv.RBQL",
+   "onCommand:rainbow-csv.RainbowSeparator",
+   "onCommand:rainbow-csv.SampleHead",
+   "onCommand:rainbow-csv.SampleTail"
+  ],
+  "browser": "./dist/web/extension.js"
+ },
+ {
+  "id": "shd101wyy.markdown-preview-enhanced",
+  "version": "0.8.40",
+  "license": "NCSA",
+  "bytes": 23619315,
+  "downloads": 2564251,
+  "sha256": "1d7973cd154b9b90b5361f7e2d611ad9c7da931756b5301188ca084050f43409",
+  "files": 248,
+  "activationEvents": [
+   "onStartupFinished",
+   "onLanguage:markdown",
+   "onLanguage:quarto",
+   "onLanguage:prompt",
+   "onLanguage:instructions",
+   "onLanguage:chatagent",
+   "onLanguage:skill"
+  ],
+  "browser": "./out/web/extension.js"
+ },
+ {
+  "id": "cweijan.vscode-office",
+  "version": "4.2.3",
+  "license": null,
+  "bytes": 13919945,
+  "downloads": 2419066,
+  "sha256": "154133ad9adae65a049f5b45456e0645abd6830ddb2d95c3167d94f0fecc4b08",
+  "files": 1755,
+  "activationEvents": [
+   "onStartupFinished"
+  ],
+  "browser": "./out/extension.web.js"
+ },
+ {
+  "id": "amazonwebservices.amazon-q-vscode",
+  "version": "2.11.0",
+  "license": "Apache-2.0",
+  "bytes": 20302607,
+  "downloads": 2316308,
+  "sha256": "68610149ac2e62b0aecc14da49fd395b2e53fe63e3fd1e2875ea052447bdee09",
+  "files": 268,
+  "activationEvents": [
+   "onStartupFinished",
+   "onUri",
+   "onCommand:aws.amazonq.accept",
+   "onView:aws.codeWhisperer.securityPanel"
+  ],
+  "browser": "./dist/src/extensionWeb"
+ },
+ {
+  "id": "ms-vscode.vscode-js-profile-table",
+  "version": "1.0.11",
+  "license": "MIT",
+  "bytes": 329373,
+  "downloads": 2135911,
+  "sha256": "a962a1e6a3baf74c9354b7f47fa96e6d6f0423a63bff55d7f976b6134a748ae9",
+  "files": 17,
+  "activationEvents": [],
+  "browser": "out/extension.web.js"
+ },
+ {
+  "id": "vscodevim.vim",
+  "version": "1.32.4",
+  "license": "MIT",
+  "bytes": 772717,
+  "downloads": 2021050,
+  "sha256": "0faab122afd25bc94f5ef9cf9678e64cbd554d6dc88fe87ffe11bba623814168",
+  "files": 16,
+  "activationEvents": [
+   "onStartupFinished",
+   "onCommand:type"
+  ],
+  "browser": "./out/extensionWeb"
+ },
+ {
+  "id": "DavidAnson.vscode-markdownlint",
+  "version": "0.62.1",
+  "license": "MIT",
+  "bytes": 352061,
+  "downloads": 1897093,
+  "sha256": "b6baf90037c903aa21b9c525972910561a903b82e12fe8d67220740ec15b1aa0",
+  "files": 12,
+  "activationEvents": [
+   "onLanguage:markdown"
+  ],
+  "browser": "./bundle.web.js"
+ },
+ {
+  "id": "vscode-icons-team.vscode-icons",
+  "version": "13.0.0",
+  "license": "MIT",
+  "bytes": 2505900,
+  "downloads": 1640315,
+  "sha256": "89aa767f87f09dc966efe2e70bed20321d5cb5b2f43fd413598fb6913a9f99c5",
+  "files": 1693,
+  "activationEvents": [
+   "onStartupFinished"
+  ],
+  "browser": "dist/src/vscode-icons.web.bundle.js"
+ },
+ {
+  "id": "usernamehw.errorlens",
+  "version": "3.30.0",
+  "license": "MIT",
+  "bytes": 63266,
+  "downloads": 1485337,
+  "sha256": "b236000f50998b992289b2d354dcbd4fc99b64c75850eebcbb986f7a210c34f4",
+  "files": 30,
+  "activationEvents": [
+   "onStartupFinished"
+  ],
+  "browser": "./dist/extension.js"
+ },
+ {
+  "id": "jeanp413.open-remote-ssh",
+  "version": "0.6.2",
+  "license": null,
+  "bytes": 241974,
+  "downloads": 1252268,
+  "sha256": "0ef955eb76d553663be16e27a1814fa4eca5f9760cbc7c95874e485c7f336248",
+  "files": 12,
+  "activationEvents": [
+   "onCommand:openremotessh.openEmptyWindow",
+   "onCommand:openremotessh.openEmptyWindowInCurrentWindow",
+   "onCommand:openremotessh.openConfigFile",
+   "onCommand:openremotessh.showLog",
+   "onResolveRemoteAuthority:ssh-remote",
+   "onView:sshHosts"
+  ],
+  "browser": "./lib/extension.js"
+ },
+ {
+  "id": "zhuangtongfa.material-theme",
+  "version": "3.20.7",
+  "license": "MIT",
+  "bytes": 344249,
+  "downloads": 1101668,
+  "sha256": "7d672be680049324c68b333065b370ecc001d0df0d233eba2b80fb301cdfbf05",
+  "files": 100,
+  "activationEvents": [
+   "onStartupFinished"
+  ],
+  "browser": "./out/web/extension.js"
+ }
+]

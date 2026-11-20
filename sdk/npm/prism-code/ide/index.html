@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!-- Connections only. The Prism ID relay (ntfy.sh) is left out on purpose: the frame reads this tag, sees the relay
+     is not admitted and keeps the id on this device. Add https://ntfy.sh wss://ntfy.sh to link devices and sync. -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'self' http://localhost:4174 data: blob:">
+<title>Gate spike</title></head>
+<body><pre id="out">starting</pre><div id="editor" style="display:none;width:900px;height:160px;border:1px solid #888"></div>
+<div id="wb" style="display:none"></div>
+<div id="wbfull" style="width:100vw;height:560px;position:relative"></div>
+<script type="module" src="/src/main.js"></script></body></html>

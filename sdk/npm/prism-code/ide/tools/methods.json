@@ -1,0 +1,3158 @@
+[
+ {
+  "iface": "MainThreadGitExtensionShape",
+  "sid": "MainThreadGitExtension",
+  "method": "$onDidChangeRepository",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadClipboardShape",
+  "sid": "MainThreadClipboard",
+  "method": "$readText",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadClipboardShape",
+  "sid": "MainThreadClipboard",
+  "method": "$writeText",
+  "params": "value: string"
+ },
+ {
+  "iface": "MainThreadCommandsShape",
+  "sid": "MainThreadCommands",
+  "method": "$registerCommand",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadCommandsShape",
+  "sid": "MainThreadCommands",
+  "method": "$unregisterCommand",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadCommandsShape",
+  "sid": "MainThreadCommands",
+  "method": "$fireCommandActivationEvent",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadCommandsShape",
+  "sid": "MainThreadCommands",
+  "method": "$executeCommand",
+  "params": "id: string, args: unknown[] | SerializableObjectWithBuffers<unknown[]>, retry: boolean"
+ },
+ {
+  "iface": "MainThreadCommandsShape",
+  "sid": "MainThreadCommands",
+  "method": "$getCommands",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$registerCommentController",
+  "params": "handle: number, id: string, label: string, extensionId: string"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$unregisterCommentController",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$updateCommentControllerFeatures",
+  "params": "handle: number, features: CommentProviderFeatures"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$createCommentThread",
+  "params": "handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange | undefined, comments: languages.Comment[], extensionId: ExtensionIdentifier, isTemplate: boolean, editorId?: string"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$updateCommentThread",
+  "params": "handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$deleteCommentThread",
+  "params": "handle: number, commentThreadHandle: number"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$updateCommentingRanges",
+  "params": "handle: number, resourceHints?: languages.CommentingRangeResourceHint"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$revealCommentThread",
+  "params": "handle: number, commentThreadHandle: number, commentUniqueIdInThread: number, options: languages.CommentThreadRevealOptions"
+ },
+ {
+  "iface": "MainThreadCommentsShape",
+  "sid": "MainThreadComments",
+  "method": "$hideCommentThread",
+  "params": "handle: number, commentThreadHandle: number"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$registerAuthenticationProvider",
+  "params": "details: IRegisterAuthenticationProviderDetails"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$unregisterAuthenticationProvider",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$ensureProvider",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$sendDidChangeSessions",
+  "params": "providerId: string, event: Dto<AuthenticationSessionsChangeEvent>"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$getSession",
+  "params": "providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$getAccounts",
+  "params": "providerId: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$removeSession",
+  "params": "providerId: string, sessionId: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$waitForUriHandler",
+  "params": "expectedUri: UriComponents"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$showContinueNotification",
+  "params": "message: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$showDeviceCodeModal",
+  "params": "userCode: string, verificationUri: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$promptForClientRegistration",
+  "params": "authorizationServerUrl: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$promptForResourceClientSecret",
+  "params": "resourceClientId: string, resource: string"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$registerDynamicAuthenticationProvider",
+  "params": "details: IRegisterDynamicAuthenticationProviderDetails"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$setSessionsForDynamicAuthProvider",
+  "params": "authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number; })[]"
+ },
+ {
+  "iface": "MainThreadAuthenticationShape",
+  "sid": "MainThreadAuthentication",
+  "method": "$sendDidChangeDynamicProviderInfo",
+  "params": "{ providerId, clientId, authorizationServer, label, clientSecret }: { providerId: string; clientId?: string; authorizationServer?: UriComponents; label?: string; clientSecret?: string; }"
+ },
+ {
+  "iface": "MainThreadSecretStateShape",
+  "sid": "MainThreadSecretState",
+  "method": "$getPassword",
+  "params": "extensionId: string, key: string"
+ },
+ {
+  "iface": "MainThreadSecretStateShape",
+  "sid": "MainThreadSecretState",
+  "method": "$setPassword",
+  "params": "extensionId: string, key: string, value: string"
+ },
+ {
+  "iface": "MainThreadSecretStateShape",
+  "sid": "MainThreadSecretState",
+  "method": "$deletePassword",
+  "params": "extensionId: string, key: string"
+ },
+ {
+  "iface": "MainThreadSecretStateShape",
+  "sid": "MainThreadSecretState",
+  "method": "$getKeys",
+  "params": "extensionId: string"
+ },
+ {
+  "iface": "MainThreadConfigurationShape",
+  "sid": "MainThreadConfiguration",
+  "method": "$updateConfigurationOption",
+  "params": "target: ConfigurationTarget | null, key: string, value: unknown, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined"
+ },
+ {
+  "iface": "MainThreadConfigurationShape",
+  "sid": "MainThreadConfiguration",
+  "method": "$removeConfigurationOption",
+  "params": "target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined"
+ },
+ {
+  "iface": "MainThreadDiagnosticsShape",
+  "sid": "MainThreadDiagnostics",
+  "method": "$changeMany",
+  "params": "owner: string, entries: IMarkerChange[]"
+ },
+ {
+  "iface": "MainThreadDiagnosticsShape",
+  "sid": "MainThreadDiagnostics",
+  "method": "$clear",
+  "params": "owner: string"
+ },
+ {
+  "iface": "MainThreadDiaglogsShape",
+  "sid": "MainThreadDiaglogs",
+  "method": "$showOpenDialog",
+  "params": "options?: MainThreadDialogOpenOptions"
+ },
+ {
+  "iface": "MainThreadDiaglogsShape",
+  "sid": "MainThreadDiaglogs",
+  "method": "$showSaveDialog",
+  "params": "options?: MainThreadDialogSaveOptions"
+ },
+ {
+  "iface": "MainThreadDecorationsShape",
+  "sid": "MainThreadDecorations",
+  "method": "$registerDecorationProvider",
+  "params": "handle: number, label: string"
+ },
+ {
+  "iface": "MainThreadDecorationsShape",
+  "sid": "MainThreadDecorations",
+  "method": "$unregisterDecorationProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDecorationsShape",
+  "sid": "MainThreadDecorations",
+  "method": "$onDidChange",
+  "params": "handle: number, resources: UriComponents[] | null"
+ },
+ {
+  "iface": "MainThreadDocumentContentProvidersShape",
+  "sid": "MainThreadDocumentContentProviders",
+  "method": "$registerTextContentProvider",
+  "params": "handle: number, scheme: string"
+ },
+ {
+  "iface": "MainThreadDocumentContentProvidersShape",
+  "sid": "MainThreadDocumentContentProviders",
+  "method": "$unregisterTextContentProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDocumentContentProvidersShape",
+  "sid": "MainThreadDocumentContentProviders",
+  "method": "$onVirtualDocumentChange",
+  "params": "uri: UriComponents, value: string"
+ },
+ {
+  "iface": "MainThreadDocumentsShape",
+  "sid": "MainThreadDocuments",
+  "method": "$tryCreateDocument",
+  "params": "options?: { language?: string; content?: string; encoding?: string; }"
+ },
+ {
+  "iface": "MainThreadDocumentsShape",
+  "sid": "MainThreadDocuments",
+  "method": "$tryOpenDocument",
+  "params": "uri: UriComponents, options?: { encoding?: string; }"
+ },
+ {
+  "iface": "MainThreadDocumentsShape",
+  "sid": "MainThreadDocuments",
+  "method": "$trySaveDocument",
+  "params": "uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadBulkEditsShape",
+  "sid": "MainThreadBulkEdits",
+  "method": "$tryApplyWorkspaceEdit",
+  "params": "workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$tryShowTextDocument",
+  "params": "resource: UriComponents, options: ITextDocumentShowOptions"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$registerTextEditorDecorationType",
+  "params": "extensionId: ExtensionIdentifier, key: string, options: editorCommon.IDecorationRenderOptions"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$removeTextEditorDecorationType",
+  "params": "key: string"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$tryShowEditor",
+  "params": "id: string, position: EditorGroupColumn"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$tryHideEditor",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$trySetOptions",
+  "params": "id: string, options: ITextEditorConfigurationUpdate"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$trySetDecorations",
+  "params": "id: string, key: string, ranges: editorCommon.IDecorationOptions[]"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$trySetDecorationsFast",
+  "params": "id: string, key: string, ranges: number[]"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$tryRevealRange",
+  "params": "id: string, range: IRange, revealType: TextEditorRevealType"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$trySetSelections",
+  "params": "id: string, selections: ISelection[]"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$tryApplyEdits",
+  "params": "id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$tryInsertSnippet",
+  "params": "id: string, modelVersionId: number, template: string, selections: readonly IRange[], opts: IUndoStopOptions"
+ },
+ {
+  "iface": "MainThreadTextEditorsShape",
+  "sid": "MainThreadTextEditors",
+  "method": "$getDiffInformation",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$registerTreeViewDataProvider",
+  "params": "treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean; }"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$refresh",
+  "params": "treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$reveal",
+  "params": "treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[]; } | undefined, options: IRevealOptions"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$setMessage",
+  "params": "treeViewId: string, message: string | IMarkdownString"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$setTitle",
+  "params": "treeViewId: string, title: string, description: string | undefined"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$setBadge",
+  "params": "treeViewId: string, badge: IViewBadge | undefined"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$resolveDropFileData",
+  "params": "destinationViewId: string, requestId: number, dataItemId: string"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$disposeTree",
+  "params": "treeViewId: string"
+ },
+ {
+  "iface": "MainThreadTreeViewsShape",
+  "sid": "MainThreadTreeViews",
+  "method": "$logResolveTreeNodeFailure",
+  "params": "extensionId: string"
+ },
+ {
+  "iface": "MainThreadDownloadServiceShape",
+  "sid": "MainThreadDownloadService",
+  "method": "$download",
+  "params": "uri: UriComponents, to: UriComponents"
+ },
+ {
+  "iface": "MainThreadErrorsShape",
+  "sid": "MainThreadErrors",
+  "method": "$onUnexpectedError",
+  "params": "err: any | SerializedError"
+ },
+ {
+  "iface": "MainThreadConsoleShape",
+  "sid": "MainThreadConsole",
+  "method": "$logExtensionHostMessage",
+  "params": "msg: IRemoteConsoleLog"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$unregister",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentSymbolProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], label: string"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerCodeLensSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitCodeLensEvent",
+  "params": "eventHandle: number, event?: any"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDefinitionSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDeclarationSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerImplementationSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerTypeDefinitionSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerHoverProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerEvaluatableExpressionProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerInlineValuesProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitInlineValuesEvent",
+  "params": "eventHandle: number, event?: any"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentHighlightProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerMultiDocumentHighlightProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerLinkedEditingRangeProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerReferenceSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerCodeActionSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, extensionID: string, supportsResolve: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerPasteEditProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentFormattingSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerRangeFormattingSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportRanges: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerOnTypeFormattingSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerNavigateTypeSupport",
+  "params": "handle: number, supportsResolve: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerRenameSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerNewSymbolNamesProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentSemanticTokensProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitDocumentSemanticTokensEvent",
+  "params": "eventHandle: number"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentRangeSemanticTokensProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitDocumentRangeSemanticTokensEvent",
+  "params": "eventHandle: number"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerCompletionsProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerInlineCompletionsSupport",
+  "params": "handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], supportsSetModelId: boolean, supportsOnDidChange: boolean, initialModelInfo: IInlineCompletionModelInfoDto | undefined, supportsOnDidChangeModelInfo: boolean, supportsSetProviderOption: boolean, initialProviderOptions: readonly IInlineCompletionProviderOptionDto[] | undefined, supportsOnDidChangeProviderOptions: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitInlineCompletionsChange",
+  "params": "handle: number, changeHint: IInlineCompletionChangeHintDto | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitInlineCompletionModelInfoChange",
+  "params": "handle: number, data: IInlineCompletionModelInfoDto | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitInlineCompletionProviderOptionsChange",
+  "params": "handle: number, data: readonly IInlineCompletionProviderOptionDto[] | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerSignatureHelpProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerInlayHintsProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitInlayHintsEvent",
+  "params": "eventHandle: number"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentLinkProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentColorProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerFoldingRangeProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, eventHandle: number | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$emitFoldingRangeEvent",
+  "params": "eventHandle: number, event?: any"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerSelectionRangeProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerCallHierarchyProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerTypeHierarchyProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[]"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$registerDocumentOnDropEditProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], metadata?: IDocumentDropEditProviderMetadata"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$resolvePasteFileData",
+  "params": "handle: number, requestId: number, dataId: string"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$resolveDocumentOnDropFileData",
+  "params": "handle: number, requestId: number, dataId: string"
+ },
+ {
+  "iface": "MainThreadLanguageFeaturesShape",
+  "sid": "MainThreadLanguageFeatures",
+  "method": "$setLanguageConfiguration",
+  "params": "handle: number, languageId: string, configuration: ILanguageConfigurationDto"
+ },
+ {
+  "iface": "MainThreadLanguagesShape",
+  "sid": "MainThreadLanguages",
+  "method": "$changeLanguage",
+  "params": "resource: UriComponents, languageId: string"
+ },
+ {
+  "iface": "MainThreadLanguagesShape",
+  "sid": "MainThreadLanguages",
+  "method": "$tokensAtPosition",
+  "params": "resource: UriComponents, position: IPosition"
+ },
+ {
+  "iface": "MainThreadLanguagesShape",
+  "sid": "MainThreadLanguages",
+  "method": "$computeFullSyntaxHighlighting",
+  "params": "source: string, languageId: string"
+ },
+ {
+  "iface": "MainThreadLanguagesShape",
+  "sid": "MainThreadLanguages",
+  "method": "$setLanguageStatus",
+  "params": "handle: number, status: ILanguageStatus"
+ },
+ {
+  "iface": "MainThreadLanguagesShape",
+  "sid": "MainThreadLanguages",
+  "method": "$removeLanguageStatus",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadMessageServiceShape",
+  "sid": "MainThreadMessageService",
+  "method": "$showMessage",
+  "params": "severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]"
+ },
+ {
+  "iface": "MainThreadOutputServiceShape",
+  "sid": "MainThreadOutputService",
+  "method": "$register",
+  "params": "label: string, file: UriComponents, languageId: string | undefined, extensionId: string"
+ },
+ {
+  "iface": "MainThreadOutputServiceShape",
+  "sid": "MainThreadOutputService",
+  "method": "$update",
+  "params": "channelId: string, mode: OutputChannelUpdateMode, till?: number"
+ },
+ {
+  "iface": "MainThreadOutputServiceShape",
+  "sid": "MainThreadOutputService",
+  "method": "$reveal",
+  "params": "channelId: string, preserveFocus: boolean"
+ },
+ {
+  "iface": "MainThreadOutputServiceShape",
+  "sid": "MainThreadOutputService",
+  "method": "$close",
+  "params": "channelId: string"
+ },
+ {
+  "iface": "MainThreadOutputServiceShape",
+  "sid": "MainThreadOutputService",
+  "method": "$dispose",
+  "params": "channelId: string"
+ },
+ {
+  "iface": "MainThreadProgressShape",
+  "sid": "MainThreadProgress",
+  "method": "$startProgress",
+  "params": "handle: number, options: IProgressOptionsDto, extensionId?: string"
+ },
+ {
+  "iface": "MainThreadProgressShape",
+  "sid": "MainThreadProgress",
+  "method": "$progressReport",
+  "params": "handle: number, message: IProgressStepDto"
+ },
+ {
+  "iface": "MainThreadProgressShape",
+  "sid": "MainThreadProgress",
+  "method": "$progressEnd",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$createTerminal",
+  "params": "extHostTerminalId: string, config: TerminalLaunchConfig"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$dispose",
+  "params": "id: ExtHostTerminalIdentifier"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$hide",
+  "params": "id: ExtHostTerminalIdentifier"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$sendText",
+  "params": "id: ExtHostTerminalIdentifier, text: string, shouldExecute: boolean"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$show",
+  "params": "id: ExtHostTerminalIdentifier, preserveFocus: boolean"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$registerProcessSupport",
+  "params": "isSupported: boolean"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$registerProfileProvider",
+  "params": "id: string, extensionIdentifier: string"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$unregisterProfileProvider",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$registerCompletionProvider",
+  "params": "id: string, extensionIdentifier: string, ...triggerCharacters: string[]"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$unregisterCompletionProvider",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$registerQuickFixProvider",
+  "params": "id: string, extensionIdentifier: string"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$unregisterQuickFixProvider",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$setEnvironmentVariableCollection",
+  "params": "extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined, descriptionMap: ISerializableEnvironmentDescriptionMap"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$startSendingDataEvents",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$stopSendingDataEvents",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$startSendingCommandEvents",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$stopSendingCommandEvents",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$startLinkProvider",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$stopLinkProvider",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$sendProcessData",
+  "params": "terminalId: number, data: string"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$sendProcessReady",
+  "params": "terminalId: number, pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$sendProcessProperty",
+  "params": "terminalId: number, property: IProcessProperty<any>"
+ },
+ {
+  "iface": "MainThreadTerminalServiceShape",
+  "sid": "MainThreadTerminalService",
+  "method": "$sendProcessExit",
+  "params": "terminalId: number, exitCode: number | undefined"
+ },
+ {
+  "iface": "MainThreadTerminalShellIntegrationShape",
+  "sid": "MainThreadTerminalShellIntegration",
+  "method": "$executeCommand",
+  "params": "terminalId: number, commandLine: string"
+ },
+ {
+  "iface": "MainThreadQuickOpenShape",
+  "sid": "MainThreadQuickOpen",
+  "method": "$show",
+  "params": "instance: number, options: quickInput.IPickOptions<TransferQuickPickItem>, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadQuickOpenShape",
+  "sid": "MainThreadQuickOpen",
+  "method": "$setItems",
+  "params": "instance: number, items: TransferQuickPickItemOrSeparator[]"
+ },
+ {
+  "iface": "MainThreadQuickOpenShape",
+  "sid": "MainThreadQuickOpen",
+  "method": "$setError",
+  "params": "instance: number, error: Error"
+ },
+ {
+  "iface": "MainThreadQuickOpenShape",
+  "sid": "MainThreadQuickOpen",
+  "method": "$input",
+  "params": "options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadQuickOpenShape",
+  "sid": "MainThreadQuickOpen",
+  "method": "$createOrUpdate",
+  "params": "params: TransferQuickInput"
+ },
+ {
+  "iface": "MainThreadQuickOpenShape",
+  "sid": "MainThreadQuickOpen",
+  "method": "$dispose",
+  "params": "id: number"
+ },
+ {
+  "iface": "MainThreadStatusBarShape",
+  "sid": "MainThreadStatusBar",
+  "method": "$setEntry",
+  "params": "id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined"
+ },
+ {
+  "iface": "MainThreadStatusBarShape",
+  "sid": "MainThreadStatusBar",
+  "method": "$disposeEntry",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadStorageShape",
+  "sid": "MainThreadStorage",
+  "method": "$initializeExtensionStorage",
+  "params": "shared: boolean, extensionId: string"
+ },
+ {
+  "iface": "MainThreadStorageShape",
+  "sid": "MainThreadStorage",
+  "method": "$setValue",
+  "params": "shared: boolean, extensionId: string, value: object"
+ },
+ {
+  "iface": "MainThreadStorageShape",
+  "sid": "MainThreadStorage",
+  "method": "$registerExtensionStorageKeysToSync",
+  "params": "extension: IExtensionIdWithVersion, keys: string[]"
+ },
+ {
+  "iface": "MainThreadTelemetryShape",
+  "sid": "MainThreadTelemetry",
+  "method": "$publicLog",
+  "params": "eventName: string, data?: any"
+ },
+ {
+  "iface": "MainThreadTelemetryShape",
+  "sid": "MainThreadTelemetry",
+  "method": "$publicLog2",
+  "params": "eventName: string, data?: StrictPropertyCheck<T, E>"
+ },
+ {
+  "iface": "MainThreadEditorInsetsShape",
+  "sid": "MainThreadEditorInsets",
+  "method": "$createEditorInset",
+  "params": "handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents"
+ },
+ {
+  "iface": "MainThreadEditorInsetsShape",
+  "sid": "MainThreadEditorInsets",
+  "method": "$disposeEditorInset",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadEditorInsetsShape",
+  "sid": "MainThreadEditorInsets",
+  "method": "$setHtml",
+  "params": "handle: number, value: string"
+ },
+ {
+  "iface": "MainThreadEditorInsetsShape",
+  "sid": "MainThreadEditorInsets",
+  "method": "$setOptions",
+  "params": "handle: number, options: IWebviewContentOptions"
+ },
+ {
+  "iface": "MainThreadEditorInsetsShape",
+  "sid": "MainThreadEditorInsets",
+  "method": "$postMessage",
+  "params": "handle: number, value: any"
+ },
+ {
+  "iface": "MainThreadEditorTabsShape",
+  "sid": "MainThreadEditorTabs",
+  "method": "$moveTab",
+  "params": "tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean"
+ },
+ {
+  "iface": "MainThreadEditorTabsShape",
+  "sid": "MainThreadEditorTabs",
+  "method": "$closeTab",
+  "params": "tabIds: string[], preserveFocus?: boolean"
+ },
+ {
+  "iface": "MainThreadEditorTabsShape",
+  "sid": "MainThreadEditorTabs",
+  "method": "$closeGroup",
+  "params": "groupIds: number[], preservceFocus?: boolean"
+ },
+ {
+  "iface": "MainThreadWebviewsShape",
+  "sid": "MainThreadWebviews",
+  "method": "$setHtml",
+  "params": "handle: WebviewHandle, value: string"
+ },
+ {
+  "iface": "MainThreadWebviewsShape",
+  "sid": "MainThreadWebviews",
+  "method": "$setOptions",
+  "params": "handle: WebviewHandle, options: IWebviewContentOptions"
+ },
+ {
+  "iface": "MainThreadWebviewsShape",
+  "sid": "MainThreadWebviews",
+  "method": "$postMessage",
+  "params": "handle: WebviewHandle, value: string, ...buffers: VSBuffer[]"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$createWebviewPanel",
+  "params": "extension: WebviewExtensionDescription, handle: WebviewHandle, viewType: string, initData: IWebviewInitData, showOptions: WebviewPanelShowOptions"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$disposeWebview",
+  "params": "handle: WebviewHandle"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$reveal",
+  "params": "handle: WebviewHandle, showOptions: WebviewPanelShowOptions"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$setTitle",
+  "params": "handle: WebviewHandle, value: string"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$setIconPath",
+  "params": "handle: WebviewHandle, value: IWebviewIconPath | undefined"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$registerSerializer",
+  "params": "viewType: string, options: { serializeBuffersForPostMessage: boolean; }"
+ },
+ {
+  "iface": "MainThreadWebviewPanelsShape",
+  "sid": "MainThreadWebviewPanels",
+  "method": "$unregisterSerializer",
+  "params": "viewType: string"
+ },
+ {
+  "iface": "MainThreadCustomEditorsShape",
+  "sid": "MainThreadCustomEditors",
+  "method": "$onDidChangeCustomTextEditorSelection",
+  "params": "handle: WebviewHandle, selection: ISelection | undefined"
+ },
+ {
+  "iface": "MainThreadCustomEditorsShape",
+  "sid": "MainThreadCustomEditors",
+  "method": "$registerTextEditorProvider",
+  "params": "extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, serializeBuffersForPostMessage: boolean"
+ },
+ {
+  "iface": "MainThreadCustomEditorsShape",
+  "sid": "MainThreadCustomEditors",
+  "method": "$registerCustomEditorProvider",
+  "params": "extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean"
+ },
+ {
+  "iface": "MainThreadCustomEditorsShape",
+  "sid": "MainThreadCustomEditors",
+  "method": "$unregisterEditorProvider",
+  "params": "viewType: string"
+ },
+ {
+  "iface": "MainThreadCustomEditorsShape",
+  "sid": "MainThreadCustomEditors",
+  "method": "$onDidEdit",
+  "params": "resource: UriComponents, viewType: string, editId: number, label: string | undefined"
+ },
+ {
+  "iface": "MainThreadCustomEditorsShape",
+  "sid": "MainThreadCustomEditors",
+  "method": "$onContentChange",
+  "params": "resource: UriComponents, viewType: string"
+ },
+ {
+  "iface": "MainThreadWebviewViewsShape",
+  "sid": "MainThreadWebviewViews",
+  "method": "$registerWebviewViewProvider",
+  "params": "extension: WebviewExtensionDescription, viewType: string, options: { retainContextWhenHidden?: boolean; serializeBuffersForPostMessage: boolean; }"
+ },
+ {
+  "iface": "MainThreadWebviewViewsShape",
+  "sid": "MainThreadWebviewViews",
+  "method": "$unregisterWebviewViewProvider",
+  "params": "viewType: string"
+ },
+ {
+  "iface": "MainThreadWebviewViewsShape",
+  "sid": "MainThreadWebviewViews",
+  "method": "$setWebviewViewTitle",
+  "params": "handle: WebviewHandle, value: string | undefined"
+ },
+ {
+  "iface": "MainThreadWebviewViewsShape",
+  "sid": "MainThreadWebviewViews",
+  "method": "$setWebviewViewDescription",
+  "params": "handle: WebviewHandle, value: string | undefined"
+ },
+ {
+  "iface": "MainThreadWebviewViewsShape",
+  "sid": "MainThreadWebviewViews",
+  "method": "$setWebviewViewBadge",
+  "params": "handle: WebviewHandle, badge: IViewBadge | undefined"
+ },
+ {
+  "iface": "MainThreadWebviewViewsShape",
+  "sid": "MainThreadWebviewViews",
+  "method": "$show",
+  "params": "handle: WebviewHandle, preserveFocus: boolean"
+ },
+ {
+  "iface": "MainThreadManagedSocketsShape",
+  "sid": "MainThreadManagedSockets",
+  "method": "$registerSocketFactory",
+  "params": "socketFactoryId: number"
+ },
+ {
+  "iface": "MainThreadManagedSocketsShape",
+  "sid": "MainThreadManagedSockets",
+  "method": "$unregisterSocketFactory",
+  "params": "socketFactoryId: number"
+ },
+ {
+  "iface": "MainThreadManagedSocketsShape",
+  "sid": "MainThreadManagedSockets",
+  "method": "$onDidManagedSocketHaveData",
+  "params": "socketId: number, data: VSBuffer"
+ },
+ {
+  "iface": "MainThreadManagedSocketsShape",
+  "sid": "MainThreadManagedSockets",
+  "method": "$onDidManagedSocketClose",
+  "params": "socketId: number, error: string | undefined"
+ },
+ {
+  "iface": "MainThreadManagedSocketsShape",
+  "sid": "MainThreadManagedSockets",
+  "method": "$onDidManagedSocketEnd",
+  "params": "socketId: number"
+ },
+ {
+  "iface": "MainThreadBrowserTunnelProxyShape",
+  "sid": "MainThreadBrowserTunnelProxy",
+  "method": "$openNetworkConnection",
+  "params": "authority: string, host: string, port: number"
+ },
+ {
+  "iface": "MainThreadBrowserTunnelProxyShape",
+  "sid": "MainThreadBrowserTunnelProxy",
+  "method": "$readNetworkConnection",
+  "params": "id: number"
+ },
+ {
+  "iface": "MainThreadBrowserTunnelProxyShape",
+  "sid": "MainThreadBrowserTunnelProxy",
+  "method": "$writeNetworkConnection",
+  "params": "id: number, data: VSBuffer"
+ },
+ {
+  "iface": "MainThreadBrowserTunnelProxyShape",
+  "sid": "MainThreadBrowserTunnelProxy",
+  "method": "$endNetworkConnection",
+  "params": "id: number"
+ },
+ {
+  "iface": "MainThreadBrowserTunnelProxyShape",
+  "sid": "MainThreadBrowserTunnelProxy",
+  "method": "$closeNetworkConnection",
+  "params": "id: number"
+ },
+ {
+  "iface": "MainThreadNotebookShape",
+  "sid": "MainThreadNotebook",
+  "method": "$registerNotebookSerializer",
+  "params": "handle: number, extension: notebookCommon.NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined"
+ },
+ {
+  "iface": "MainThreadNotebookShape",
+  "sid": "MainThreadNotebook",
+  "method": "$unregisterNotebookSerializer",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadNotebookShape",
+  "sid": "MainThreadNotebook",
+  "method": "$registerNotebookCellStatusBarItemProvider",
+  "params": "handle: number, eventHandle: number | undefined, viewType: string"
+ },
+ {
+  "iface": "MainThreadNotebookShape",
+  "sid": "MainThreadNotebook",
+  "method": "$unregisterNotebookCellStatusBarItemProvider",
+  "params": "handle: number, eventHandle: number | undefined"
+ },
+ {
+  "iface": "MainThreadNotebookShape",
+  "sid": "MainThreadNotebook",
+  "method": "$emitCellStatusBarEvent",
+  "params": "eventHandle: number"
+ },
+ {
+  "iface": "MainThreadNotebookEditorsShape",
+  "sid": "MainThreadNotebookEditorsShape",
+  "method": "$tryShowNotebookDocument",
+  "params": "uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions"
+ },
+ {
+  "iface": "MainThreadNotebookEditorsShape",
+  "sid": "MainThreadNotebookEditorsShape",
+  "method": "$tryRevealRange",
+  "params": "id: string, range: ICellRange, revealType: NotebookEditorRevealType"
+ },
+ {
+  "iface": "MainThreadNotebookEditorsShape",
+  "sid": "MainThreadNotebookEditorsShape",
+  "method": "$trySetSelections",
+  "params": "id: string, range: ICellRange[]"
+ },
+ {
+  "iface": "MainThreadNotebookDocumentsShape",
+  "sid": "MainThreadNotebookDocumentsShape",
+  "method": "$tryCreateNotebook",
+  "params": "options: { viewType: string; content?: NotebookDataDto; }"
+ },
+ {
+  "iface": "MainThreadNotebookDocumentsShape",
+  "sid": "MainThreadNotebookDocumentsShape",
+  "method": "$tryOpenNotebook",
+  "params": "uriComponents: UriComponents"
+ },
+ {
+  "iface": "MainThreadNotebookDocumentsShape",
+  "sid": "MainThreadNotebookDocumentsShape",
+  "method": "$trySaveNotebook",
+  "params": "uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$postMessage",
+  "params": "handle: number, editorId: string | undefined, message: any"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$addKernel",
+  "params": "handle: number, data: INotebookKernelDto2"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$updateKernel",
+  "params": "handle: number, data: Partial<INotebookKernelDto2>"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$removeKernel",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$updateNotebookPriority",
+  "params": "handle: number, uri: UriComponents, value: number | undefined"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$createExecution",
+  "params": "handle: number, controllerId: string, uri: UriComponents, cellHandle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$updateExecution",
+  "params": "handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$completeExecution",
+  "params": "handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$createNotebookExecution",
+  "params": "handle: number, controllerId: string, uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$beginNotebookExecution",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$completeNotebookExecution",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$addKernelDetectionTask",
+  "params": "handle: number, notebookType: string"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$removeKernelDetectionTask",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$addKernelSourceActionProvider",
+  "params": "handle: number, eventHandle: number, notebookType: string"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$removeKernelSourceActionProvider",
+  "params": "handle: number, eventHandle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$emitNotebookKernelSourceActionsChangeEvent",
+  "params": "eventHandle: number"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$receiveVariable",
+  "params": "requestId: string, variable: VariablesResult"
+ },
+ {
+  "iface": "MainThreadNotebookKernelsShape",
+  "sid": "MainThreadNotebookKernels",
+  "method": "$variablesUpdated",
+  "params": "notebookUri: UriComponents"
+ },
+ {
+  "iface": "MainThreadNotebookRenderersShape",
+  "sid": "MainThreadNotebookRenderers",
+  "method": "$postMessage",
+  "params": "editorId: string | undefined, rendererId: string, message: unknown"
+ },
+ {
+  "iface": "MainThreadSpeechShape",
+  "sid": "MainThreadSpeechProvider",
+  "method": "$registerProvider",
+  "params": "handle: number, identifier: string, metadata: ISpeechProviderMetadata"
+ },
+ {
+  "iface": "MainThreadSpeechShape",
+  "sid": "MainThreadSpeechProvider",
+  "method": "$registerVoiceLiveSessionProvider",
+  "params": "handle: number, identifier: string, metadata: ISpeechProviderMetadata"
+ },
+ {
+  "iface": "MainThreadSpeechShape",
+  "sid": "MainThreadSpeechProvider",
+  "method": "$unregisterProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadSpeechShape",
+  "sid": "MainThreadSpeechProvider",
+  "method": "$emitSpeechToTextEvent",
+  "params": "session: number, event: ISpeechToTextEvent"
+ },
+ {
+  "iface": "MainThreadSpeechShape",
+  "sid": "MainThreadSpeechProvider",
+  "method": "$emitTextToSpeechEvent",
+  "params": "session: number, event: ITextToSpeechEvent"
+ },
+ {
+  "iface": "MainThreadSpeechShape",
+  "sid": "MainThreadSpeechProvider",
+  "method": "$emitKeywordRecognitionEvent",
+  "params": "session: number, event: IKeywordRecognitionEvent"
+ },
+ {
+  "iface": "MainThreadBrowsersShape",
+  "sid": "MainThreadBrowsers",
+  "method": "$openBrowserTab",
+  "params": "url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions"
+ },
+ {
+  "iface": "MainThreadBrowsersShape",
+  "sid": "MainThreadBrowsers",
+  "method": "$closeBrowserTab",
+  "params": "browserId: string"
+ },
+ {
+  "iface": "MainThreadBrowsersShape",
+  "sid": "MainThreadBrowsers",
+  "method": "$startCDPSession",
+  "params": "sessionId: string, browserId: string"
+ },
+ {
+  "iface": "MainThreadBrowsersShape",
+  "sid": "MainThreadBrowsers",
+  "method": "$closeCDPSession",
+  "params": "sessionId: string"
+ },
+ {
+  "iface": "MainThreadBrowsersShape",
+  "sid": "MainThreadBrowsers",
+  "method": "$sendCDPMessage",
+  "params": "sessionId: string, message: CDPRequest"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$registerLanguageModelProvider",
+  "params": "vendor: string"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$onLMProviderChange",
+  "params": "vendor: string"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$unregisterProvider",
+  "params": "vendor: string"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$tryStartChatRequest",
+  "params": "extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$reportResponsePart",
+  "params": "requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$reportResponseDone",
+  "params": "requestId: number, error: SerializedError | undefined"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$selectChatModels",
+  "params": "selector: ILanguageModelChatSelector"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$countTokens",
+  "params": "modelId: string, value: string | IChatMessage, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$cancelLanguageModelChatRequest",
+  "params": "requestId: number"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$fileIsIgnored",
+  "params": "uri: UriComponents, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$registerFileIgnoreProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadLanguageModelsShape",
+  "sid": "MainThreadLanguageModels",
+  "method": "$unregisterFileIgnoreProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatContextShape",
+  "sid": "MainThreadChatContext",
+  "method": "$registerChatWorkspaceContextProvider",
+  "params": "handle: number, id: string"
+ },
+ {
+  "iface": "MainThreadChatContextShape",
+  "sid": "MainThreadChatContext",
+  "method": "$registerChatExplicitContextProvider",
+  "params": "handle: number, id: string"
+ },
+ {
+  "iface": "MainThreadChatContextShape",
+  "sid": "MainThreadChatContext",
+  "method": "$registerChatResourceContextProvider",
+  "params": "handle: number, id: string, selector: ITabSelectorDto"
+ },
+ {
+  "iface": "MainThreadChatContextShape",
+  "sid": "MainThreadChatContext",
+  "method": "$unregisterChatContextProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatContextShape",
+  "sid": "MainThreadChatContext",
+  "method": "$updateWorkspaceContextItems",
+  "params": "handle: number, items: IChatContextItemDto[]"
+ },
+ {
+  "iface": "MainThreadChatContextShape",
+  "sid": "MainThreadChatContext",
+  "method": "$executeChatContextItemCommand",
+  "params": "itemHandle: number"
+ },
+ {
+  "iface": "MainThreadChatDebugShape",
+  "sid": "MainThreadChatDebug",
+  "method": "$registerChatDebugLogProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatDebugShape",
+  "sid": "MainThreadChatDebug",
+  "method": "$unregisterChatDebugLogProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatDebugShape",
+  "sid": "MainThreadChatDebug",
+  "method": "$acceptChatDebugEvent",
+  "params": "handle: number, event: IChatDebugEventDto"
+ },
+ {
+  "iface": "MainThreadChatDebugShape",
+  "sid": "MainThreadChatDebug",
+  "method": "$subscribeToCoreDebugEvents",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadChatDebugShape",
+  "sid": "MainThreadChatDebug",
+  "method": "$unsubscribeFromCoreDebugEvents",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadEmbeddingsShape",
+  "sid": "MainThreadEmbeddings",
+  "method": "$registerEmbeddingProvider",
+  "params": "handle: number, identifier: string"
+ },
+ {
+  "iface": "MainThreadEmbeddingsShape",
+  "sid": "MainThreadEmbeddings",
+  "method": "$unregisterEmbeddingProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadEmbeddingsShape",
+  "sid": "MainThreadEmbeddings",
+  "method": "$computeEmbeddings",
+  "params": "embeddingsModel: string, input: string[], token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadCodeMapperShape",
+  "sid": "MainThreadCodeMapper",
+  "method": "$registerCodeMapperProvider",
+  "params": "handle: number, displayName: string"
+ },
+ {
+  "iface": "MainThreadCodeMapperShape",
+  "sid": "MainThreadCodeMapper",
+  "method": "$unregisterCodeMapperProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadCodeMapperShape",
+  "sid": "MainThreadCodeMapper",
+  "method": "$handleProgress",
+  "params": "requestId: string, data: ICodeMapperProgressDto"
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$getTools",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$acceptToolProgress",
+  "params": "callId: string, progress: IToolProgressStep"
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$invokeTool",
+  "params": "dto: Dto<IToolInvocation>, token?: CancellationToken"
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$countTokensForInvocation",
+  "params": "callId: string, input: string, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$registerTool",
+  "params": "id: string, hasHandleToolStream: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$registerToolWithDefinition",
+  "params": "extensionId: ExtensionIdentifier, definition: IToolDefinitionDto, hasHandleToolStream: boolean"
+ },
+ {
+  "iface": "MainThreadLanguageModelToolsShape",
+  "sid": "MainThreadChatSkills",
+  "method": "$unregisterTool",
+  "params": "name: string"
+ },
+ {
+  "iface": "MainThreadUrlsShape",
+  "sid": "MainThreadUrls",
+  "method": "$registerUriHandler",
+  "params": "handle: number, extensionId: ExtensionIdentifier, extensionDisplayName: string"
+ },
+ {
+  "iface": "MainThreadUrlsShape",
+  "sid": "MainThreadUrls",
+  "method": "$unregisterUriHandler",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadUrlsShape",
+  "sid": "MainThreadUrls",
+  "method": "$createAppUri",
+  "params": "uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadUriOpenersShape",
+  "sid": "MainThreadUriOpeners",
+  "method": "$registerUriOpener",
+  "params": "id: string, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string"
+ },
+ {
+  "iface": "MainThreadUriOpenersShape",
+  "sid": "MainThreadUriOpeners",
+  "method": "$unregisterUriOpener",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadChatOutputRendererShape",
+  "sid": "MainThreadChatOutputRenderer",
+  "method": "$registerChatOutputRenderer",
+  "params": "viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents"
+ },
+ {
+  "iface": "MainThreadChatOutputRendererShape",
+  "sid": "MainThreadChatOutputRenderer",
+  "method": "$unregisterChatOutputRenderer",
+  "params": "viewType: string"
+ },
+ {
+  "iface": "MainThreadProfileContentHandlersShape",
+  "sid": "MainThreadProfileContentHandlers",
+  "method": "$registerProfileContentHandler",
+  "params": "id: string, name: string, description: string | undefined, extensionId: string"
+ },
+ {
+  "iface": "MainThreadProfileContentHandlersShape",
+  "sid": "MainThreadProfileContentHandlers",
+  "method": "$unregisterProfileContentHandler",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$startFileSearch",
+  "params": "includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$startTextSearch",
+  "params": "query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$checkExists",
+  "params": "folders: readonly UriComponents[], includes: string[], token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$save",
+  "params": "uri: UriComponents, options: { saveAs: boolean; }"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$saveAll",
+  "params": "includeUntitled?: boolean"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$updateWorkspaceFolders",
+  "params": "extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string; }[]"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$resolveProxy",
+  "params": "url: string"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$lookupAuthorization",
+  "params": "authInfo: AuthInfo"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$lookupKerberosAuthorization",
+  "params": "url: string"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$loadCertificates",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$requestResourceTrust",
+  "params": "options: ResourceTrustRequestOptionsDto"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$requestWorkspaceTrust",
+  "params": "options?: WorkspaceTrustRequestOptions"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$isResourceTrusted",
+  "params": "resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$registerEditSessionIdentityProvider",
+  "params": "handle: number, scheme: string"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$unregisterEditSessionIdentityProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$registerCanonicalUriProvider",
+  "params": "handle: number, scheme: string"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$unregisterCanonicalUriProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$resolveDecoding",
+  "params": "resource: UriComponents | undefined, options?: { encoding?: string; }"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$validateDetectedEncoding",
+  "params": "resource: UriComponents | undefined, detectedEncoding: string, options?: { encoding?: string; }"
+ },
+ {
+  "iface": "MainThreadWorkspaceShape",
+  "sid": "MainThreadWorkspace",
+  "method": "$resolveEncoding",
+  "params": "resource: UriComponents | undefined, options?: { encoding?: string; }"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$registerFileSystemProvider",
+  "params": "handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities, readonlyMessage?: IMarkdownString"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$unregisterProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$onFileSystemChange",
+  "params": "handle: number, resource: IFileChangeDto[]"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$stat",
+  "params": "resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$readdir",
+  "params": "resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$readFile",
+  "params": "resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$writeFile",
+  "params": "resource: UriComponents, content: VSBuffer"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$rename",
+  "params": "resource: UriComponents, target: UriComponents, opts: files.IFileOverwriteOptions"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$copy",
+  "params": "resource: UriComponents, target: UriComponents, opts: files.IFileOverwriteOptions"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$mkdir",
+  "params": "resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$delete",
+  "params": "resource: UriComponents, opts: files.IFileDeleteOptions"
+ },
+ {
+  "iface": "MainThreadFileSystemShape",
+  "sid": "MainThreadFileSystem",
+  "method": "$ensureActivation",
+  "params": "scheme: string"
+ },
+ {
+  "iface": "MainThreadFileSystemEventServiceShape",
+  "sid": "MainThreadFileSystemEventService",
+  "method": "$watch",
+  "params": "extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions, correlate: boolean"
+ },
+ {
+  "iface": "MainThreadFileSystemEventServiceShape",
+  "sid": "MainThreadFileSystemEventService",
+  "method": "$unwatch",
+  "params": "session: number"
+ },
+ {
+  "iface": "MainThreadLabelServiceShape",
+  "sid": "MainThreadLabelService",
+  "method": "$registerResourceLabelFormatter",
+  "params": "handle: number, formatter: ResourceLabelFormatter"
+ },
+ {
+  "iface": "MainThreadLabelServiceShape",
+  "sid": "MainThreadLabelService",
+  "method": "$unregisterResourceLabelFormatter",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$registerFileSearchProvider",
+  "params": "handle: number, scheme: string"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$registerAITextSearchProvider",
+  "params": "handle: number, scheme: string"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$registerTextSearchProvider",
+  "params": "handle: number, scheme: string"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$unregisterProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$handleFileMatch",
+  "params": "handle: number, session: number, data: UriComponents[]"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$handleTextMatch",
+  "params": "handle: number, session: number, data: search.IRawFileMatch2[]"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$handleKeywordResult",
+  "params": "handle: number, session: number, data: AISearchKeyword"
+ },
+ {
+  "iface": "MainThreadSearchShape",
+  "sid": "MainThreadSearch",
+  "method": "$handleTelemetry",
+  "params": "eventName: string, data: any"
+ },
+ {
+  "iface": "MainThreadShareShape",
+  "sid": "MainThreadShare",
+  "method": "$registerShareProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], id: string, label: string, priority: number"
+ },
+ {
+  "iface": "MainThreadShareShape",
+  "sid": "MainThreadShare",
+  "method": "$unregisterShareProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$createTaskId",
+  "params": "task: tasks.ITaskDTO"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$registerTaskProvider",
+  "params": "handle: number, type: string"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$unregisterTaskProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$fetchTasks",
+  "params": "filter?: tasks.ITaskFilterDTO"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$getTaskExecution",
+  "params": "value: tasks.ITaskHandleDTO | tasks.ITaskDTO"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$executeTask",
+  "params": "task: tasks.ITaskHandleDTO | tasks.ITaskDTO"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$terminateTask",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$registerTaskSystem",
+  "params": "scheme: string, info: tasks.ITaskSystemInfoDTO"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$customExecutionComplete",
+  "params": "id: string, result?: number"
+ },
+ {
+  "iface": "MainThreadTaskShape",
+  "sid": "MainThreadTask",
+  "method": "$registerSupportedExecutions",
+  "params": "custom?: boolean, shell?: boolean, process?: boolean"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$getExtension",
+  "params": "extensionId: string"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$activateExtension",
+  "params": "extensionId: ExtensionIdentifier, reason: ExtensionActivationReason"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$onWillActivateExtension",
+  "params": "extensionId: ExtensionIdentifier"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$onDidActivateExtension",
+  "params": "extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$onExtensionActivationError",
+  "params": "extensionId: ExtensionIdentifier, error: SerializedError, missingExtensionDependency: MissingExtensionDependency | null"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$onExtensionRuntimeError",
+  "params": "extensionId: ExtensionIdentifier, error: SerializedError"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$setPerformanceMarks",
+  "params": "marks: performance.PerformanceMark[]"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$asBrowserUri",
+  "params": "uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadExtensionServiceShape",
+  "sid": "MainThreadExtensionService",
+  "method": "$getAllStaticBrowserUris",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$registerSourceControl",
+  "params": "handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$updateSourceControl",
+  "params": "handle: number, features: SCMProviderFeatures"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$unregisterSourceControl",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$registerGroups",
+  "params": "sourceControlHandle: number, groups: [ number, string, string, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean ][], splices: SCMRawResourceSplices[]"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$updateGroup",
+  "params": "sourceControlHandle: number, handle: number, features: SCMGroupFeatures"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$updateGroupLabel",
+  "params": "sourceControlHandle: number, handle: number, label: string"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$unregisterGroup",
+  "params": "sourceControlHandle: number, handle: number"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$spliceResourceStates",
+  "params": "sourceControlHandle: number, splices: SCMRawResourceSplices[]"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$setInputBoxValue",
+  "params": "sourceControlHandle: number, value: string"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$setInputBoxPlaceholder",
+  "params": "sourceControlHandle: number, placeholder: string"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$setInputBoxEnablement",
+  "params": "sourceControlHandle: number, enabled: boolean"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$setInputBoxVisibility",
+  "params": "sourceControlHandle: number, visible: boolean"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$showValidationMessage",
+  "params": "sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$setValidationProviderIsEnabled",
+  "params": "sourceControlHandle: number, enabled: boolean"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$onDidChangeHistoryProviderCurrentHistoryItemRefs",
+  "params": "sourceControlHandle: number, historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$onDidChangeHistoryProviderHistoryItemRefs",
+  "params": "sourceControlHandle: number, historyItemRefs: SCMHistoryItemRefsChangeEventDto"
+ },
+ {
+  "iface": "MainThreadSCMShape",
+  "sid": "MainThreadSCM",
+  "method": "$onDidChangeArtifacts",
+  "params": "sourceControlHandle: number, groups: string[]"
+ },
+ {
+  "iface": "MainThreadQuickDiffShape",
+  "sid": "MainThreadQuickDiff",
+  "method": "$registerQuickDiffProvider",
+  "params": "handle: number, selector: IDocumentFilterDto[], id: string, label: string, rootUri: UriComponents | undefined"
+ },
+ {
+  "iface": "MainThreadQuickDiffShape",
+  "sid": "MainThreadQuickDiff",
+  "method": "$unregisterQuickDiffProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadQuickDiffShape",
+  "sid": "MainThreadQuickDiff",
+  "method": "$createSourceControlDiffInformation",
+  "params": "handle: number, uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadQuickDiffShape",
+  "sid": "MainThreadQuickDiff",
+  "method": "$disposeSourceControlDiffInformation",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadAgentEditorCommentsShape",
+  "sid": "MainThreadAgentEditorComments",
+  "method": "$createAgentEditorComments",
+  "params": "handle: number, uri: UriComponents"
+ },
+ {
+  "iface": "MainThreadAgentEditorCommentsShape",
+  "sid": "MainThreadAgentEditorComments",
+  "method": "$addComment",
+  "params": "handle: number, range: IRange, body: string"
+ },
+ {
+  "iface": "MainThreadAgentEditorCommentsShape",
+  "sid": "MainThreadAgentEditorComments",
+  "method": "$deleteComment",
+  "params": "handle: number, id: string"
+ },
+ {
+  "iface": "MainThreadAgentEditorCommentsShape",
+  "sid": "MainThreadAgentEditorComments",
+  "method": "$disposeAgentEditorComments",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDocumentDiffShape",
+  "sid": "MainThreadDocumentDiff",
+  "method": "$computeDocumentDiff",
+  "params": "originalUri: UriComponents, modifiedUri: UriComponents, ignoreTrimWhitespace: boolean, maxComputationTimeMs: number, computeMoves: boolean"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$registerDebugTypes",
+  "params": "debugTypes: string[]"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$sessionCached",
+  "params": "sessionID: string"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$acceptDAMessage",
+  "params": "handle: number, message: DebugProtocol.ProtocolMessage"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$acceptDAError",
+  "params": "handle: number, name: string, message: string, stack: string | undefined"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$acceptDAExit",
+  "params": "handle: number, code: number | undefined, signal: string | undefined"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$registerDebugConfigurationProvider",
+  "params": "type: string, triggerKind: DebugConfigurationProviderTriggerKind, hasProvideMethod: boolean, hasResolveMethod: boolean, hasResolve2Method: boolean, handle: number"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$registerDebugAdapterDescriptorFactory",
+  "params": "type: string, handle: number"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$unregisterDebugConfigurationProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$unregisterDebugAdapterDescriptorFactory",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$startDebugging",
+  "params": "folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$stopDebugging",
+  "params": "sessionId: DebugSessionUUID | undefined"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$setDebugSessionName",
+  "params": "id: DebugSessionUUID, name: string"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$customDebugAdapterRequest",
+  "params": "id: DebugSessionUUID, command: string, args: any"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$getDebugProtocolBreakpoint",
+  "params": "id: DebugSessionUUID, breakpoinId: string"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$appendDebugConsole",
+  "params": "value: string"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$registerBreakpoints",
+  "params": "breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$unregisterBreakpoints",
+  "params": "breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$registerDebugVisualizer",
+  "params": "extensionId: string, id: string"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$unregisterDebugVisualizer",
+  "params": "extensionId: string, id: string"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$registerDebugVisualizerTree",
+  "params": "treeId: string, canEdit: boolean"
+ },
+ {
+  "iface": "MainThreadDebugServiceShape",
+  "sid": "MainThreadDebugService",
+  "method": "$unregisterDebugVisualizerTree",
+  "params": "treeId: string"
+ },
+ {
+  "iface": "MainThreadWindowShape",
+  "sid": "MainThreadWindow",
+  "method": "$getInitialState",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadWindowShape",
+  "sid": "MainThreadWindow",
+  "method": "$openUri",
+  "params": "uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions"
+ },
+ {
+  "iface": "MainThreadWindowShape",
+  "sid": "MainThreadWindow",
+  "method": "$asExternalUri",
+  "params": "uri: UriComponents, options: IOpenUriOptions"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$openTunnel",
+  "params": "tunnelOptions: TunnelOptions, source: string | undefined"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$closeTunnel",
+  "params": "remote: { host: string; port: number; }"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$getTunnels",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$setTunnelProvider",
+  "params": "features: TunnelProviderFeatures | undefined, enablePortsView: boolean"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$hasTunnelProvider",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$setRemoteTunnelService",
+  "params": "processId: number"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$setCandidateFilter",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$onFoundNewCandidates",
+  "params": "candidates: CandidatePort[]"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$setCandidatePortSource",
+  "params": "source: CandidatePortSource"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$registerPortsAttributesProvider",
+  "params": "selector: PortAttributesSelector, providerHandle: number"
+ },
+ {
+  "iface": "MainThreadTunnelServiceShape",
+  "sid": "MainThreadTunnelService",
+  "method": "$unregisterPortsAttributesProvider",
+  "params": "providerHandle: number"
+ },
+ {
+  "iface": "MainThreadTimelineShape",
+  "sid": "MainThreadTimeline",
+  "method": "$registerTimelineProvider",
+  "params": "provider: TimelineProviderDescriptor"
+ },
+ {
+  "iface": "MainThreadTimelineShape",
+  "sid": "MainThreadTimeline",
+  "method": "$unregisterTimelineProvider",
+  "params": "source: string"
+ },
+ {
+  "iface": "MainThreadTimelineShape",
+  "sid": "MainThreadTimeline",
+  "method": "$registerWorkspaceTimelineProvider",
+  "params": "provider: WorkspaceTimelineProviderDescriptor"
+ },
+ {
+  "iface": "MainThreadTimelineShape",
+  "sid": "MainThreadTimeline",
+  "method": "$unregisterWorkspaceTimelineProvider",
+  "params": "source: string"
+ },
+ {
+  "iface": "MainThreadTimelineShape",
+  "sid": "MainThreadTimeline",
+  "method": "$emitTimelineChangeEvent",
+  "params": "source: string, uris: UriComponents[] | undefined"
+ },
+ {
+  "iface": "MainThreadTimelineShape",
+  "sid": "MainThreadTimeline",
+  "method": "$emitWorkspaceTimelineChangeEvent",
+  "params": "source: string"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$registerProvider",
+  "params": "handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$unregisterProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$onDidChangeProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$onDidChangeIntegration",
+  "params": "handle: number, state: ChatArtifactIntegrationStateDto"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$onDidChangeDetails",
+  "params": "handle: number, details: ArtifactDetails"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$runAutomation",
+  "params": "handle: number, request: ChatArtifactAutomationRequestDto"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$writeAutomationState",
+  "params": "handle: number, expectedRevision: number, value: string"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$reconcileAutomationRun",
+  "params": "handle: number, runId: string"
+ },
+ {
+  "iface": "MainThreadChatArtifactIntegrationsShape",
+  "sid": "MainThreadChatArtifactIntegrations",
+  "method": "$disableAutomation",
+  "params": "handle: number, optionId: string, expectedRevision: number, reason: string"
+ },
+ {
+  "iface": "MainThreadAiRelatedInformationShape",
+  "sid": "MainThreadAiRelatedInformation",
+  "method": "$getAiRelatedInformation",
+  "params": "query: string, types: RelatedInformationType[]"
+ },
+ {
+  "iface": "MainThreadAiRelatedInformationShape",
+  "sid": "MainThreadAiRelatedInformation",
+  "method": "$registerAiRelatedInformationProvider",
+  "params": "handle: number, type: RelatedInformationType"
+ },
+ {
+  "iface": "MainThreadAiRelatedInformationShape",
+  "sid": "MainThreadAiRelatedInformation",
+  "method": "$unregisterAiRelatedInformationProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadAiSettingsSearchShape",
+  "sid": "MainThreadAiSettingsSearch",
+  "method": "$registerAiSettingsSearchProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadAiSettingsSearchShape",
+  "sid": "MainThreadAiSettingsSearch",
+  "method": "$unregisterAiSettingsSearchProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadAiSettingsSearchShape",
+  "sid": "MainThreadAiSettingsSearch",
+  "method": "$handleSearchResult",
+  "params": "handle: number, result: AiSettingsSearchResult"
+ },
+ {
+  "iface": "MainThreadAiEmbeddingVectorShape",
+  "sid": "MainThreadAiEmbeddingVector",
+  "method": "$registerAiEmbeddingVectorProvider",
+  "params": "model: string, handle: number"
+ },
+ {
+  "iface": "MainThreadAiEmbeddingVectorShape",
+  "sid": "MainThreadAiEmbeddingVector",
+  "method": "$unregisterAiEmbeddingVectorProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadGitHubShape",
+  "sid": "MainThreadGitHub",
+  "method": "$getClient",
+  "params": "handle: number, extensionId: string, sessionId: string, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadGitHubShape",
+  "sid": "MainThreadGitHub",
+  "method": "$getAnonymousClient",
+  "params": "handle: number, extensionId: string, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadGitHubShape",
+  "sid": "MainThreadGitHub",
+  "method": "$releaseClient",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadGitHubShape",
+  "sid": "MainThreadGitHub",
+  "method": "$getGist",
+  "params": "handle: number, gistId: string, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadGitHubShape",
+  "sid": "MainThreadGitHub",
+  "method": "$createGist",
+  "params": "handle: number, gist: IGitHubCreateGistDto, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$getSystemIdleState",
+  "params": "idleThreshold: number"
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$getSystemIdleTime",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$getCurrentThermalState",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$isOnBatteryPower",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$startPowerSaveBlocker",
+  "params": "type: PowerSaveBlockerType"
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$stopPowerSaveBlocker",
+  "params": "id: number"
+ },
+ {
+  "iface": "MainThreadPowerShape",
+  "sid": "MainThreadPower",
+  "method": "$isPowerSaveBlockerStarted",
+  "params": "id: number"
+ },
+ {
+  "iface": "MainThreadLoggerShape",
+  "sid": "MainThreadLogger",
+  "method": "$log",
+  "params": "file: UriComponents, messages: [ LogLevel, string ][]"
+ },
+ {
+  "iface": "MainThreadLoggerShape",
+  "sid": "MainThreadLogger",
+  "method": "$flush",
+  "params": "file: UriComponents"
+ },
+ {
+  "iface": "MainThreadLoggerShape",
+  "sid": "MainThreadLogger",
+  "method": "$createLogger",
+  "params": "file: UriComponents, options?: ILoggerOptions"
+ },
+ {
+  "iface": "MainThreadLoggerShape",
+  "sid": "MainThreadLogger",
+  "method": "$registerLogger",
+  "params": "logger: UriDto<ILoggerResource>"
+ },
+ {
+  "iface": "MainThreadLoggerShape",
+  "sid": "MainThreadLogger",
+  "method": "$deregisterLogger",
+  "params": "resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadLoggerShape",
+  "sid": "MainThreadLogger",
+  "method": "$setVisibility",
+  "params": "resource: UriComponents, visible: boolean"
+ },
+ {
+  "iface": "MainThreadLocalizationShape",
+  "sid": "MainThreadLocalizationShape",
+  "method": "$fetchBuiltInBundleUri",
+  "params": "id: string, language: string"
+ },
+ {
+  "iface": "MainThreadLocalizationShape",
+  "sid": "MainThreadLocalizationShape",
+  "method": "$fetchBundleContents",
+  "params": "uriComponents: UriComponents"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$checkMcpServerAllowed",
+  "params": "id: number, url: string"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$onDidChangeState",
+  "params": "id: number, state: McpConnectionState"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$onDidPublishLog",
+  "params": "id: number, level: LogLevel, log: string"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$onDidReceiveMessage",
+  "params": "id: number, message: string"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$upsertMcpCollection",
+  "params": "collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$deleteMcpCollection",
+  "params": "collectionId: string"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$getTokenFromServerMetadata",
+  "params": "id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$getTokenForProviderId",
+  "params": "id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$logMcpAuthSetup",
+  "params": "data: IAuthMetadataSource"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$startMcpGateway",
+  "params": "chatSessionResource?: UriComponents"
+ },
+ {
+  "iface": "MainThreadMcpShape",
+  "sid": "MainThreadMcpShape",
+  "method": "$disposeMcpGateway",
+  "params": "gatewayId: string"
+ },
+ {
+  "iface": "MainThreadDataChannelsShape",
+  "sid": "MainThreadDataChannels",
+  "method": "$createLinkPresentationWatcher",
+  "params": "handle: number, providerId: string, kind: LinkPresentationKind, resource: UriComponents"
+ },
+ {
+  "iface": "MainThreadDataChannelsShape",
+  "sid": "MainThreadDataChannels",
+  "method": "$disposeLinkPresentationWatcher",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDataChannelsShape",
+  "sid": "MainThreadDataChannels",
+  "method": "$registerLinkPresentationProvider",
+  "params": "handle: number, extensionId: string, providerId: string"
+ },
+ {
+  "iface": "MainThreadDataChannelsShape",
+  "sid": "MainThreadDataChannels",
+  "method": "$unregisterLinkPresentationProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadDataChannelsShape",
+  "sid": "MainThreadDataChannels",
+  "method": "$acceptLinkPresentationProviderData",
+  "params": "handle: number, data: unknown"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$registerTestController",
+  "params": "controllerId: string, label: string, capability: TestControllerCapability"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$updateController",
+  "params": "controllerId: string, patch: ITestControllerPatch"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$unregisterTestController",
+  "params": "controllerId: string"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$subscribeToDiffs",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$unsubscribeFromDiffs",
+  "params": ""
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$publishDiff",
+  "params": "controllerId: string, diff: TestsDiffOp.Serialized[]"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$getCoverageDetails",
+  "params": "resultId: string, taskIndex: number, uri: UriComponents, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$publishTestRunProfile",
+  "params": "config: ITestRunProfile"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$updateTestRunConfig",
+  "params": "controllerId: string, configId: number, update: Partial<ITestRunProfile>"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$removeTestProfile",
+  "params": "controllerId: string, configId: number"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$runTests",
+  "params": "req: ResolvedTestRunRequest, token: CancellationToken"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$addTestsToRun",
+  "params": "controllerId: string, runId: string, tests: ITestItem.Serialized[]"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$updateTestStateInRun",
+  "params": "runId: string, taskId: string, testId: string, state: TestResultState, duration?: number"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$appendTestMessagesInRun",
+  "params": "runId: string, taskId: string, testId: string, messages: ITestMessage.Serialized[]"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$appendOutputToRun",
+  "params": "runId: string, taskId: string, output: VSBuffer, location?: ILocationDto, testId?: string"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$appendCoverage",
+  "params": "runId: string, taskId: string, coverage: IFileCoverage.Serialized"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$startedTestRunTask",
+  "params": "runId: string, task: ITestRunTask"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$finishedTestRunTask",
+  "params": "runId: string, taskId: string"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$startedExtensionTestRun",
+  "params": "req: ExtensionRunTestsRequest"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$finishedExtensionTestRun",
+  "params": "runId: string"
+ },
+ {
+  "iface": "MainThreadTestingShape",
+  "sid": "MainThreadTesting",
+  "method": "$markTestRetired",
+  "params": "testIds: string[] | undefined"
+ },
+ {
+  "iface": "MainThreadChatStatusShape",
+  "sid": "MainThreadChatStatus",
+  "method": "$setEntry",
+  "params": "id: string, entry: ChatStatusItemDto"
+ },
+ {
+  "iface": "MainThreadChatStatusShape",
+  "sid": "MainThreadChatStatus",
+  "method": "$disposeEntry",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadChatQuotaShape",
+  "sid": "MainThreadChatQuota",
+  "method": "$updateQuotas",
+  "params": "quotas: IQuotaSnapshotsDto"
+ },
+ {
+  "iface": "MainThreadChatInputNotificationShape",
+  "sid": "MainThreadChatInputNotification",
+  "method": "$setNotification",
+  "params": "notification: ChatInputNotificationDto"
+ },
+ {
+  "iface": "MainThreadChatInputNotificationShape",
+  "sid": "MainThreadChatInputNotification",
+  "method": "$disposeNotification",
+  "params": "id: string"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$registerChatSessionItemController",
+  "params": "controllerHandle: number, chatSessionType: string, supportsResolve: boolean"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$updateChatSessionItemControllerCapabilities",
+  "params": "controllerHandle: number, supportsResolve: boolean"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$unregisterChatSessionItemController",
+  "params": "controllerHandle: number"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$updateChatSessionItems",
+  "params": "controllerHandle: number, change: IChatSessionItemsChange"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$addOrUpdateChatSessionItem",
+  "params": "controllerHandle: number, item: Dto<IChatSessionItem>"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$onDidCommitChatSessionItem",
+  "params": "controllerHandle: number, original: UriComponents, modified: UriComponents"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$registerChatSessionContentProvider",
+  "params": "handle: number, chatSessionScheme: string"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$unregisterChatSessionContentProvider",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$onDidChangeChatSessionOptions",
+  "params": "handle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem>"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$onDidChangeChatSessionProviderOptions",
+  "params": "handle: number"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$updateChatSessionInputState",
+  "params": "controllerHandle: number, sessionResource: UriComponents, optionGroups: readonly IChatSessionProviderOptionGroup[]"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$handleProgressChunk",
+  "params": "handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [ IChatProgressDto, number ])[]"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$handleAnchorResolve",
+  "params": "handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>"
+ },
+ {
+  "iface": "MainThreadChatSessionsShape",
+  "sid": "MainThreadChatSessions",
+  "method": "$handleProgressComplete",
+  "params": "handle: number, sessionResource: UriComponents, requestId: string"
+ }
+]

@@ -1,0 +1,161 @@
+name: IDE kernels
+
+# The Prism IDE decides three things with LexLean models (sdk/npm/prism-code/model/ide-*): whether an extension may
+# use a resource (ide-capability-gate), what class an editor command is (ide-command-table), and whether a path or
+# host is inside a granted scope (ide-scope). This workflow is where they are proved.
+#
+# The two rule tables state their guarantees as data; Lean's kernel, in this process, checks each one for every
+# request, through prism-code's own rule-app build. No image.
+# The scope kernel states theorems; Lean proves them in the SDK image its verification record names, and then a
+# planted defect, which Lean must reject, so a pass is known to mean something.
+#
+# The scope job pulls a multi-gigabyte image, so the workflow runs only when a kernel changes.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - sdk/npm/prism-code/model/ide-*/**
+      - sdk/npm/prism-code/model/ide-prove-rule-app.mjs
+      - .github/workflows/ide-kernels-model.yml
+  push:
+    branches: [main]
+    paths:
+      - sdk/npm/prism-code/model/ide-*/**
+      - sdk/npm/prism-code/model/ide-prove-rule-app.mjs
+      - .github/workflows/ide-kernels-model.yml
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ide-kernels-model-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rule-tables:
+    name: Lean's kernel accepts the gate's and the command table's guarantees
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sdk/npm/prism-code
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      - name: The capability gate, 13 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-capability-gate 13
+      - name: The command table, 5 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-command-table 5
+      - name: "Planted defect: a gate that allows without a grant is refused"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # Rule 6 of the gate is "granted -> allow". Make it "not granted -> allow" and leave the guarantees alone.
+          path = 'model/ide-capability-gate/src/App.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(record Rule {conditions := (cons (record Condition {field := 5, op := 4, value := 1}) (nil Condition)), answer := 1})'
+          assert text.count(sound) == 1, 'the rule the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, sound.replace('value := 1', 'value := 0')))
+          PY
+          ! git diff --quiet -- model/ide-capability-gate/src/App.lex.tex
+          set +e
+          node model/ide-prove-rule-app.mjs model/ide-capability-gate 13 > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q '^FAILED' defect.log
+          rm defect.log
+          git checkout -- model/ide-capability-gate/src/App.lex.tex
+
+  scope:
+    name: Lean proves the scope kernel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: sdk/npm/prism-code/model/ide-scope
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Read the image the verification record names
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(python3 -c 'import json; print(json.load(open("verification.json"))["image"])')
+          [[ "$image" =~ ^ghcr\.io/uor-foundation/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
+          echo "SDK_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Log in to GHCR (read only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+      - name: Make room for the image
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Pull the SDK image
+        run: docker pull "$SDK_IMAGE"
+      - name: The lock is current and Lean proves every theorem
+        shell: bash
+        run: |
+          set -euo pipefail
+          run() {
+            docker run --rm --user "$(id -u):$(id -g)" --tmpfs /tmp:rw,exec,nosuid,size=4g --volume "$PWD:$PWD" --workdir "$PWD" \
+              --env HOME=/tmp/prismpm-home --env PRISMPM_EPHEMERAL_HOME=1 "$SDK_IMAGE" sh -c "$1"
+          }
+          run 'lexlean lock && lexlean fmt --all && lexlean lock && lexlean verify --all' | tee verify.log
+          grep -q '^verified 9 modules' verify.log
+          rm verify.log
+          # Locking and formatting changed nothing: the committed files are the ones Lean verified.
+          # When they did, the difference is printed whole, so it can be committed as it stands.
+          git --no-pager diff -- .
+          git diff --exit-code -- . > /dev/null
+      - name: The record names these files and every theorem
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, re
+          record = json.load(open('verification.json'))
+          for name, want in record['sources'].items():
+              got = 'sha256:' + hashlib.sha256(open(name, 'rb').read()).hexdigest()
+              assert got == want, f'{name}: {got} is not the recorded {want}'
+          on_disk = sorted('src/' + n for n in os.listdir('src') if n.endswith('.lex.tex'))
+          assert on_disk == sorted(n for n in record['sources'] if n.startswith('src/')), on_disk
+          named = []
+          for path in on_disk:
+              named += re.findall(r'theorem\{\s*name: (\w+),', open(path, encoding='utf8').read())
+          assert sorted(named) == sorted(t['name'] for t in record['theorems']), named
+          assert len(named) == 8
+          PY
+      - name: "Planted defect: a scope that does not compare the segments is rejected by Lean"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # `inside` needs the scope's segments to equal the target's. Drop that and the mismatch theorems must fail.
+          path = 'src/Scope.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(((wellFormed r) && ((project r scopeDepth) <=? (project r depth))) && (prefixMatches r))'
+          assert text.count(sound) == 1, 'the definition the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, '((wellFormed r) && ((project r scopeDepth) <=? (project r depth)))'))
+          PY
+          ! git diff --quiet -- src/Scope.lex.tex
+          set +e
+          docker run --rm --user "$(id -u):$(id -g)" --tmpfs /tmp:rw,exec,nosuid,size=4g --volume "$PWD:$PWD" --workdir "$PWD" \
+            --env HOME=/tmp/prismpm-home --env PRISMPM_EPHEMERAL_HOME=1 "$SDK_IMAGE" sh -c 'lexlean lock && lexlean verify --all' > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q 'error\[LLV7002\]: Lean rejected `PrismIdeScope.ScopeProof' defect.log
+          ! grep -q '^verified' defect.log
+          rm defect.log
+          git checkout -- .

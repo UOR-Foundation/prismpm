@@ -1,0 +1,6 @@
+name = "PrismIdeScope"
+version = "0.1.0"
+defaultTargets = ["PrismIdeScope"]
+
+[[lean_lib]]
+name = "PrismIdeScope"

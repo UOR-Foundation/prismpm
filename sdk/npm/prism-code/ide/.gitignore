@@ -1,0 +1,11 @@
+node_modules/
+dist/
+# Fetched or built, never committed: the extensions under test (tools/fetch_batch.py), the judge archive and
+# prism-code copy the page loads (built by prism-code), and the Prism ID frame (tools/prism-frame-pin.mjs).
+public/ext/*/
+public/gate/kernel.holo
+public/gate/prism-code/
+public/prism-frame/frame/
+public/prism-frame/identity/
+public/prism-frame/site/
+public/prism-frame/frame.lock
