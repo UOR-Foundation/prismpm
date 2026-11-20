@@ -85,6 +85,8 @@ jobs:
         run: node ide/tools/keyless-test.mjs
       - name: The scope rules copy passes its cases
         run: node ide/tools/scope-test.mjs
+      - name: A model is told apart from one its app does not run
+        run: node ide/tools/app-match-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
         shell: bash
         run: |

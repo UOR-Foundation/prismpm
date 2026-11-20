@@ -17,7 +17,7 @@
   #gutter .mark { color: var(--bad); font-weight: 700; }
   #gutter { color: var(--dim); text-align: right; user-select: none; overflow: hidden; white-space: pre; border-right: 1px solid var(--line); min-width: 3.6rem; }
   #source { flex: 1; resize: none; outline: none; background: transparent; color: inherit; white-space: pre; overflow: auto; }
-  #status { font-weight: 600; margin-top: .75rem; } [data-state="ok"] { color: var(--ok); } [data-state="bad"] { color: var(--bad); }
+  #status { font-weight: 600; margin-top: .75rem; } #appMatch[data-state="same"] { color: var(--ok); } #appMatch[data-state="other"] { color: var(--bad); font-weight: 600; } [data-state="ok"] { color: var(--ok); } [data-state="bad"] { color: var(--bad); }
   h2 { font-size: 1rem; margin: 1.25rem 0 .25rem; }
   table { border-collapse: collapse; width: 100%; } td { vertical-align: top; padding: .3rem .6rem .3rem 0; border-top: 1px solid var(--line); }
   td.s { font-weight: 600; white-space: nowrap; } [data-s="proved"] { color: var(--ok); } [data-s="broken"], [data-s="refused"] { color: var(--bad); }
@@ -32,6 +32,7 @@
   <p class="dim"><span id="file" style="font-family: ui-monospace, Consolas, monospace"></span> · checked here by LexLean as you type · nothing is saved or sent <button id="revert" type="button">Revert</button></p>
   <div class="editor"><pre id="gutter" aria-hidden="true"></pre><textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Model source"></textarea></div>
   <p id="status">Starting LexLean…</p>
+  <p id="appMatch" hidden></p>
   <ul id="diagnostics"></ul>
   <section id="guaranteesSection" hidden>
     <h2>Guarantees</h2>

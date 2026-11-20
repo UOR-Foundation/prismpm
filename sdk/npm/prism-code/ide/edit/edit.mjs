@@ -56,7 +56,19 @@ const check = (project) => new Promise((resolve) => { const id = ++nextId; waiti
 const snapshotOf = (project) => new Promise((resolve) => { const id = ++nextId; waiting.set(id, resolve); worker.postMessage({ id, files: project, snapshot: true }); });
 
 // Lean's kernel, in its own worker, so a proof never holds up typing.
-const { ruleTable, tableWords, counterexample, OPS } = await import('./prism-code/journey/rule-table.mjs');
+const { ruleTable, tableWords, tableShape, counterexample, OPS } = await import('./prism-code/journey/rule-table.mjs');
+// The app this model was published with, if any: its record says what the app runs.
+const { appRecord, tableFacts, differences, verdict } = await import('./app-match.mjs');
+const beside = await appRecord(PROJECT);
+function compare(table, text) {
+  if (!PROJECT) { $('appMatch').hidden = true; state.app = null; return; }
+  const differs = beside && table ? differences(tableFacts(table, { tableWords, tableShape }), beside.record) : [];
+  const said = !beside ? verdict(null, [], false) : !table ? { state: 'unread', text: `This model is not read as a rule table here, so it is not compared with the app at ${beside.app}.` } : verdict(beside, differs, text !== original);
+  state.app = { found: !!beside, state: said.state, differs };
+  $('appMatch').textContent = said.text;
+  $('appMatch').dataset.state = said.state;
+  $('appMatch').hidden = false;
+}
 const prover = new Worker(new URL('./prove-worker.mjs', import.meta.url), { type: 'module' });
 const proving = new Map();
 prover.onmessage = ({ data }) => {
@@ -80,8 +92,10 @@ async function guarantees(project, mine) {
     $('guarantees').replaceChildren();
     $('proofStatus').textContent = 'This model is not a rule table, so its guarantees are not proved in this tab: ' + (e?.message ?? e);
     state.proof = { table: false, why: String(e?.message ?? e) };
+    compare(null, project[entry]);
     return;
   }
+  compare(table, project[entry]);
   const value = (f, v) => (f.values ? f.values[v] : v);
   const said = (g) => 'When ' + g.when.map(([f, op, v]) => table.fields[f].name + ' ' + OPS[op] + ' ' + value(table.fields[f], v)).join(' and ')
     + ', the answer is ' + (g.always ? 'always ' : 'never ') + table.answers[g.outcome] + '.';
@@ -172,7 +186,7 @@ async function run() {
   }
   gutter(marks);
   // A model that does not check has no meaning to prove anything about.
-  if (!state.last?.success) { $('guaranteesSection').hidden = true; state.proof = null; }
+  if (!state.last?.success) { $('guaranteesSection').hidden = true; state.proof = null; $('appMatch').hidden = true; }
   else { state.proving = true; await guarantees({ ...files, [entry]: $('source').value }, mine); if (mine === latest) state.proving = false; }
   state.ready = true;
 }
