@@ -44,3 +44,30 @@ node tools/scope-test.mjs                # the scope rules copy, 35 cases
 - The Prism ID relay is not admitted, so the id stays on one device; linking, sync and recovery are untested here.
 - Activation only: apart from one extension, no extension's actual feature was exercised.
 - Nothing is stored in or fetched from a kappa-registry; only the `blake3:` label form is shared with it.
+
+## The audit view (phase 2a)
+
+`audit/` is a static page, with no build step, that shows one rule app as a person can check it: its rules in words, each guarantee with what backs it, its examples replayed, and its fingerprint in BLAKE3 and SHA-256. It is the first step of `docs/proposals/prism-ide-phase-2.md`.
+
+It proves nothing itself. The app's own published page already checks its judge archive, runs its examples and proves every guarantee with Lean's kernel in the tab; the audit view loads that page in a frame and reads what it found. What a guarantee may then be called is asked of the proved audit-status model ([`../model/ide-audit`](../model/ide-audit/README.md)), whose built record is `audit/audit-status.rule-app.json`.
+
+```sh
+node tools/serve-audit.mjs <a rule app's .prism/site folder>
+# then open http://localhost:4180/audit/
+```
+
+Tried by hand in one browser, on `model/ide-capability-gate` built as a rule app:
+
+| Published app | Shown |
+|---|---|
+| As built | 13 of 13 guarantees proved, in about 2 s; 6 rules and the fallback in words; 19 of 19 examples the same |
+| One rule changed, old proof kept | 0 proved, 13 refused: the app refuses itself; the changed rule reads "granted is no → allow"; 11 of 19 examples the same |
+| One rule changed, proof removed | 0 proved, 13 refused: an example gives a different answer than recorded |
+
+Limits:
+
+- The app must be served from the audit page's origin, because the view reads the app page's findings directly.
+- The copy of prism-code the app publishes is used as it is, unverified. Fetching by content label is phase 2d.
+- An app that refuses itself is reported to the audit-status model as failing its examples. The model has no word for "the app did not admit its own record"; that is the conservative choice among the words it has, and a reason to give it one.
+- Rule apps only. There is no attestation to read for a rule app, so "proved" here always means the kernel in this tab.
+- No automated test runs the page. The table above is from a manual run.
