@@ -95,7 +95,7 @@ Limits of the workbench page:
 
 - The LexLean executable and the kernel are published beside the page. A browser cannot fetch them from where prism-code does, because those addresses do not let another site read them. The workflow checks that what it publishes is what prism-code pins, and the workers check again in the tab.
 - With no address the page opens the capability gate's model, which comes with it.
-- `?project=<address of a folder>` opens the model published there. The folder holds the model's files and a `project.json` listing them, `{ "files": ["lexlean.toml", "src/App.lex.tex", ...], "entry": "src/App.lex.tex" }`, as `tools/edit-project.mjs` writes it. Its host must let other sites read it; when it does not, the page says so.
+- `?project=<address of a folder>` opens the model published there. The folder holds the model's files and a `project.json` listing them, `{ "files": ["lexlean.toml", "src/App.lex.tex", ...], "entry": "src/App.lex.tex" }`, as prism-code's `src/journey/model-files.mjs` writes it. Its host must let other sites read it; when it does not, the page says so.
 
 Tried by hand on the assembled site, served from a subfolder as Pages serves it:
 
@@ -106,7 +106,22 @@ Tried by hand on the assembled site, served from a subfolder as Pages serves it:
 | `edit/ide/?project=` a second model on another origin that allows reading | that model: 5 of 5 proved |
 | the same on an origin that does not allow reading | "The model at … could not be opened (Failed to fetch). It needs a project.json listing its files, and its host must let other sites read them." |
 
-No published Prism app has a `project.json` or publishes its model's files today, so `?project=` opens no real app yet.
+## An app's own model
+
+A rule app built by prism-code publishes its model with its page: the build writes `model/` into the page's folder, with `model/project.json` listing it (`src/journey/model-files.mjs`). The audit page looks for that listing at the app's address and, when it is there, links to the editor with the app's model.
+
+- What is published is what LexLean reads to check the model. Left out: anything whose name starts with a dot, `session.json` (it names folders on the author's machine), every other `.json` but `lake-manifest.json`, notes and logs.
+- The listing carries the identity the build proved, `semanticId`. Neither page compares it yet with the identity LexLean gives the published files.
+
+Tried by hand, on a rule app built from `model/ide-command-table` by this checkout and served beside the assembled site, dot-files removed:
+
+| Step | Shown |
+|---|---|
+| The app's own page | proves its 5 guarantees in the tab, as before |
+| The audit page, given the app's address | 5 proved of 5, and "This app publishes its model. Open the model in the editor" |
+| That link | the workbench with the app's model; 5 of 5 proved; the identity `sha256:8307e81d…`, the one the build proved |
+
+Apps published before this have no `model/`, so the audit page offers no editor for them until they are built again. A holo app's page is not written by prism-code and publishes no model.
 
 Limits:
 
