@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { PrismCodeError } from '../errors.mjs';
 import { templateFiles } from '../init.mjs';
+import { kappa } from '../blake3.mjs';
 
 export const SESSION_SCHEMA = 'prism/session/2';
 const TEMPLATE_MODULE = 'TextRequest';
@@ -74,16 +75,20 @@ export function sourceFiles(dir) {
   return out.sort();
 }
 
-/** The address of the model as it is on disk: every source file and the project file, by path and bytes. */
+/**
+ * The identity of the model as it is on disk: the UOR κ-label (`blake3:<hex>`) of every source file and the project
+ * file, each framed by its path and length. Every status, the audit and the build cache name the model by it, so an
+ * agent, prism_inspect and a page in a browser all say which bytes were checked, proved and built.
+ */
 export function sourceDigest(dir) {
-  const h = createHash('sha256');
+  const parts = [];
   for (const file of [...sourceFiles(dir), 'lexlean.toml']) {
     const path = join(dir, file);
     if (!existsSync(path)) continue;
     const bytes = readFileSync(path);
-    h.update(`${file}\0${bytes.length}\0`).update(bytes);
+    parts.push(Buffer.from(`${file}\0${bytes.length}\0`), bytes);
   }
-  return h.digest('hex');
+  return kappa(new Uint8Array(Buffer.concat(parts)));
 }
 
 /** Write the template's project files the folder lacks. Never overwrites. Returns the paths written. */
@@ -137,7 +142,25 @@ export function startApp(dir, name, { root = STARTERS } = {}) {
     write(dir, path, bytes);
     written.push(path);
   }
+  restampLock(dir);
   return { starter: name, module: starter.module, written };
+}
+
+/**
+ * The lock as `lexlean lock` would write it after the project is renamed. It records the SHA-256 of lexlean.toml and
+ * of each workspace file, and renaming changes those files, so the template's lock is stale for every new app; LexLean
+ * as WebAssembly cannot rewrite it (it runs no command that changes a project). Only those hashes are restamped, from
+ * the bytes on disk: nothing else in the lock depends on the name, and LexLean still checks the whole lock.
+ */
+export function restampLock(dir) {
+  const path = join(dir, 'lexlean.lock');
+  if (!existsSync(path)) return false;
+  const digest = (file) => sha256(readFileSync(join(dir, file)));
+  let text = readFileSync(path, 'utf8');
+  text = text.replace(/^project_config_sha256 = "[0-9a-f]{64}"$/m, () => `project_config_sha256 = "${digest('lexlean.toml')}"`);
+  text = text.replace(/(\[\[workspace_file\]\]\npath = "([^"\n]+)"\nsha256 = ")[0-9a-f]{64}"/g, (all, head, file) => (existsSync(join(dir, file)) ? `${head}${digest(file)}"` : all));
+  writeFileSync(path, text);
+  return true;
 }
 
 export const isBound = (dir) => existsSync(join(dir, 'prismpm.lock')) && existsSync(join(dir, 'standards.lock'));

@@ -144,12 +144,12 @@ statement = "The project has no .lex.tex file under its source roots, so there i
 [[error]]
 code = "build.frontend-unavailable"
 capability = "DK-46"
-statement = "LexLean's front end is not available: no SDK image on this machine and no PRISM_CODE_TIER=hosted. A Docker-free build waits for LexLean's front end as WebAssembly (Phase 3); the hosted verifier is never chosen for the user."
+statement = "LexLean's front end is not available: LexLean as WebAssembly is not on this machine and could not be fetched, or PRISM_CODE_TIER=offline fetches nothing. Nothing about the app is sent anywhere instead."
 
 [[error]]
 code = "build.host-not-allowed"
 capability = "DK-45"
-statement = "A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier without PRISM_CODE_TIER=hosted. Nothing was sent, and there is no fallback."
+statement = "A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier, which is never asked. Nothing was sent, and there is no fallback."
 
 [[error]]
 code = "build.publish-unavailable"
