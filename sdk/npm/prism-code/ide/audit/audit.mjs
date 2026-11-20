@@ -11,7 +11,10 @@
 // Lean does not run here for a holo. "Proved" then means the holo carries a proof statement that the verifier
 // accepted at level P2 or above, about this holo's own model.
 //
-// Phase 2a limits: the app is served from this page's origin, and files are fetched by path, not by content label.
+// A holo app may be anywhere that lets its files be fetched (?app=https://owner.github.io/app/): they are read as
+// data and no code of the app's is run, except its guest, inside the loader's sandbox. A rule app must be on this
+// page's origin, because its own page does the proving and this view reads what it found.
+// Files are fetched by path, not by content label.
 
 const params = new URLSearchParams(location.search);
 const appBase = new URL(params.get('app') ?? './app/', location.href).href.replace(/\/?$/, '/');
@@ -25,7 +28,8 @@ const hexWord = (n) => [0, 8, 16, 24].map((k) => ((n >>> k) & 255).toString(16).
 const readWord = (hex) => parseInt(hex.match(/../g).reverse().join(''), 16);
 const unhex = (hex) => dec.decode(Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16)));
 const sha256 = async (bytes) => 'sha256:' + [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
-const bytesOrNull = async (url) => { const r = await fetch(url, { cache: 'no-store' }); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; };
+// A file that is not there, or that its host will not let this page read, is simply absent.
+const bytesOrNull = async (url) => { try { const r = await fetch(url, { cache: 'no-store' }); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; } catch { return null; } };
 // This page's own copy of a file when it is served one, else the app's copy.
 const mine = (path) => new URL('./' + path, import.meta.url).href;
 const importFirst = async (...urls) => { let last; for (const u of urls) { try { return await import(u); } catch (e) { last = e; } } throw last; };
@@ -289,8 +293,10 @@ async function auditHolo(holoBytes, lib) {
 
 async function main() {
   $('app').textContent = appBase;
-  const prismCode = await importFirst(mine('prism-code/index.mjs'), appBase + 'prism-code/src/index.mjs');
-  const blake3 = await importFirst(mine('prism-code/blake3.mjs'), appBase + 'prism-code/src/blake3.mjs');
+  // prism-code comes from this page's origin. Only an app on the same origin may stand in with its own copy.
+  const sameOrigin = new URL(appBase).origin === location.origin;
+  const prismCode = await importFirst(mine('prism-code/index.mjs'), ...(sameOrigin ? [appBase + 'prism-code/src/index.mjs'] : []));
+  const blake3 = await importFirst(mine('prism-code/blake3.mjs'), ...(sameOrigin ? [appBase + 'prism-code/src/blake3.mjs'] : []));
   const lib = { loadArchive: prismCode.loadArchive, kappa: blake3.kappa };
   const recordBytes = await bytesOrNull(appBase + 'app.rule-app.json');
   if (recordBytes) return auditRuleApp(recordBytes, lib);

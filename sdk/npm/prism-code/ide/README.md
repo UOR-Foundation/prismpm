@@ -76,6 +76,30 @@ Tried by hand in one browser:
 | The same holo, another key given | level P0; 5 theorems tested: "the signature does not verify against the key given" |
 | `test/fixtures/signed/PaymentApproval.mismatch.holo`, right key | level P1; 5 theorems tested: "the proof statement is about another model" |
 
+### Every kind of app the SDK builds
+
+Run on 2026-11-20 with prism-code 0.10.0 from this checkout.
+
+**Rule apps**, built here by the SDK's rule-app build and served beside the page:
+
+| App | Shown |
+|---|---|
+| The SDK's own rule-app starter (`templates/starters/rule-app`) | 3 of 3 proved; 4 rules and the fallback; 2 of 2 examples |
+| `model/ide-capability-gate` | 13 of 13 proved; 19 of 19 examples |
+| `model/ide-command-table` | 5 of 5 proved; 5 of 5 examples |
+| `model/ide-audit` | 14 of 14 proved; 12 of 12 examples |
+
+**Holo apps**, all 13 that were found published on GitHub Pages under the two accounts looked at, each audited from its live address with `?app=https://<owner>.github.io/<app>/` and no change to the app:
+
+| Result | Apps |
+|---|---|
+| Level P0; every claimed theorem listed and marked tested; every example the same (from 12 of 12 up to 181 of 181) | 12 |
+| Refused: `core.exports: guest exports ["__stack_high","__stack_low","holo_alloc","holo_run","memory"], expected ["holo_alloc","holo_run","memory"]` | 1 |
+
+The one refusal is the SDK's own judgement, not the page's: `prism-code vectors` on that holo exits 2 with the same message, and `prism-code check` reports `world.contract`. That app ships prism-code 0.9.1, which loads it.
+
+What this does not cover: a holo app is reached by its address, so the page has to be opened with that address; no app links to it. A rule app is audited only when served from the page's own origin. The page itself is not published anywhere.
+
 What the published apps showed: none of the 13 holos in this repository and neither published holo carries a proof statement, so every one is at level P0. For the two published apps GitHub holds signed build provenance (`gh attestation verify` passes, predicate `https://slsa.dev/provenance/v1`), which says which workflow built the bytes. The statement that Lean proved a named theorem exists only as text in the app's `app.json`. The audit view therefore shows those theorems as claimed and tested, never proved. Marking them proved needs the build to put its proof statement in the holo (`prism-code attest --statement`), which is outside this folder.
 
 Limits:
@@ -87,7 +111,7 @@ Limits:
 - Neither the real bundles nor the public trusted root is committed. A trusted root belongs in the repository only by the maintainers' choice and through Sigstore's update framework, not a file fetched once.
 - **This is a second place that tells the verifier a signature verified.** `src/verify.mjs` keeps that entry (`verifyWithStatements`) out of the package on purpose, "check's alone". The page calls the vendored verifier's `verify` with `statements` directly. It needs a maintainer's decision before anything ships.
 - **The key is trusted because the auditor supplied it.** A page that took the key from the app would prove nothing.
-- The app must be served from the audit page's origin.
+- A rule app must be served from the audit page's origin, because its own page does the proving. A holo app may be anywhere that lets its files be fetched, which GitHub Pages does.
 - Files are fetched by path. Fetching by content label is phase 2d.
 - An app that refuses itself is reported to the audit-status model as failing its examples. The model has no word for "the app did not admit its own record"; that is the conservative choice among the words it has, and a reason to give it one.
 - For a holo, the examples are replayed as a whole. The view shows the count, not each request.

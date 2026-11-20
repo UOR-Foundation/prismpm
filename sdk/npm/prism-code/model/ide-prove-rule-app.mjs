@@ -4,7 +4,7 @@
 // them is the rule-app build of prism-code's own tool server: the model's numbers go to the verified rule judge and
 // Lean's kernel, in this process, checks every guarantee for every request. Nothing is sent anywhere.
 //
-// Usage: node ide-prove-rule-app.mjs <model dir> <guarantees expected> [<file to copy the built record to>]
+// Usage: node ide-prove-rule-app.mjs <model dir> <guarantees expected> [<file to copy the built record to>] [<folder to copy the built site to>]
 // Exit 0 only when the kernel accepted exactly that many guarantees and every acceptance vector passed.
 import { spawn } from 'node:child_process';
 import { copyFileSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const [modelDir, expected, keepRecord] = process.argv.slice(2);
+const [modelDir, expected, keepRecord, keepSite] = process.argv.slice(2);
 const bin = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'prism-code.mjs');
 
 // The tool server works on <cwd>/prism and writes its build beside the model, so it gets a copy.
@@ -67,7 +67,8 @@ while (built.state === 'running') built = await call('prism_build', { wait: 60 }
 const accepted = /accepted all (\d+) guarantees/.exec(built.message ?? '')?.[1];
 const vectors = built.vectors ?? {};
 const good = built.ok === true && accepted === String(expected) && vectors.total > 0 && vectors.passed === vectors.total;
-if (good && keepRecord) copyFileSync(built.app, resolve(keepRecord));
+if (good && keepRecord && keepRecord !== '-') copyFileSync(built.app, resolve(keepRecord));
+if (good && keepSite) cpSync(built.site, resolve(keepSite), { recursive: true });
 finish(good ? 0 : 1, [
   `${good ? 'ok' : 'FAILED'}: ${modelDir}`,
   `model ${checked.semanticId}`,

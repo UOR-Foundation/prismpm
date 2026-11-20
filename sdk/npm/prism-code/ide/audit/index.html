@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- This origin only. 'wasm-unsafe-eval' is for the rule judge and Lean's kernel, which are WebAssembly. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: data:; frame-src 'self'; worker-src 'self' blob:">
+<!-- Code runs from this origin only. An app's files may be fetched from where the app is published, as data.
+     'wasm-unsafe-eval' is for the rule judge, a holo's guest and Lean's kernel, which are WebAssembly. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https: blob: data:; frame-src 'self'; worker-src 'self' blob:">
 <title>Prism audit</title>
 <style>
   :root { --bg: #fbfaf8; --fg: #1d1c1a; --dim: #6b6862; --line: #dedad3; --ok: #1f6b3a; --bad: #a12626; --warn: #8a5a00; }
