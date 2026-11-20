@@ -11,12 +11,12 @@
 // The page is served beside ../edit by tools/serve-edit.mjs, which gives it the project, the LexLean executable and
 // the kernel. No extension runs here, so the capability gate of main.js has nothing to judge and is not loaded.
 
-import { initialize, getService, IEditorService, IMarkerService } from '@codingame/monaco-vscode-api/services';
+import { initialize, getService, IEditorService, IMarkerService, IWorkbenchThemeService } from '@codingame/monaco-vscode-api/services';
 import getExtensionsOverride from '@codingame/monaco-vscode-extensions-service-override';
 import getFilesOverride, { RegisteredFileSystemProvider, RegisteredMemoryFile, registerFileSystemOverlay } from '@codingame/monaco-vscode-files-service-override';
 import { URI } from '@codingame/monaco-vscode-api/vscode/vs/base/common/uri';
 import * as monaco from '@codingame/monaco-vscode-editor-api';
-import getConfigurationOverride from '@codingame/monaco-vscode-configuration-service-override';
+import getConfigurationOverride, { initUserConfiguration } from '@codingame/monaco-vscode-configuration-service-override';
 import getWorkbenchOverride from '@codingame/monaco-vscode-workbench-service-override';
 import getModelOverride from '@codingame/monaco-vscode-model-service-override';
 import getLanguagesOverride from '@codingame/monaco-vscode-languages-service-override';
@@ -29,6 +29,7 @@ import getDialogsOverride from '@codingame/monaco-vscode-dialogs-service-overrid
 import '@codingame/monaco-vscode-theme-defaults-default-extension';
 import extHostWorkerUrl from '@codingame/monaco-vscode-api/workers/extensionHost.worker?worker&url';
 import editorWorkerUrl from '@codingame/monaco-vscode-api/workers/editor.worker?worker&url';
+import { LEXLEAN, registerLexLean } from './lexlean-language.js';
 
 const PAUSE_MS = 350;
 const ERROR = 8; // MarkerSeverity.Error
@@ -72,6 +73,8 @@ try {
   const uriOf = (path) => URI.file('/workspace' + path);
   for (const [path, text] of Object.entries(files)) provider.registerFile(new RegisteredMemoryFile(uriOf(path), text));
   registerFileSystemOverlay(1, provider);
+  // LexLean's colours reach the editor as semantic tokens, so they are on whatever the theme would choose.
+  await initUserConfiguration(JSON.stringify({ 'editor.semanticHighlighting.enabled': true }));
 
   await initialize({
     ...getExtensionsOverride({ enableWorkerExtensionHost: true }), ...getFilesOverride(), ...getConfigurationOverride(),
@@ -79,12 +82,32 @@ try {
     ...getStorageOverride(), ...getLifecycleOverride(), ...getNotificationsOverride(), ...getDialogsOverride(),
   }, document.getElementById('workbench'));
 
+  // LexLean's name, brackets and colours, before the file is opened, so the editor takes it for LexLean.
+  registerLexLean(monaco);
   const resource = uriOf(entry);
   await (await getService(IEditorService)).openEditor({ resource, options: { pinned: true } });
   const markers = await getService(IMarkerService);
   const model = monaco.editor.getModels().find((m) => m.uri.toString() === resource.toString());
   if (!model) throw new Error('the workbench opened no model for ' + listing.entry);
-  state.model = { lines: model.getLineCount() };
+  // The file ending should be enough; if the workbench chose otherwise, say which language this is.
+  if (model.getLanguageId() !== LEXLEAN) monaco.editor.setModelLanguage(model, LEXLEAN);
+  state.model = { lines: model.getLineCount(), language: model.getLanguageId() };
+  const themes = await getService(IWorkbenchThemeService);
+  // The editor gives each token a class, mtk<n>, where n indexes the theme's table of colours. In VS Code the
+  // stylesheet that gives those classes their colours is written by the TextMate service, which this page does not
+  // load, so it is written here from the same table. The table grows as the theme meets new kinds of token, so it is
+  // written again after the theme changes and a moment after the editor asks for colours.
+  const tokenStyle = document.head.appendChild(document.createElement('style'));
+  const paint = () => {
+    const table = themes.getColorTheme().tokenColorMap ?? [];
+    tokenStyle.textContent = table.map((colour, n) => (colour ? '.mtk' + n + ' { color: ' + colour + '; }' : '')).join(' ');
+    state.colours = table.filter(Boolean).length;
+  };
+  themes.onDidColorThemeChange(paint);
+  paint();
+  setInterval(paint, 1000);
+  window.prismModel.colouring = () => { const t = themes.getColorTheme(); return { theme: t.label ?? t.id, rules: t.tokenColors?.length ?? null, semantic: t.semanticHighlighting ?? null, asked: registerLexLean.calls }; };
+  window.prismModel.tokenize = (text) => monaco.editor.tokenize(text, LEXLEAN).map((line) => line.map((t) => t.type));
   window.prismModel.setText = (text) => model.setValue(text); // for a test to type with
   window.prismModel.text = () => model.getValue();
 
@@ -109,7 +132,10 @@ try {
       // A model that does not check has no meaning to prove anything about.
       markers.changeOne('prism-guarantees', resource, []);
       state.proof = null;
-      say(`${result.diagnostics.length} problem${result.diagnostics.length === 1 ? '' : 's'} from LexLean, in ${reply.ms} ms. Guarantees are not judged until the model checks.`, 'bad');
+      // A problem in another file of the project has no place in this editor, so the strip names the first one.
+      const elsewhere = result.diagnostics.find((d) => !own.includes(d));
+      say(`${result.diagnostics.length} problem${result.diagnostics.length === 1 ? '' : 's'} from LexLean, in ${reply.ms} ms. Guarantees are not judged until the model checks.`
+        + (elsewhere ? ` Not in this file: ${elsewhere.primary?.path ?? 'the project'}: ${elsewhere.code}: ${elsewhere.message}` : ''), 'bad');
       state.markers = markers.read({ resource }).length;
       state.ready = true;
       return;
