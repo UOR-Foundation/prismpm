@@ -10,9 +10,9 @@ export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 export { loadLibrary, emitter, readModule };
 
-export async function kernel() {
+export async function kernel(library = "library/library.ndjson.gz") {
   const factory = (await import(pathToFileURL(path.join(root, "kernel/lean-kernel.mjs")).href)).default;
-  const wasmBinary = gunzipSync(fs.readFileSync(path.join(root, "kernel/lean-kernel.wasm.gz"))), libraryText = gunzipSync(fs.readFileSync(path.join(root, "library/library.ndjson.gz"))).toString("utf8"), lines = [];
+  const wasmBinary = gunzipSync(fs.readFileSync(path.join(root, "kernel/lean-kernel.wasm.gz"))), libraryText = gunzipSync(fs.readFileSync(path.join(root, library))).toString("utf8"), lines = [];
   const m = await factory({ instantiateWasm: (imports, ok) => { WebAssembly.instantiate(wasmBinary, imports).then((r) => ok(r.instance, r.module)); return {}; }, print: (s) => lines.push(s), printErr: (s) => lines.push(s) });
   if (m.ccall("checker_ready", "number", [], []) !== 0) throw new Error("kernel not ready");
   const call = (entry, text) => { m.FS.writeFile("/f.ndjson", text); lines.length = 0; const t = performance.now(); let exit; try { exit = m.ccall(entry, "number", ["string"], ["/f.ndjson"]); } catch (e) { exit = 3; lines.push("trap: " + e.message); } return { exit, ms: performance.now() - t, out: [...lines], last: lines[lines.length - 1] }; };

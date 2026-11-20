@@ -1,0 +1,89 @@
+\begin{lexlean}{App}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Field,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: name, type: String},
+    {name: least, type: Nat},
+    {name: greatest, type: Nat},
+    {name: values, type: (List String)}
+  ]
+}
+
+structure{
+  name: Condition,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: field, type: Nat}, {name: op, type: Nat}, {name: value, type: Nat}]
+}
+
+structure{
+  name: Rule,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: conditions, type: (List Condition)}, {name: answer, type: Nat}]
+}
+
+structure{
+  name: Guarantee,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: always, type: Nat},
+    {name: conditions, type: (List Condition)},
+    {name: answer, type: Nat}
+  ]
+}
+
+structure{
+  name: Example,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: request, type: String}, {name: answer, type: String}]
+}
+
+definition{name: title, parameters: [], result: String, body: "Terminal flow control"}
+
+definition{
+  name: fields,
+  parameters: [],
+  result: (List Field),
+  body: (cons (record Field {name := "pending", least := 0, greatest := 52428800, values := (nil String)}) (cons (record Field {name := "paused", least := 0, greatest := 1, values := (cons "no" (cons "yes" (nil String)))}) (nil Field)))
+}
+
+definition{
+  name: answers,
+  parameters: [],
+  result: (List String),
+  body: (cons "hold" (cons "write" (nil String)))
+}
+
+definition{name: otherwise, parameters: [], result: Nat, body: 1}
+
+definition{
+  name: rules,
+  parameters: [],
+  result: (List Rule),
+  body: (cons (record Rule {conditions := (cons (record Condition {field := 0, op := 3, value := 100000}) (nil Condition)), answer := 0}) (cons (record Rule {conditions := (cons (record Condition {field := 1, op := 4, value := 1}) (cons (record Condition {field := 0, op := 2, value := 10000}) (nil Condition))), answer := 0}) (nil Rule)))
+}
+
+definition{
+  name: guarantees,
+  parameters: [],
+  result: (List Guarantee),
+  body: (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 0, op := 3, value := 100000}) (nil Condition)), answer := 0}) (cons (record Guarantee {always := 0, conditions := (cons (record Condition {field := 0, op := 3, value := 100000}) (nil Condition)), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 1, op := 4, value := 1}) (cons (record Condition {field := 0, op := 2, value := 10000}) (nil Condition))), answer := 0}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 1, op := 4, value := 0}) (cons (record Condition {field := 0, op := 0, value := 100000}) (nil Condition))), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 1, op := 4, value := 1}) (cons (record Condition {field := 0, op := 1, value := 10000}) (nil Condition))), answer := 1}) (nil Guarantee))))))
+}
+
+definition{
+  name: examples,
+  parameters: [],
+  result: (List Example),
+  body: (cons (record Example {request := "0 no", answer := "write"}) (cons (record Example {request := "99999 no", answer := "write"}) (cons (record Example {request := "100000 no", answer := "hold"}) (cons (record Example {request := "100000 yes", answer := "hold"}) (cons (record Example {request := "52428800 no", answer := "hold"}) (cons (record Example {request := "50000 yes", answer := "hold"}) (cons (record Example {request := "10001 yes", answer := "hold"}) (cons (record Example {request := "10000 yes", answer := "write"}) (cons (record Example {request := "0 yes", answer := "write"}) (nil Example))))))))))
+}
+\end{semanticmodule}
+\end{lexlean}

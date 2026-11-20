@@ -1,0 +1,144 @@
+{
+  "library": true,
+  "refused": [],
+  "spec": "lexlean/kernel-declarations/2",
+  "theorems": [
+    {
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "form": "decide",
+      "produced": "LexLeanKernel.PrismParkingFeeTier.ParkingFeeTierProofs.inv001Holds",
+      "proof": {
+        "kind": "decide"
+      },
+      "statement": "LexStmt.PrismParkingFeeTier.ParkingFeeTierProofs.inv001Holds",
+      "theorem": "PrismParkingFeeTier.ParkingFeeTierProofs.inv001Holds"
+    },
+    {
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "form": "linear_arithmetic",
+      "proof": {
+        "definitions": [
+          {
+            "module": "ParkingFeeTier",
+            "name": "answerFree"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "answerPremium"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "answerStandard"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "judge"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule1"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule2"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule3"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule4"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "vehicleCar"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "vehicleMotorcycle"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "vehicleTruck"
+          },
+          {
+            "name": "breaksInv002"
+          }
+        ],
+        "kind": "linear_arithmetic"
+      },
+      "refused": "proof form `linear_arithmetic`",
+      "statement": "LexStmt.PrismParkingFeeTier.ParkingFeeTierProofs.inv002Holds",
+      "theorem": "PrismParkingFeeTier.ParkingFeeTierProofs.inv002Holds"
+    },
+    {
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "form": "linear_arithmetic",
+      "proof": {
+        "definitions": [
+          {
+            "module": "ParkingFeeTier",
+            "name": "answerFree"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "answerPremium"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "answerStandard"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "judge"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule1"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule2"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule3"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "rule4"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "vehicleCar"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "vehicleMotorcycle"
+          },
+          {
+            "module": "ParkingFeeTier",
+            "name": "vehicleTruck"
+          },
+          {
+            "name": "breaksInv003"
+          }
+        ],
+        "kind": "linear_arithmetic"
+      },
+      "refused": "proof form `linear_arithmetic`",
+      "statement": "LexStmt.PrismParkingFeeTier.ParkingFeeTierProofs.inv003Holds",
+      "theorem": "PrismParkingFeeTier.ParkingFeeTierProofs.inv003Holds"
+    }
+  ]
+}

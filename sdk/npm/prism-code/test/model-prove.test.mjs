@@ -6,7 +6,8 @@ import { copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } fr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ensureModelKernel, modelProve, openModelKernel, MODEL_KERNEL_FILES } from '../src/journey/model-prove.mjs';
+import { ensureModelKernel, modelProve, modelProveDeclared, openModelKernel, MODEL_KERNEL_FILES } from '../src/journey/model-prove.mjs';
+import { gunzipSync } from 'node:zlib';
 import { proverWhere } from '../src/journey/frontend.mjs';
 
 const kernelPath = fileURLToPath(new URL('../../lean-prover/kernel-path/', import.meta.url));
@@ -29,7 +30,7 @@ test('an app is always proved in this process: PRISM_CODE_TIER=hosted no longer 
 });
 
 test('the lowering and proof finder here are byte for byte the ones the sealed browser prover runs', { skip: !here && 'no lean-prover package beside this one' }, () => {
-  for (const name of ['emit.mjs', 'lower.mjs']) {
+  for (const name of ['emit.mjs', 'lower.mjs', 'plan.mjs', 'declarations.mjs']) {
     assert.ok(readFileSync(new URL(`../src/vendor/kernel-path/${name}`, import.meta.url)).equals(readFileSync(join(kernelPath, 'src', name))), name);
   }
 });
@@ -154,4 +155,54 @@ test('the kernel image only saves time: a process resumes from it, and an image 
   assert.deepEqual({ resumed: third.resumed, exit: third.exit }, { resumed: false, exit: 0 }, 'an image that will not resume gives a fresh kernel, never a failed proof');
   assert.match(third.setAside, /did not answer|grew to/, 'and says why it was set aside');
   assert.deepEqual(open(), { resumed: true, exit: 0, setAside: null }, 'and the fresh kernel keeps a good image again');
+});
+
+// LexLean's own declarations of the decision-app starter (`lexlean declare`, LexLean CL-29), with inv001Holds proved by
+// `decide`: once true, once false. LexLean produces a `decide` proof of a statement over a variable, which the kernel
+// refuses; it is set aside and the theorem found here like any other.
+const declared = (name) => {
+  const dir = join(kernelPath, 'test', 'fixtures', 'declarations', name);
+  const meta = JSON.parse(readFileSync(join(dir, 'declarations.json'), 'utf8'));
+  return { ...meta, suffix: gunzipSync(readFileSync(join(dir, 'declarations.ndjson.gz'))).toString('utf8') };
+};
+const hasDeclarations = here && existsSync(join(kernelPath, 'test', 'fixtures', 'declarations', 'decide-over-variable-true'));
+
+test("an app LexLean declared is proved from its own declarations, a refused proof of LexLean's set aside", { skip: !hasDeclarations && 'no declaration fixtures beside this package' }, async () => {
+  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
+  const r = await modelProveDeclared(declared('decide-over-variable-true'), { env, fetch: noFetch });
+  assert.equal(r.ok, true, r.refusal);
+  assert.equal(r.theorems.length, 3);
+  assert.ok(r.theorems.every((t) => t.status.startsWith('proved')), JSON.stringify(r.theorems.map((t) => t.status)));
+  const inv1 = r.theorems.find((t) => t.name.endsWith('.inv001Holds'));
+  assert.match(inv1.setAside, /the kernel refused LexLean's proof/);
+  assert.equal(r.setAside, 1);
+});
+
+test('a false theorem LexLean declared stays not proved, and the true ones are proved', { skip: !hasDeclarations && 'no declaration fixtures beside this package' }, async () => {
+  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
+  const r = await modelProveDeclared(declared('decide-over-variable-false'), { env, fetch: noFetch });
+  assert.equal(r.ok, false);
+  const inv1 = r.theorems.find((t) => t.name.endsWith('.inv001Holds'));
+  assert.match(inv1.status, /^not proved/);
+  assert.deepEqual(r.theorems.filter((t) => t.status.startsWith('proved')).map((t) => t.name.split('.').pop()).sort(), ['inv002Holds', 'inv003Holds']);
+});
+
+test("declarations not written over this kernel's library are refused, never judged", { skip: !hasDeclarations && 'no declaration fixtures beside this package' }, async () => {
+  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
+  const self = { ...declared('decide-over-variable-true'), library: false };
+  const r = await modelProveDeclared(self, { env, fetch: noFetch });
+  assert.equal(r.ok, false);
+  assert.match(r.refusal, /no declarations over this kernel's library/);
+});
+
+test("a statement LexLean declared that no longer type-checks refuses the model; nothing is reported proved", { skip: !hasDeclarations && 'no declaration fixtures beside this package' }, async () => {
+  const env = { PRISM_MODEL_KERNEL_DIR: kernelDir(), PRISM_KAPPA_DIR: storeDir() };
+  const altered = declared('decide-over-variable-true');
+  // A declaration line that names an expression index nothing defines: the kernel cannot read the declarations.
+  altered.suffix = altered.suffix.replace(/("def":\{[^\n]*?"type":)(\d+)/, (m, head) => `${head}99999999`);
+  assert.notEqual(altered.suffix, declared('decide-over-variable-true').suffix, 'the fixture holds a definition to alter');
+  const r = await modelProveDeclared(altered, { env, fetch: noFetch });
+  assert.equal(r.ok, false);
+  assert.match(r.refusal, /refused LexLean's declarations/);
+  assert.equal(r.theorems.length, 0);
 });

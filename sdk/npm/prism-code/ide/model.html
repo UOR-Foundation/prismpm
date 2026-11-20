@@ -10,6 +10,8 @@
   #strip { padding: .35rem .75rem; border-bottom: 1px solid #333; }
   #strip[data-state="ok"] { color: #6fcf8f; } #strip[data-state="bad"] { color: #ff8a8a; }
   #match { padding: .35rem .75rem; border-bottom: 1px solid #333; }
+  #draft { padding: .35rem .75rem; border-bottom: 1px solid #333; color: #d7ba7d; }
+  #draft button { font: inherit; color: inherit; background: none; border: 1px solid currentColor; border-radius: 3px; padding: 0 .4rem; cursor: pointer; }
   #match[data-state="same"] { color: #6fcf8f; } #match[data-state="other"] { color: #ff8a8a; font-weight: 600; }
   #workbench { flex: 1; min-height: 0; position: relative; }
 </style>
@@ -17,6 +19,7 @@
 <body>
 <div id="strip" role="status">Starting…</div>
 <div id="match" role="status" hidden></div>
+<div id="draft" role="status" hidden><span id="draftText"></span> <button id="draftDiscard" type="button" hidden>Discard my changes</button></div>
 <div id="workbench"></div>
 <script type="module" src="./src/model-editor.js"></script>
 </body>

@@ -4,7 +4,9 @@ name: IDE kernels
 # use a resource (ide-capability-gate), what class an editor command is (ide-command-table), and whether a path or
 # host is inside a granted scope (ide-scope). This workflow is where they are proved.
 #
-# The two rule tables state their guarantees as data; Lean's kernel, in this process, checks each one for every
+# Four more rule tables decide what the embedded terminal does (ide-terminal-commands, -reach, -effects, -flow).
+#
+# The rule tables state their guarantees as data; Lean's kernel, in this process, checks each one for every
 # request, through prism-code's own rule-app build. No image.
 # The scope kernel states theorems; Lean proves them in the SDK image its verification record names, and then a
 # planted defect, which Lean must reject, so a pass is known to mean something.
@@ -78,6 +80,110 @@ jobs:
           grep -q '^FAILED' defect.log
           rm defect.log
           git checkout -- model/ide-audit/src/App.lex.tex
+      - name: The terminal command table, 27 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-terminal-commands 27
+      - name: The terminal reach table, 33 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-terminal-reach 33
+      - name: The terminal outside effects, 17 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-terminal-effects 17
+      - name: The terminal flow control, 5 guarantees
+        run: node model/ide-prove-rule-app.mjs model/ide-terminal-flow 5
+      - name: "Planted defect: a terminal that runs bytes that are not the pinned ones is refused"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # The rule "check, and the executable is the pinned one -> run". Make it run bytes that hash to something else.
+          path = 'model/ide-terminal-commands/src/App.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(record Rule {conditions := (cons (record Condition {field := 0, op := 4, value := 6}) (cons (record Condition {field := 2, op := 4, value := 2}) (nil Condition))), answer := 2})'
+          assert text.count(sound) == 1, 'the rule the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, sound.replace('field := 2, op := 4, value := 2', 'field := 2, op := 4, value := 1')))
+          PY
+          ! git diff --quiet -- model/ide-terminal-commands/src/App.lex.tex
+          set +e
+          node model/ide-prove-rule-app.mjs model/ide-terminal-commands 27 > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q '^FAILED' defect.log
+          # Refused for the right reason: the kernel names the guarantee the defect breaks and a request that breaks it.
+          grep -qF 'guarantee 4 (never run) is false: the request `check none mismatch no`' defect.log
+          rm defect.log
+          git checkout -- model/ide-terminal-commands/src/App.lex.tex
+      - name: "Planted defect: a terminal that hands a command the network is refused"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # The rule "screen -> allow". Make it "network -> allow".
+          path = 'model/ide-terminal-reach/src/App.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(record Rule {conditions := (cons (record Condition {field := 1, op := 4, value := 0}) (nil Condition)), answer := 1})'
+          assert text.count(sound) == 1, 'the rule the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, sound.replace('value := 0', 'value := 5')))
+          PY
+          ! git diff --quiet -- model/ide-terminal-reach/src/App.lex.tex
+          set +e
+          node model/ide-prove-rule-app.mjs model/ide-terminal-reach 33 > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q '^FAILED' defect.log
+          # Refused for the right reason: the kernel names the guarantee the defect breaks and a request that breaks it.
+          grep -qF 'guarantee 1 (always deny) is false: the request `help network`' defect.log
+          rm defect.log
+          git checkout -- model/ide-terminal-reach/src/App.lex.tex
+      - name: "Planted defect: a terminal that opens a link without asking is refused"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # The rule "a clicked https link -> ask". Make it "-> apply".
+          path = 'model/ide-terminal-effects/src/App.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(record Rule {conditions := (cons (record Condition {field := 0, op := 4, value := 2}) (cons (record Condition {field := 1, op := 4, value := 1}) (cons (record Condition {field := 2, op := 4, value := 2}) (nil Condition)))), answer := 2})'
+          assert text.count(sound) == 1, 'the rule the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, sound.replace('answer := 2', 'answer := 1')))
+          PY
+          ! git diff --quiet -- model/ide-terminal-effects/src/App.lex.tex
+          set +e
+          node model/ide-prove-rule-app.mjs model/ide-terminal-effects 17 > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q '^FAILED' defect.log
+          # Refused for the right reason: the kernel names the guarantee the defect breaks and a request that breaks it.
+          grep -qF 'guarantee 7 (never apply) is false: the request `link yes https no`' defect.log
+          rm defect.log
+          git checkout -- model/ide-terminal-effects/src/App.lex.tex
+      - name: "Planted defect: a terminal that keeps writing past the high-water mark is refused"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          # The rule "100000 bytes or more pending -> hold". Make it hold only from 200000.
+          path = 'model/ide-terminal-flow/src/App.lex.tex'
+          text = open(path, encoding='utf8').read()
+          sound = '(record Rule {conditions := (cons (record Condition {field := 0, op := 3, value := 100000}) (nil Condition)), answer := 0})'
+          assert text.count(sound) == 1, 'the rule the defect replaces is not there'
+          open(path, 'w', encoding='utf8', newline='\n').write(text.replace(sound, sound.replace('value := 100000', 'value := 200000')))
+          PY
+          ! git diff --quiet -- model/ide-terminal-flow/src/App.lex.tex
+          set +e
+          node model/ide-prove-rule-app.mjs model/ide-terminal-flow 5 > defect.log 2>&1
+          code=$?
+          set -e
+          cat defect.log
+          [ "$code" -ne 0 ]
+          grep -q '^FAILED' defect.log
+          # Refused for the right reason: the kernel names the guarantee the defect breaks and a request that breaks it.
+          grep -qF 'guarantee 1 (always hold) is false: the request `100000 no`' defect.log
+          rm defect.log
+          git checkout -- model/ide-terminal-flow/src/App.lex.tex
       # The IDE's page code that stands beside the models: tested, not proved.
       - name: The browser signature check agrees with the verdicts pinned for check
         run: node ide/tools/signature-test.mjs
@@ -87,6 +193,8 @@ jobs:
         run: node ide/tools/scope-test.mjs
       - name: A model is told apart from one its app does not run
         run: node ide/tools/app-match-test.mjs
+      - name: A reader's changes come back only for their model, and only as stored
+        run: node ide/tools/drafts-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
         shell: bash
         run: |
