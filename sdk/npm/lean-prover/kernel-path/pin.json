@@ -38,8 +38,8 @@
    "encoding": "gzip"
   },
   "src/emit.mjs": {
-   "kappa": "blake3:751092331187092658c04e843f4b8650b32669f945ad62e3a79b3c0021366063",
-   "bytes": 68150
+   "kappa": "blake3:1a7603533a12d8a04296266d8ee2a33de25fa739a09c6f91d93e576aef4a9e01",
+   "bytes": 97699
   },
   "src/store.mjs": {
    "kappa": "blake3:f0ac5293141ef20523abeeb37197a2de21d4d2e33486be715cad02f5f4586115",

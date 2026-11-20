@@ -43,7 +43,7 @@ export function plan(snapshot, library, { hash = null } = {}) {
     },
     file(names) {
       for (const n of names) em.write(em.theorem(script(byName.get(n))));
-      const text = declarations + em.since(mark).join("\n") + "\n";
+      const proofs = em.since(mark), text = declarations + (proofs.length ? proofs.join("\n") + "\n" : "");
       em.rollback(mark);
       return text;
     },
