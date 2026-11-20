@@ -1,4 +1,4 @@
 {
-  "kib": 12,
-  "reason": "Agents write LexLean in one pass: src/journey/hints.mjs gives each diagnostic the line its name is written on and the nearest names in scope (about 5.1 KiB), src/journey/card.mjs is the LexLean card prism_init hands an agent (about 4.3 KiB), and the four Docker-named tools grow src/journey/mcp.mjs (about 2 KiB)."
+  "kib": 14,
+  "reason": "Agents write LexLean in one pass: src/journey/hints.mjs gives each diagnostic the line its name is written on and the nearest names in scope (about 5.1 KiB), src/journey/card.mjs is the LexLean card prism_init hands an agent (about 5.5 KiB), the four Docker-named tools grow src/journey/mcp.mjs (about 2.5 KiB), and a kernel image that will not resume gives a fresh kernel in src/journey/model-prove.mjs (about 1 KiB)."
 }
