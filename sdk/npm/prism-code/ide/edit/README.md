@@ -47,7 +47,7 @@ Tried by hand in the same browser, on `model/ide-capability-gate`:
 npm ci                                             # from sdk/npm/prism-code/ide, once
 npx vite build -c vite.model.config.js             # writes dist-model/, about 28 MB, not committed
 node tools/serve-edit.mjs <a folder holding lexlean.toml>
-# then open http://localhost:4170/model.html
+# then open http://localhost:4170/edit/ide/
 ```
 
 Tried by hand in the same browser, on `model/ide-capability-gate`:
@@ -67,7 +67,7 @@ Tried by hand in the same browser, on `model/ide-capability-gate`:
 - The workbench cannot run a tokenizer of this kind on an open file: it logs an error for every line and colours nothing. So the tokenizer is registered under a name no file has and is only asked for a text's tokens, which are handed over as semantic tokens of the standard kinds (keyword, type, string, number, operator, property, namespace, comment).
 - The workbench writes the stylesheet for token colours from its TextMate service, which this page does not load. The page writes that stylesheet itself from the theme's colour table, and again when the theme changes.
 
-Tried by hand in the same browser. `model.html?theme=<a theme's name>` opens the page in that theme.
+Tried by hand in the same browser. `edit/ide/?theme=<a theme's name>` opens the page in that theme.
 
 | Model, theme | Shown |
 |---|---|
@@ -87,7 +87,26 @@ Limits of the workbench page:
 - Every broken guarantee is reported on the one line where the guarantees are stated, not at its own place in that line.
 - Edits were made by setting the editor's text from a script, not by typing keys.
 - No extension runs on this page, so the capability gate is not loaded. Putting the two together is not done.
-- The build is 28 MB and needs `npm ci`; it is not part of any published page.
+- The build is 28 MB and needs `npm ci`. The published site is 34 MiB with it.
+
+## Published
+
+`tools/build-edit-site.mjs` adds this page to the site `tools/build-audit-site.mjs` assembles, and `.github/workflows/ide-audit-pages.yml` publishes both on this repository's GitHub Pages: the plain page at `<pages>/edit/`, the workbench at `<pages>/edit/ide/`. Both work from whatever folder they are published in.
+
+- The LexLean executable and the kernel are published beside the page. A browser cannot fetch them from where prism-code does, because those addresses do not let another site read them. The workflow checks that what it publishes is what prism-code pins, and the workers check again in the tab.
+- With no address the page opens the capability gate's model, which comes with it.
+- `?project=<address of a folder>` opens the model published there. The folder holds the model's files and a `project.json` listing them, `{ "files": ["lexlean.toml", "src/App.lex.tex", ...], "entry": "src/App.lex.tex" }`, as `tools/edit-project.mjs` writes it. Its host must let other sites read it; when it does not, the page says so.
+
+Tried by hand on the assembled site, served from a subfolder as Pages serves it:
+
+| Step | Shown |
+|---|---|
+| `edit/` | 13 of 13 proved by Lean's kernel in the tab |
+| `edit/ide/` | the workbench, coloured; 13 of 13 proved; no file failed to load |
+| `edit/ide/?project=` a second model on another origin that allows reading | that model: 5 of 5 proved |
+| the same on an origin that does not allow reading | "The model at … could not be opened (Failed to fetch). It needs a project.json listing its files, and its host must let other sites read them." |
+
+No published Prism app has a `project.json` or publishes its model's files today, so `?project=` opens no real app yet.
 
 Limits:
 
@@ -96,7 +115,7 @@ Limits:
 - Rule tables only. A model with theorems of its own is checked, and the page says its guarantees are not proved here. `model-prove.mjs` could be tried for those; it did not finish on `model/ide-scope` in 40 minutes in Node.
 - "Refused" (the kernel does not accept a guarantee that no request breaks) was never seen: no such model was tried.
 - A blank line added at the end of the file makes LexLean refuse the model. That is LexLean's rule, shown as it reports it.
-- The executable is served from where prism-code keeps it on this machine. A published page would have to fetch it from its release address, whose cross-origin rules were not tried.
+- Nothing an edit changes is saved or can be sent anywhere: the page has no way to write a model back.
 - The pin reaches the page as `pin.json` from the same server that serves the page. That is no weaker than the page's own code, which the same server serves.
 - LexLean's positions are shown as it gives them. A missing type is reported at the line of the module's first structure, not where it is used.
 - No automated test runs the page.
