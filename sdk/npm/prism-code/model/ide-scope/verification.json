@@ -1,0 +1,89 @@
+{
+  "schema": "prism/model-verification/1",
+  "project": "prism-ide-scope",
+  "command": "lexlean lock && lexlean verify --all",
+  "image": "ghcr.io/uor-foundation/prismpm-sdk-candidate@sha256:cd3b47d7a370c4a26b8285f5e9c3bb15e639973c55505c3809ddbe55352fea58",
+  "lean": "4.32.1",
+  "result": "verified 9 modules",
+  "attestation": null,
+  "sources": {
+    "lexlean.toml": "sha256:a46048400a8ff17717c206f764071f9013d88f4a1c4851d4bd1774e18ad21492",
+    "lexlean.lock": "sha256:0b7f675fbc274bfe2df3326adeb0d13a7f55cc89ea27e135b28d4fcef4749674",
+    "src/Scope.lex.tex": "sha256:cb45b1900235624a08f261a5ed5ab12504f5a2a3ad73d2a4b71d94b0628ebd41",
+    "src/ScopeProofDescendantUnmatched.lex.tex": "sha256:5f647f0d97892cc54d2d92f53e0e4ba4840850edc8abb026372abe46091bfefe",
+    "src/ScopeProofEmptyScope.lex.tex": "sha256:818d60016de6581a818e7aaf1b59ca396d0285d47cb3113d90a380a41d43ba3a",
+    "src/ScopeProofMismatch.lex.tex": "sha256:2eb45f5ec51b6defd2b144f404dca4e5c58b2d48abc332c07d11f018a8a663b6",
+    "src/ScopeProofOtherAnswer.lex.tex": "sha256:09c51f9a9fe43e09311b466c9374e0674a59654b5087702f073dd2facf405b8e",
+    "src/ScopeProofScopeTooDeep.lex.tex": "sha256:e4f486bd07835983ef5346036b00c148ee07a7ef4e880b38a5be778faeaf9345",
+    "src/ScopeProofShorterThanScope.lex.tex": "sha256:aef7be1cf1c61de5533d4ff73975e2f2700c1d2e2fd526e042d076f29cc960a4",
+    "src/ScopeProofTooDeep.lex.tex": "sha256:a23d804841c4c1d614fa479d789126604f3b28d7da5fdf4627cc4d9e680d75df",
+    "src/ScopeProofUnnamedSegment.lex.tex": "sha256:4c8d20c74e4e184dd532af9a3f2ddb5427d4eb2d707f279bce5150cde5f94598"
+  },
+  "theorems": [
+    {
+      "name": "neverDescendantUnmatched",
+      "module": "ScopeProofDescendantUnmatched",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverEmptyScope",
+      "module": "ScopeProofEmptyScope",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverMismatch",
+      "module": "ScopeProofMismatch",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverOtherAnswer",
+      "module": "ScopeProofOtherAnswer",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverScopeTooDeep",
+      "module": "ScopeProofScopeTooDeep",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverShorterThanScope",
+      "module": "ScopeProofShorterThanScope",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverTooDeep",
+      "module": "ScopeProofTooDeep",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    },
+    {
+      "name": "neverUnnamedSegment",
+      "module": "ScopeProofUnnamedSegment",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ]
+    }
+  ]
+}

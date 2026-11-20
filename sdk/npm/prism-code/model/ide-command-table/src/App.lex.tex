@@ -1,0 +1,89 @@
+\begin{lexlean}{App}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Field,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: name, type: String},
+    {name: least, type: Nat},
+    {name: greatest, type: Nat},
+    {name: values, type: (List String)}
+  ]
+}
+
+structure{
+  name: Condition,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: field, type: Nat}, {name: op, type: Nat}, {name: value, type: Nat}]
+}
+
+structure{
+  name: Rule,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: conditions, type: (List Condition)}, {name: answer, type: Nat}]
+}
+
+structure{
+  name: Guarantee,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: always, type: Nat},
+    {name: conditions, type: (List Condition)},
+    {name: answer, type: Nat}
+  ]
+}
+
+structure{
+  name: Example,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: request, type: String}, {name: answer, type: String}]
+}
+
+definition{name: title, parameters: [], result: String, body: "Command class table"}
+
+definition{
+  name: fields,
+  parameters: [],
+  result: (List Field),
+  body: (cons (record Field {name := "command", least := 0, greatest := 3, values := (cons "other" (cons "setcontext" (cons "reloadwebview" (cons "wordhighlight" (nil String)))))}) (nil Field))
+}
+
+definition{
+  name: answers,
+  parameters: [],
+  result: (List String),
+  body: (cons "exec" (cons "show" (nil String)))
+}
+
+definition{name: otherwise, parameters: [], result: Nat, body: 0}
+
+definition{
+  name: rules,
+  parameters: [],
+  result: (List Rule),
+  body: (cons (record Rule {conditions := (cons (record Condition {field := 0, op := 4, value := 1}) (nil Condition)), answer := 1}) (cons (record Rule {conditions := (cons (record Condition {field := 0, op := 4, value := 2}) (nil Condition)), answer := 1}) (cons (record Rule {conditions := (cons (record Condition {field := 0, op := 4, value := 3}) (nil Condition)), answer := 1}) (nil Rule))))
+}
+
+definition{
+  name: guarantees,
+  parameters: [],
+  result: (List Guarantee),
+  body: (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 0, op := 4, value := 0}) (nil Condition)), answer := 0}) (cons (record Guarantee {always := 0, conditions := (cons (record Condition {field := 0, op := 4, value := 0}) (nil Condition)), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 0, op := 4, value := 1}) (nil Condition)), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 0, op := 4, value := 2}) (nil Condition)), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 0, op := 4, value := 3}) (nil Condition)), answer := 1}) (nil Guarantee))))))
+}
+
+definition{
+  name: examples,
+  parameters: [],
+  result: (List Example),
+  body: (cons (record Example {request := "other", answer := "exec"}) (cons (record Example {request := "setcontext", answer := "show"}) (cons (record Example {request := "reloadwebview", answer := "show"}) (cons (record Example {request := "wordhighlight", answer := "show"}) (nil Example)))))
+}
+\end{semanticmodule}
+\end{lexlean}

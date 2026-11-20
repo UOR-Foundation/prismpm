@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Gate batch</title></head>
+<body><pre id="log">idle</pre><div id="frames"></div>
+<script type="module">
+// Runs each extension in its own page load, one after another, and collects what the gate saw.
+const WAIT_MS = 22000;
+const log = document.getElementById('log');
+const results = [];
+window.__batch = { done: false, results, current: null };
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode') ?? 'wb=full&origin=alt&csp=strict';
+async function runOne(id) {
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:1000px;height:600px;border:1px solid #888';
+  frame.src = `/?${mode}` + (id ? `&ext=${encodeURIComponent(id)}` : '');
+  document.getElementById('frames').replaceChildren(frame);
+  await new Promise((r) => setTimeout(r, WAIT_MS));
+  let s = null;
+  try { s = frame.contentWindow.__spike; } catch (e) { return { id, harnessError: String(e) }; }
+  if (!s) return { id, harnessError: 'page state missing' };
+  const denied = {};
+  for (const d of s.denied) { const k = d.call.replace('MainThread', '') + ' -> ' + d.answer; denied[k] = (denied[k] ?? 0) + 1; }
+  const calls = {};
+  for (const [k, n] of Object.entries(s.calls)) calls[k.replace('MainThread', '')] = n;
+  return {
+    id, pageError: s.error, judgeAdmitted: s.judge?.admitted ?? null, registered: s.realRegistered ?? null,
+    ext: (s.pageLate?.exts ?? s.probe?.late?.exts ?? []), probeReported: !!s.probe?.late, hosts: s.hosts, separate: s.separate,
+    ownStorage: s.probe?.ownStorage, otherStorage: s.probe?.otherStorage, identity: s.identity && { prism: s.identity.prism, source: s.identity.grants?.source, error: s.identity.error },
+    byClass: { ...s.byClass }, denied, calls, totalCalls: Object.values(s.calls).reduce((a, b) => a + b, 0),
+    commandIds: { ...s.commandIds }, filePaths: { ...s.filePaths },
+    notInTable: [...s.wrappedNotInTable], judgeCalls: s.judgeMs.length, judgeMsMax: s.judgeMs.length ? Math.max(...s.judgeMs) : null,
+    errors: s.activationErrors.filter((e) => !/^gate:/.test(e.message ?? '')).map((e) => ({ ext: e.ext, message: String(e.message).slice(0, 300) })),
+  };
+}
+const list = [null, ...(await (await fetch('/ext/batch.json')).json()).map((b) => b.id)];
+const only = params.get('only');
+for (const id of (only ? only.split(',') : list)) {
+  window.__batch.current = id ?? '(baseline, no extension)';
+  log.textContent = `running ${results.length + 1} of ${list.length}: ${window.__batch.current}`;
+  results.push(await runOne(id === '(baseline)' ? null : id));
+}
+document.getElementById('frames').replaceChildren();
+window.__batch.done = true;
+log.textContent = 'done: ' + results.length;
+</script></body></html>

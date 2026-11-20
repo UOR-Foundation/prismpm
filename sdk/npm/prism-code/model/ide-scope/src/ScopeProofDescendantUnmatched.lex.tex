@@ -1,0 +1,32 @@
+\begin{lexlean}{ScopeProofDescendantUnmatched}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{Scope}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: breaksDescendantUnmatched,
+  parameters: [r : Scope::Request, c : Scope::Request],
+  result: Bool,
+  body: ((((Scope::judge r) =? (Scope::answerInside)) && (((((((((((project r depth) <=? (project c depth)) && ((project c scopeDepth) =? (project r scopeDepth))) && ((project c p1) =? (project r p1))) && ((project c p2) =? (project r p2))) && ((project c p3) =? (project r p3))) && ((project c p4) =? (project r p4))) && ((project c s1) =? (project r s1))) && ((project c s2) =? (project r s2))) && ((project c s3) =? (project r s3))) && ((project c s4) =? (project r s4)))) && (not (((project c scopeDepth) <=? (project c depth)) && (Scope::prefixMatches c))))
+}
+
+theorem{
+  name: neverDescendantUnmatched,
+  parameters: [r : Scope::Request, c : Scope::Request],
+  statement: ((breaksDescendantUnmatched r c) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      Scope::answerInside,
+      Scope::answerOutside,
+      Scope::inside,
+      Scope::judge,
+      Scope::prefixMatches,
+      breaksDescendantUnmatched
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+\end{semanticmodule}
+\end{lexlean}

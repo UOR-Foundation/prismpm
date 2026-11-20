@@ -1,0 +1,81 @@
+\begin{lexlean}{Scope}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Request,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: depth, type: Nat},
+    {name: s1, type: Nat},
+    {name: s2, type: Nat},
+    {name: s3, type: Nat},
+    {name: s4, type: Nat},
+    {name: s5, type: Nat},
+    {name: s6, type: Nat},
+    {name: s7, type: Nat},
+    {name: s8, type: Nat},
+    {name: scopeDepth, type: Nat},
+    {name: p1, type: Nat},
+    {name: p2, type: Nat},
+    {name: p3, type: Nat},
+    {name: p4, type: Nat}
+  ]
+}
+
+definition{name: targetSlots, parameters: [], result: Nat, body: 8}
+
+definition{name: scopeSlots, parameters: [], result: Nat, body: 4}
+
+definition{name: firstName, parameters: [], result: Nat, body: 3}
+
+definition{name: answerOutside, parameters: [], result: Nat, body: 0}
+
+definition{name: answerInside, parameters: [], result: Nat, body: 1}
+
+definition{
+  name: targetNamed,
+  parameters: [r : Request],
+  result: Bool,
+  body: ((((((((((project r depth) <? 1) || ((firstName) <=? (project r s1))) && (((project r depth) <? 2) || ((firstName) <=? (project r s2)))) && (((project r depth) <? 3) || ((firstName) <=? (project r s3)))) && (((project r depth) <? 4) || ((firstName) <=? (project r s4)))) && (((project r depth) <? 5) || ((firstName) <=? (project r s5)))) && (((project r depth) <? 6) || ((firstName) <=? (project r s6)))) && (((project r depth) <? 7) || ((firstName) <=? (project r s7)))) && (((project r depth) <? 8) || ((firstName) <=? (project r s8))))
+}
+
+definition{
+  name: scopeNamed,
+  parameters: [r : Request],
+  result: Bool,
+  body: ((((((project r scopeDepth) <? 1) || ((firstName) <=? (project r p1))) && (((project r scopeDepth) <? 2) || ((firstName) <=? (project r p2)))) && (((project r scopeDepth) <? 3) || ((firstName) <=? (project r p3)))) && (((project r scopeDepth) <? 4) || ((firstName) <=? (project r p4))))
+}
+
+definition{
+  name: wellFormed,
+  parameters: [r : Request],
+  result: Bool,
+  body: ((((((project r depth) <=? (targetSlots)) && (1 <=? (project r scopeDepth))) && ((project r scopeDepth) <=? (scopeSlots))) && (targetNamed r)) && (scopeNamed r))
+}
+
+definition{
+  name: prefixMatches,
+  parameters: [r : Request],
+  result: Bool,
+  body: ((((((project r scopeDepth) <? 1) || ((project r s1) =? (project r p1))) && (((project r scopeDepth) <? 2) || ((project r s2) =? (project r p2)))) && (((project r scopeDepth) <? 3) || ((project r s3) =? (project r p3)))) && (((project r scopeDepth) <? 4) || ((project r s4) =? (project r p4))))
+}
+
+definition{
+  name: inside,
+  parameters: [r : Request],
+  result: Bool,
+  body: (((wellFormed r) && ((project r scopeDepth) <=? (project r depth))) && (prefixMatches r))
+}
+
+definition{
+  name: judge,
+  parameters: [r : Request],
+  result: Nat,
+  body: (if (inside r) then (answerInside) else (answerOutside))
+}
+
+\end{semanticmodule}
+\end{lexlean}

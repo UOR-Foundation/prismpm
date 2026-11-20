@@ -1,0 +1,141 @@
+{
+ "schema": "prism/rule-app/1",
+ "name": "command-class-table",
+ "title": "Command class table",
+ "kernel": {
+  "holo": "sha256:e775324ea3abf203d3f7cb0b5a31e2c6c2328d751fdddf5fa1c46aae4e0d8cee"
+ },
+ "fields": [
+  {
+   "name": "command",
+   "kind": "choice",
+   "values": [
+    "other",
+    "setcontext",
+    "reloadwebview",
+    "wordhighlight"
+   ]
+  }
+ ],
+ "outcomes": [
+  "exec",
+  "show"
+ ],
+ "words": [
+  1,
+  1,
+  0,
+  3,
+  0,
+  3,
+  1,
+  1,
+  0,
+  4,
+  1,
+  1,
+  1,
+  0,
+  4,
+  2,
+  1,
+  1,
+  0,
+  4,
+  3
+ ],
+ "guarantees": [
+  {
+   "always": true,
+   "when": [
+    [
+     0,
+     4,
+     0
+    ]
+   ],
+   "outcome": 0
+  },
+  {
+   "always": false,
+   "when": [
+    [
+     0,
+     4,
+     0
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     0,
+     4,
+     1
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     0,
+     4,
+     2
+    ]
+   ],
+   "outcome": 1
+  },
+  {
+   "always": true,
+   "when": [
+    [
+     0,
+     4,
+     3
+    ]
+   ],
+   "outcome": 1
+  }
+ ],
+ "vectors": [
+  {
+   "request": "6f74686572",
+   "response": "65786563"
+  },
+  {
+   "request": "736574636f6e74657874",
+   "response": "73686f77"
+  },
+  {
+   "request": "72656c6f616477656276696577",
+   "response": "73686f77"
+  },
+  {
+   "request": "776f7264686967686c69676874",
+   "response": "73686f77"
+  },
+  {
+   "request": "302030",
+   "response": "696e76616c6964"
+  }
+ ],
+ "proof": {
+  "lean": {
+   "version": "4.32.1",
+   "commit": "f054605aea4b840552cca2e725580bffd1e1b704"
+  },
+  "kernel": "sha256:4b48480b9c03ae4aa3bf1a37256b59bff2d41d6cf452a2f8aa9de41a28ccd118",
+  "library": "sha256:a22cb8e581310c1c4a03e120e277dd99d37c66f8159188e866f68177836aa560",
+  "bundle": "sha256:7da8074c0a2b034321d127e3daf9eb3d8bd3141c542271ab91be375308fa289c",
+  "statement": "sha256:0836feb9a9cb3b181f80793bf016749567e68436424f3c40bb8c14579c0a1e11",
+  "axioms": [
+   "Quot.sound",
+   "propext"
+  ],
+  "verdict": "proved"
+ }
+}

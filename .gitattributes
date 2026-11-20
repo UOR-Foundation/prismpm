@@ -32,3 +32,6 @@ sdk/npm/prism-code/model/rule-judge/lean-toolchain text eol=lf
 # The skill gate is pinned by its exact bytes (skill/skills.json) and LexLean refuses CRLF: a CRLF checkout must not change them.
 skills/gate/** text eol=lf
 sdk/npm/prism-code/skill/gate/lean-toolchain text eol=lf
+
+# The IDE kernels are locked and verified over their exact bytes, and LexLean refuses CRLF.
+sdk/npm/prism-code/model/ide-*/** text eol=lf

@@ -1,0 +1,89 @@
+\begin{lexlean}{App}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Field,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: name, type: String},
+    {name: least, type: Nat},
+    {name: greatest, type: Nat},
+    {name: values, type: (List String)}
+  ]
+}
+
+structure{
+  name: Condition,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: field, type: Nat}, {name: op, type: Nat}, {name: value, type: Nat}]
+}
+
+structure{
+  name: Rule,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: conditions, type: (List Condition)}, {name: answer, type: Nat}]
+}
+
+structure{
+  name: Guarantee,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: always, type: Nat},
+    {name: conditions, type: (List Condition)},
+    {name: answer, type: Nat}
+  ]
+}
+
+structure{
+  name: Example,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: request, type: String}, {name: answer, type: String}]
+}
+
+definition{name: title, parameters: [], result: String, body: "Extension capability gate"}
+
+definition{
+  name: fields,
+  parameters: [],
+  result: (List Field),
+  body: (cons (record Field {name := "resource", least := 0, greatest := 5, values := (cons "show" (cons "read" (cons "write" (cons "network" (cons "secrets" (cons "exec" (nil String)))))))}) (cons (record Field {name := "declared", least := 0, greatest := 1, values := (cons "no" (cons "yes" (nil String)))}) (cons (record Field {name := "denied", least := 0, greatest := 1, values := (cons "no" (cons "yes" (nil String)))}) (cons (record Field {name := "trusted", least := 0, greatest := 1, values := (cons "no" (cons "yes" (nil String)))}) (cons (record Field {name := "target", least := 0, greatest := 2, values := (cons "outside" (cons "workspace" (cons "storage" (nil String))))}) (cons (record Field {name := "granted", least := 0, greatest := 1, values := (cons "no" (cons "yes" (nil String)))}) (nil Field)))))))
+}
+
+definition{
+  name: answers,
+  parameters: [],
+  result: (List String),
+  body: (cons "deny" (cons "allow" (cons "ask" (nil String))))
+}
+
+definition{name: otherwise, parameters: [], result: Nat, body: 2}
+
+definition{
+  name: rules,
+  parameters: [],
+  result: (List Rule),
+  body: (cons (record Rule {conditions := (cons (record Condition {field := 2, op := 4, value := 1}) (nil Condition)), answer := 0}) (cons (record Rule {conditions := (cons (record Condition {field := 1, op := 4, value := 0}) (nil Condition)), answer := 0}) (cons (record Rule {conditions := (cons (record Condition {field := 4, op := 4, value := 0}) (nil Condition)), answer := 0}) (cons (record Rule {conditions := (cons (record Condition {field := 4, op := 4, value := 2}) (cons (record Condition {field := 0, op := 3, value := 1}) (cons (record Condition {field := 0, op := 1, value := 2}) (nil Condition)))), answer := 1}) (cons (record Rule {conditions := (cons (record Condition {field := 3, op := 4, value := 0}) (cons (record Condition {field := 0, op := 2, value := 1}) (nil Condition))), answer := 0}) (cons (record Rule {conditions := (cons (record Condition {field := 5, op := 4, value := 1}) (nil Condition)), answer := 1}) (nil Rule)))))))
+}
+
+definition{
+  name: guarantees,
+  parameters: [],
+  result: (List Guarantee),
+  body: (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 2, op := 4, value := 1}) (nil Condition)), answer := 0}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 1, op := 4, value := 0}) (nil Condition)), answer := 0}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 4, op := 4, value := 0}) (nil Condition)), answer := 0}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 3, op := 4, value := 0}) (cons (record Condition {field := 0, op := 2, value := 2}) (nil Condition))), answer := 0}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 3, op := 4, value := 0}) (cons (record Condition {field := 0, op := 2, value := 1}) (cons (record Condition {field := 4, op := 4, value := 1}) (nil Condition)))), answer := 0}) (cons (record Guarantee {always := 0, conditions := (cons (record Condition {field := 5, op := 4, value := 0}) (cons (record Condition {field := 4, op := 4, value := 1}) (nil Condition))), answer := 1}) (cons (record Guarantee {always := 0, conditions := (cons (record Condition {field := 5, op := 4, value := 0}) (cons (record Condition {field := 0, op := 2, value := 2}) (nil Condition))), answer := 1}) (cons (record Guarantee {always := 0, conditions := (cons (record Condition {field := 5, op := 4, value := 0}) (cons (record Condition {field := 0, op := 4, value := 0}) (nil Condition))), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 4, op := 4, value := 2}) (cons (record Condition {field := 0, op := 3, value := 1}) (cons (record Condition {field := 0, op := 1, value := 2}) (cons (record Condition {field := 2, op := 4, value := 0}) (cons (record Condition {field := 1, op := 4, value := 1}) (nil Condition)))))), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 0, op := 4, value := 5}) (cons (record Condition {field := 3, op := 4, value := 0}) (nil Condition))), answer := 0}) (cons (record Guarantee {always := 0, conditions := (cons (record Condition {field := 0, op := 4, value := 5}) (cons (record Condition {field := 5, op := 4, value := 0}) (nil Condition))), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 5, op := 4, value := 1}) (cons (record Condition {field := 2, op := 4, value := 0}) (cons (record Condition {field := 1, op := 4, value := 1}) (cons (record Condition {field := 4, op := 4, value := 1}) (cons (record Condition {field := 3, op := 4, value := 1}) (nil Condition)))))), answer := 1}) (cons (record Guarantee {always := 1, conditions := (cons (record Condition {field := 5, op := 4, value := 1}) (cons (record Condition {field := 2, op := 4, value := 0}) (cons (record Condition {field := 1, op := 4, value := 1}) (cons (record Condition {field := 4, op := 4, value := 2}) (cons (record Condition {field := 3, op := 4, value := 1}) (nil Condition)))))), answer := 1}) (nil Guarantee))))))))))))))
+}
+
+definition{
+  name: examples,
+  parameters: [],
+  result: (List Example),
+  body: (cons (record Example {request := "network yes no yes workspace yes", answer := "allow"}) (cons (record Example {request := "network yes no yes workspace no", answer := "ask"}) (cons (record Example {request := "network yes yes yes workspace yes", answer := "deny"}) (cons (record Example {request := "write yes no no workspace yes", answer := "deny"}) (cons (record Example {request := "read yes no no workspace yes", answer := "allow"}) (cons (record Example {request := "show no no yes workspace yes", answer := "deny"}) (cons (record Example {request := "secrets yes no yes outside yes", answer := "deny"}) (cons (record Example {request := "exec yes no yes workspace yes", answer := "allow"}) (cons (record Example {request := "exec yes no yes workspace no", answer := "ask"}) (cons (record Example {request := "exec yes no no workspace yes", answer := "deny"}) (cons (record Example {request := "write yes no yes storage no", answer := "allow"}) (cons (record Example {request := "read yes no no storage no", answer := "allow"}) (cons (record Example {request := "write yes no no storage no", answer := "allow"}) (cons (record Example {request := "write yes yes yes storage yes", answer := "deny"}) (cons (record Example {request := "exec yes no yes storage no", answer := "ask"}) (cons (record Example {request := "network yes no no storage yes", answer := "deny"}) (cons (record Example {request := "show yes no yes storage no", answer := "ask"}) (cons (record Example {request := "write yes no yes workspace no", answer := "ask"}) (nil Example)))))))))))))))))))
+}
+\end{semanticmodule}
+\end{lexlean}

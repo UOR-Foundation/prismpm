@@ -1,0 +1,38 @@
+\begin{lexlean}{ScopeProofUnnamedSegment}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{Scope}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: breaksUnnamedSegment,
+  parameters: [r : Scope::Request],
+  result: Bool,
+  body: (((Scope::judge r) =? (Scope::answerInside)) && (((((((((1 <=? (project r depth)) && ((project r s1) <? (Scope::firstName))) || ((2 <=? (project r depth)) && ((project r s2) <? (Scope::firstName)))) || ((3 <=? (project r depth)) && ((project r s3) <? (Scope::firstName)))) || ((4 <=? (project r depth)) && ((project r s4) <? (Scope::firstName)))) || ((5 <=? (project r depth)) && ((project r s5) <? (Scope::firstName)))) || ((6 <=? (project r depth)) && ((project r s6) <? (Scope::firstName)))) || ((7 <=? (project r depth)) && ((project r s7) <? (Scope::firstName)))) || ((8 <=? (project r depth)) && ((project r s8) <? (Scope::firstName)))))
+}
+
+theorem{
+  name: neverUnnamedSegment,
+  parameters: [r : Scope::Request],
+  statement: ((breaksUnnamedSegment r) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      Scope::answerInside,
+      Scope::answerOutside,
+      Scope::firstName,
+      Scope::inside,
+      Scope::judge,
+      Scope::prefixMatches,
+      Scope::scopeNamed,
+      Scope::scopeSlots,
+      Scope::targetNamed,
+      Scope::targetSlots,
+      Scope::wellFormed,
+      breaksUnnamedSegment
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+\end{semanticmodule}
+\end{lexlean}

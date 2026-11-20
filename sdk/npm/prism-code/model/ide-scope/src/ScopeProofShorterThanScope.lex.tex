@@ -1,0 +1,38 @@
+\begin{lexlean}{ScopeProofShorterThanScope}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{Scope}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: breaksShorterThanScope,
+  parameters: [r : Scope::Request],
+  result: Bool,
+  body: (((Scope::judge r) =? (Scope::answerInside)) && ((project r depth) <? (project r scopeDepth)))
+}
+
+theorem{
+  name: neverShorterThanScope,
+  parameters: [r : Scope::Request],
+  statement: ((breaksShorterThanScope r) = false),
+  proof: linear_arithmetic{
+    definitions: [
+      Scope::answerInside,
+      Scope::answerOutside,
+      Scope::firstName,
+      Scope::inside,
+      Scope::judge,
+      Scope::prefixMatches,
+      Scope::scopeNamed,
+      Scope::scopeSlots,
+      Scope::targetNamed,
+      Scope::targetSlots,
+      Scope::wellFormed,
+      breaksShorterThanScope
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+\end{semanticmodule}
+\end{lexlean}
