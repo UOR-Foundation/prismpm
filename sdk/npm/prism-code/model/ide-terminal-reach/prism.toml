@@ -1,0 +1,11 @@
+[application]
+name = "terminal-reach"
+version = "0.1.0"
+description = "say whether a terminal command may use a resource: deny or allow."
+
+[model]
+source = "src"
+watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]
+
+# Deny by default: an empty set grants the holo nothing.
+[capabilities]

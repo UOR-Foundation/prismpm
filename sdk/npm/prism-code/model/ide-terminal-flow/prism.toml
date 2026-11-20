@@ -1,0 +1,11 @@
+[application]
+name = "terminal-flow-control"
+version = "0.1.0"
+description = "say whether a command may write more to the terminal now: hold or write."
+
+[model]
+source = "src"
+watch = ["src/**/*.lex.tex", "language/**/*.toml", "lexlean.toml"]
+
+# Deny by default: an empty set grants the holo nothing.
+[capabilities]

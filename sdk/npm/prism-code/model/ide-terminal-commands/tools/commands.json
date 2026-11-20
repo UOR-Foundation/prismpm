@@ -1,0 +1,15 @@
+{
+ "builtins": {
+  "help": "list these commands",
+  "clear": "clear the screen",
+  "ls": "list the open model's files",
+  "cat": "print one file of the open model, control bytes shown as text",
+  "kappa": "print the BLAKE3 label of one file of the open model"
+ },
+ "programs": {
+  "check": "lexlean check: LexLean's front end, as WebAssembly",
+  "snapshot": "lexlean snapshot: the same executable",
+  "prove": "Lean's kernel on the model's guarantees",
+  "audit": "the audit view's statuses, from the kernel and the vectors"
+ }
+}
