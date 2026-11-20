@@ -7,7 +7,7 @@
 // Usage: node ide-prove-rule-app.mjs <model dir> <guarantees expected> [<file to copy the built record to>] [<folder to copy the built site to>]
 // Exit 0 only when the kernel accepted exactly that many guarantees and every acceptance vector passed.
 import { spawn } from 'node:child_process';
-import { copyFileSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,14 +65,19 @@ if (!checked.ok) finish(1, 'check refused: ' + JSON.stringify(checked.diagnostic
 let built = await call('prism_build', { wait: 240 });
 while (built.state === 'running') built = await call('prism_build', { wait: 60 });
 const accepted = /accepted all (\d+) guarantees/.exec(built.message ?? '')?.[1];
-const vectors = built.vectors ?? {};
-const good = built.ok === true && accepted === String(expected) && vectors.total > 0 && vectors.passed === vectors.total;
-if (good && keepRecord && keepRecord !== '-') copyFileSync(built.app, resolve(keepRecord));
-if (good && keepSite) cpSync(built.site, resolve(keepSite), { recursive: true });
+// The reply says in words what was built. Where it was written, and how many vectors passed, the server keeps in
+// the session it saves beside the model, for the model it just built.
+let made = {};
+try { made = JSON.parse(readFileSync(join(work, 'prism', 'session.json'), 'utf8')).status?.ruleApp ?? {}; } catch { /* no session, nothing built */ }
+if (made.semanticId !== checked.semanticId) made = {};
+const vectors = { passed: made.passed, total: made.total };
+const good = built.ok === true && built.built?.ok === true && accepted === String(expected) && vectors.total > 0 && vectors.passed === vectors.total;
+if (good && keepRecord && keepRecord !== '-') copyFileSync(made.path, resolve(keepRecord));
+if (good && keepSite) cpSync(made.site, resolve(keepSite), { recursive: true });
 finish(good ? 0 : 1, [
   `${good ? 'ok' : 'FAILED'}: ${modelDir}`,
   `model ${checked.semanticId}`,
   `guarantees accepted by Lean's kernel: ${accepted ?? 'none'} (expected ${expected})`,
   `acceptance vectors: ${vectors.passed ?? 0} of ${vectors.total ?? 0}`,
-  good ? `app ${built.address}` : JSON.stringify(built).slice(0, 1200),
+  good ? `app ${made.address}` : JSON.stringify(built).slice(0, 1200),
 ].join('\n'));
