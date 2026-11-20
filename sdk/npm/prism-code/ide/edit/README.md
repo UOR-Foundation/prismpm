@@ -119,6 +119,18 @@ Tried by hand on the assembled site, served as Pages serves it:
 
 `tools/drafts-test.mjs` holds the store to this on a directory in memory, with a stored text altered behind its back and a draft that names another model.
 
+### Taking the model out
+
+"Download model", beside the strip, gives the model as it stands in the editor as one tar archive (`model-tar.mjs`) that unpacks into a folder named `model`, a LexLean project.
+
+- The archive is written the same way every time: paths in order, no dates, no owners, one mode. The same model gives the same bytes.
+- So the archive has one BLAKE3 label. The file is named by its first twelve digits and the page states it in full. Two people who download the same model hold the same label.
+- A path that would leave the folder it is unpacked into is refused, whoever wrote the model's listing.
+
+`tools/model-tar-test.mjs` has the system's own tar unpack an archive and compares every file, and plants paths that must be refused.
+
+Checked in the same browser on `model/ide-capability-gate`: the archive the page makes of the model as fetched is 45056 bytes with the label `blake3:a4ac2e2ff115…`, the same bytes count and label Node gives for the repository's files; a changed file gives another label; undoing the change gives the first one back. The button itself was not pressed by hand: what was checked is the archive the button hands over.
+
 Limits of the workbench page:
 
 - A draft is trusted no further than the origin that serves the page: another page of the same origin can write to the same store. It is the reader's convenience, not evidence of anything.
