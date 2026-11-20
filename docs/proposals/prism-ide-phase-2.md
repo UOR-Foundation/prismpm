@@ -1,6 +1,6 @@
 # Prism IDE, phase 2: open any Prism app to audit it and edit it, in any browser
 
-Status: proposed, and partly built. Since this was written, `main` has gained the audit page, the edit pages, the model in the VS Code workbench, LexLean colouring, a published model and the check that a model is the one its app runs, all live at https://uor-foundation.github.io/prismpm/ (`audit/`, `edit/`, `edit/ide/`). The table below was read before that work; the rows the terminal phase depends on are corrected, the rest are as written. Phases 2d, 2e and 2f are not built.
+Status: proposed, and partly built. Since this was written, `main` has gained the audit page, the edit pages, the model in the VS Code workbench, LexLean colouring, a published model and the check that a model is the one its app runs, all live at https://uor-foundation.github.io/prismpm/ (`audit/`, `edit/`, `edit/ide/`). The table below was read before that work; the rows the terminal phase depends on are corrected, the rest are as written. Phase 2f is built in part: the terminal is in the plain edit page. Phases 2d and 2e are not built.
 
 ## Why
 
@@ -110,7 +110,9 @@ Tested only: that the page asks the tables and obeys them; that the worker a pro
 
 Gates: in the published page, `check` on the shipped model prints LexLean's own result; with one byte of the executable changed, `check` is refused and nothing runs; a file holding an OSC 52 sequence, printed with `cat`, leaves the clipboard as it was; a second `check` of the same model is answered from the store with the network off.
 
-Budgets. These are targets. None is measured yet, and the phase is not done until each is measured in Chrome on the CI runner and the figure written here.
+Built so far (2026-11-20): the terminal in the plain edit page, with the four tables asked before every line, every use of a resource, every outside effect and every piece of output; xterm.js held to BLAKE3 pins; output kept and shown again within a visit. Not built: the workbench panel, anything kept between visits, saved sessions, and the search, serialize and unicode11 addons. `ide/edit/README.md` has the detail.
+
+Budgets. These are targets. The first figures are in `ide/edit/README.md`: one development machine, the page served from localhost, not the CI runner. On that machine the key, write, prompt and memory figures were inside the targets, except that 3 of 1000 keys took over 50 ms; a cold first check was not timed. The phase is not done until each is measured in Chrome on the CI runner and the figure written here.
 
 | What | Target | How it is measured |
 |---|---|---|
@@ -145,7 +147,7 @@ The workbench is not an imitation. `ide/` runs `@codingame/monaco-vscode-api`, w
 | Search across files | Same code, over files held in the browser | Not built | Phase 3 |
 | Source control (git) | git in the browser, speaking to the host the user names | Not built | Phase 3 |
 | Open a GitHub or Azure repository by address | vscode.dev does this with a closed Microsoft extension. Here: git over HTTPS to that host, which is the user's server, not Prism's | Not built | Phase 3 |
-| Terminal | The same emulator, xterm.js. No shell exists in a browser, and vscode.dev has none either without a tunnel to a machine. Here: a command line for the open model (check, snapshot, prove, audit, list, print, label), every program admitted by its BLAKE3 label, with a proved rule for what it may run, touch and do outside its grid. vscode.dev has no equivalent of those rules | Specified: four rule tables, 82 guarantees proved. Not built | Phase 2f. A WASI shell is after phase 2, with no promise |
+| Terminal | The same emulator, xterm.js. No shell exists in a browser, and vscode.dev has none either without a tunnel to a machine. Here: a command line for the open model (check, snapshot, prove, audit, list, print, label), every program admitted by its BLAKE3 label, with a proved rule for what it may run, touch and do outside its grid. vscode.dev has no equivalent of those rules | Built in the plain edit page; four rule tables, 82 guarantees proved. Not in the workbench page | Phase 2f. A WASI shell is after phase 2, with no promise |
 | Debugging | Only for what can run in the browser | Not built | After phase 3 |
 | Settings Sync | Prism ID: the same id on every device, sealed to it | The id works on one device; linking and sync are untested | Phase 3 |
 | Sign in | None needed: Prism ID is made on first use | Tried | |

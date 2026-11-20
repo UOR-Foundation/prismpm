@@ -89,6 +89,52 @@ Limits of the workbench page:
 - No extension runs on this page, so the capability gate is not loaded. Putting the two together is not done.
 - The build is 28 MB and needs `npm ci`. The published site is 34 MiB with it.
 
+## The terminal (phase 2f, first step)
+
+Below the guarantees the page has a terminal. It is xterm.js itself (`@xterm/xterm` 6.0.0, MIT), with the fit, webgl and web-links addons, installed by `ide/package-lock.json` and published beside the page as the files npm ships. It is not a shell. xterm.js draws and reports keys; what answers them is `terminal/session.mjs`, a fixed list of commands on the open model:
+
+| Command | What it does |
+|---|---|
+| `help`, `clear` | list the commands; clear the screen |
+| `ls [folder]`, `cat <file>`, `kappa <file>` | list the model's files; print one, control bytes written out; print one file's `blake3:` label |
+| `check`, `snapshot` | `lexlean check` and `lexlean snapshot`, on the model as it is in the editor |
+| `prove` | Lean's kernel on each guarantee |
+| `audit` | each guarantee's status by the rule of `model/ide-audit` |
+
+Anything else is refused: there is no bash, no native program, no pipe and no connection to any machine.
+
+What decides:
+
+- Every line is put to `model/ide-terminal-commands` before anything runs. A program runs only when its executable hashed to its pinned label; with one byte of the LexLean executable changed, `check`, `snapshot`, `prove` and `audit` are refused and `ls` still answers.
+- Every use of a resource by a running command is put to `model/ide-terminal-reach`. The command line has nothing to hand a command but the screen, the model's files and the kept outputs.
+- Output that would act outside the grid is put to `model/ide-terminal-effects` (`terminal/effects.mjs`): OSC 52, notifications, file transfers and sixel are taken from xterm.js and ignored, a title is set as plain text, a link asks before it opens and only after a click, a paste of several lines asks first. The clipboard and image addons are not loaded. Window operations (CSI `t`) are dropped by xterm.js itself, whose options for them are all off.
+- Output waits on `model/ide-terminal-flow`: 16 KiB pieces, held at 100000 pending bytes, released at 10000.
+
+BLAKE3: `terminal/pins.json` names each published file of xterm.js by its `blake3:` label, and the page runs a file only when its bytes have that label (`node tools/terminal-site.mjs pin` rewrites the pins after a version change, and the site builder refuses an installed file that is not the pinned one). A program's output is kept under the label of its program's label and the label of everything it read, and shown again only when `reuseAdmits` (proved in `model/rule-app`) admits it; a second `check` of an unchanged model starts nothing. `site.json` now names every published file by its `blake3:` label, beside its SHA-256.
+
+The tables reach the page as `terminal/tables.json`, read at build time from the models through LexLean's own snapshot, each with its model's identity. The page judges a request with `judgeTable` of `src/journey/rule-table.mjs`. The guarantees are proved of the tables; that this code asks them and obeys is tested by `node tools/terminal-test.mjs` (13 tests), not proved.
+
+Measured on 2026-11-20 on one Windows development machine, in the Claude desktop app's browser pane, WebGL renderer, the page served from localhost. Not measured in CI, and not in other browsers.
+
+| What | Measured | How |
+|---|---|---|
+| Key to character drawn | median 5.5 ms, 95th percentile 5.9 ms, 3 of 1000 over 50 ms (worst 430 ms) | `term.input` of one key to the next `onRender`, 1000 keys. It leaves out the browser's own key event and the frame reaching the screen |
+| The same, during a 10 MB write | 24 keys, worst 7.1 ms | as above, while the write ran |
+| 10 MB of text | 629 ms, 15.9 MB/s; at most 114688 bytes pending; held 89 times | first write to last callback |
+| Page opened to first prompt | 687 ms | `performance.now()` when the prompt's write came back; nothing was cached |
+| `check` | 31 ms run, 2.4 ms kept | Enter to the last write callback, executable already loaded (it took 1630 ms to load) |
+| `prove`, 13 guarantees | 1521 ms run, 6.1 ms kept | the same |
+| Heap with 10000 lines of 157 columns | 6.4 MB before, 48.5 MB after | `performance.memory`, which is coarse |
+
+Not built, and not to be read into the above:
+
+- The terminal in the workbench page (`ide/model.html`). It needs `@codingame/monaco-vscode-terminal-service-override` and its own xterm.js.
+- Kept outputs and sessions between visits. What is kept lives in the tab's memory and is gone on reload: `kappa-opfs.mjs` still labels with SHA-256 (phase 2d).
+- Search in the scrollback, saved sessions, Unicode 11 widths: the search, serialize and unicode11 addons are not loaded.
+- Editing in the middle of a line: the cursor stays at the end. History is Up and Down; Tab completes a command name.
+- `prove` is held to the SHA-256 names in the kernel's manifest; only the label of the whole list is BLAKE3.
+- A program is not paused mid-run: its output is produced whole, then written under flow control.
+
 ## Published
 
 `tools/build-edit-site.mjs` adds this page to the site `tools/build-audit-site.mjs` assembles, and `.github/workflows/ide-audit-pages.yml` publishes both on this repository's GitHub Pages: the plain page at `<pages>/edit/`, the workbench at `<pages>/edit/ide/`. Both work from whatever folder they are published in.

@@ -1,0 +1,42 @@
+{
+ "schema": "prism-ide/terminal-pins/1",
+ "license": "MIT",
+ "packages": {
+  "@xterm/xterm": "6.0.0",
+  "@xterm/addon-fit": "0.11.0",
+  "@xterm/addon-webgl": "0.19.0",
+  "@xterm/addon-web-links": "0.12.0"
+ },
+ "files": {
+  "xterm.mjs": {
+   "package": "@xterm/xterm",
+   "path": "lib/xterm.mjs",
+   "bytes": 344970,
+   "kappa": "blake3:0fb91bbba715c823066298e81ad178f38eeb231c172415878c5fd069e91185c9"
+  },
+  "xterm.css": {
+   "package": "@xterm/xterm",
+   "path": "css/xterm.css",
+   "bytes": 7112,
+   "kappa": "blake3:7245fbf91260b1188f1515513c7e0ba35cffdbed8caf88818c1c940571bcb191"
+  },
+  "addon-fit.mjs": {
+   "package": "@xterm/addon-fit",
+   "path": "lib/addon-fit.mjs",
+   "bytes": 1967,
+   "kappa": "blake3:4de844d5a3bccf0f2df49f92f9d921b29d614b1b6708ba46131f97b86b2bb0b7"
+  },
+  "addon-webgl.mjs": {
+   "package": "@xterm/addon-webgl",
+   "path": "lib/addon-webgl.mjs",
+   "bytes": 126558,
+   "kappa": "blake3:75046079f2275a0f92301b65e058ed3aaaf4459d9744eb7a8723092c6be585b7"
+  },
+  "addon-web-links.mjs": {
+   "package": "@xterm/addon-web-links",
+   "path": "lib/addon-web-links.mjs",
+   "bytes": 3148,
+   "kappa": "blake3:42af9ebb1e30afb6d85f36997153bf807f399dc334ffb99ec6d3cf3f4440d342"
+  }
+ }
+}
