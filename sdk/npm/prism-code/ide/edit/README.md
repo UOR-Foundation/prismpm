@@ -79,10 +79,32 @@ Tried by hand in the same browser. `edit/ide/?theme=<a theme's name>` opens the 
 
 A diagnostic in another file of the project is now named in the strip rather than dropped. On `model/ide-scope` it reads `lexlean.toml: LLC0101: lean_toolchain must be exactly leanprover/lean4:v4.32.2`: the pinned LexLean refuses every model configured for Lean 4.32.1.
 
+### Every file of the model
+
+The workbench shows the model as its one folder, in its own Explorer, and any file can be opened and changed. The command palette (F1) and the keyboard shortcuts are the workbench's own.
+
+- A check reads every file as it stands in the editor: the entry file, and any other file that was opened and changed.
+- A diagnostic is marked in the file it is about, and listed under Problems with that file's name.
+- A changed file keeps its change after its editor is closed, for as long as the tab is open. Nothing is written anywhere: a reload brings back the model as fetched.
+
+Tried by hand in the same browser, on `model/ide-capability-gate`, and on an app's model served as Pages serves it:
+
+| Step | Shown |
+|---|---|
+| Open | the Explorer lists `language`, `src` and the project's files; the entry file is open; 13 of 13 proved |
+| Click `lexlean.lock` in the Explorer | it opens in a second tab |
+| In `lexlean.toml`, change the Lean toolchain to one LexLean does not take | one problem, `LLC0101`, marked in `lexlean.toml`; guarantees not judged |
+| Undo | no problems; 13 of 13 proved |
+| F1, "Color Theme" | the command palette lists the theme commands |
+| On an app's model, add a comment to `prism.toml` | still proved; "Your text still gives the rules the app at … runs." |
+
 Limits of the workbench page:
 
+- New files, renames and deletions made in the Explorer are not read by a check: it reads the files the model was fetched with.
+- Edits to files other than the entry were made by setting their text from a script, not by typing keys.
+
 - Colours were looked at in three of the ten themes, and on three files. Names a model defines, such as `judge`, keep the plain text colour.
-- The theme was chosen by the address; the workbench's command palette did not open on this page.
+- The themes above were chosen by the address, before the command palette was switched on.
 - The token stylesheet is also rewritten once a second, because the theme's colour table grows as tokens are first seen and no event says so.
 - Every broken guarantee is reported on the one line where the guarantees are stated, not at its own place in that line.
 - Edits were made by setting the editor's text from a script, not by typing keys.
@@ -141,7 +163,7 @@ Apps published before this have no `model/`, so the audit page offers no editor 
 Limits:
 
 - `index.html` here is a plain text area: no syntax colours, no completion, no formatting (the WASI build of LexLean refuses commands that write).
-- One file is editable: the project's first entrypoint. The other files are read once and sent with every check.
+- On the plain page one file is editable: the project's first entrypoint. The workbench page opens every file.
 - Rule tables only. A model with theorems of its own is checked, and the page says its guarantees are not proved here. `model-prove.mjs` could be tried for those; it did not finish on `model/ide-scope` in 40 minutes in Node.
 - "Refused" (the kernel does not accept a guarantee that no request breaks) was never seen: no such model was tried.
 - A blank line added at the end of the file makes LexLean refuse the model. That is LexLean's rule, shown as it reports it.
