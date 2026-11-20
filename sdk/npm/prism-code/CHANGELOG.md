@@ -8,13 +8,6 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 
 ## [0.10.0](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.9.5...prism-code-v0.10.0) (2026-11-20)
 
-
-### ⚠ BREAKING CHANGES
-
-* **prism-code:** the guided build runs no local image; the hosted verifier is the default prover ([#724](https://github.com/UOR-Foundation/prismpm/issues/724))
-* prism/spec.json, prism_spec, prism_answer and check --spec are gone. A Docker-free build is unavailable until LexLean runs as WebAssembly.
-* **prism-code:** prism/spec.json, prism_spec, prism_answer and check --spec are gone. A Docker-free build is unavailable until LexLean runs as WebAssembly.
-
 ### Features Added
 
 * **holo:** format revision 2026-11-18 and the binary application profile (HO-49, HO-50) ([#728](https://github.com/UOR-Foundation/prismpm/issues/728)) ([9411067](https://github.com/UOR-Foundation/prismpm/commit/941106701450c50d8574ba1de9b5bff68d27bfe9))
@@ -37,13 +30,17 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 * **prism-code:** verify --lean, build --check and setup prove on Lean's kernel in this process ([1d89099](https://github.com/UOR-Foundation/prismpm/commit/1d89099344b99862636b196eb9d3d6099dff6931))
 * **prism-code:** verify --lean, build --check and setup prove on Lean's kernel in this process ([9f20855](https://github.com/UOR-Foundation/prismpm/commit/9f20855c78fe6d16c6e91dba29be6bda4a6f950f))
 
+### Breaking Changes
+
+* **prism-code:** the guided build runs no local image; the hosted verifier is the default prover ([#724](https://github.com/UOR-Foundation/prismpm/issues/724))
+* prism/spec.json, prism_spec, prism_answer and check --spec are gone. A Docker-free build is unavailable until LexLean runs as WebAssembly.
+* **prism-code:** prism/spec.json, prism_spec, prism_answer and check --spec are gone. A Docker-free build is unavailable until LexLean runs as WebAssembly.
 
 ### Bugs Fixed
 
 * **lean-prover:** start the workflow, release the package, and read its codes in the register test ([8d38364](https://github.com/UOR-Foundation/prismpm/commit/8d3836411e8152bfee9f89f7f4c81a3594a31843))
 * **prism-code:** name the bridge's own kernel conventions, and wait for the page's origin in the headless test ([b7b1cca](https://github.com/UOR-Foundation/prismpm/commit/b7b1cca297baf06483bd94c4c2061c9ab0570b36))
 * **prism-code:** raise the webgpu codes where the registry test reads them, and pin ./webgpu in the export map ([54988c7](https://github.com/UOR-Foundation/prismpm/commit/54988c7811b8406db72c22a6f43193b14b6dcbfd))
-
 
 ### Other Changes
 
