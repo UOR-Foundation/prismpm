@@ -379,7 +379,29 @@ export function emitter(base) {
     // Booleans and natural-number comparisons, as Lean writes them.
     const BoolT = () => c0("Bool");
     const eqB = (x, v) => apps(E.const("Eq", [u1]), BoolT(), x, c0(v ? "Bool.true" : "Bool.false"));
-    const ltN = (x, y) => apps(E.const("LT.lt", [L.zero]), NatC(), c0("instLTNat"), x, y), leN = (x, y) => apps(E.const("LE.le", [L.zero]), NatC(), c0("instLENat"), x, y);
+    // `||` by cases on its left side, citing no lemma: the kernel reduces `false || y` to y and `true || y` to true,
+    // and the impossible case is closed by Bool.noConfusion. Each term rests on no axiom. (The base library has the
+    // constructors and recursors these use, but not Init's Bool.or_eq_true or Bool.or_eq_false_iff.)
+    const orB = (x, y) => apps(c0("Bool.or"), x, y), lit = (v) => c0(v ? "Bool.true" : "Bool.false");
+    const reflB = (v) => apps(E.const("Eq.refl", [u1]), BoolT(), lit(v));
+    const absurdB = (goal, x, y, h) => apps(E.const("Bool.noConfusion", [L.zero]), goal, x, y, h); // h : x = y, x and y distinct
+    const byCases = (t, motiveOf, onFalse, onTrue) => { const x = E.fvar("x", BoolT()); return apps(E.const("Bool.casesOn", [L.zero]), lambda([x], motiveOf(x)), t, onFalse(lit(false)), onTrue(lit(true))); };
+    const given = (type, body) => { const h = E.fvar("h", type); return lambda([h], body(h)); };
+    // From (x || y) = true: x = true or y = true.
+    const orTrue = (x, y, h) => E.app(byCases(x, (z) => E.pi("h", eqB(orB(z, y), true), apps(c0("Or"), eqB(z, true), eqB(y, true))),
+      (f) => given(eqB(orB(f, y), true), (hy) => apps(c0("Or.inr"), eqB(f, true), eqB(y, true), hy)),
+      (t) => given(eqB(orB(t, y), true), () => apps(c0("Or.inl"), eqB(t, true), eqB(y, true), reflB(true)))), h);
+    // From (x || y) = false: x = false and y = false.
+    const orFalse = (x, y, h) => E.app(byCases(x, (z) => E.pi("h", eqB(orB(z, y), false), apps(c0("And"), eqB(z, false), eqB(y, false))),
+      (f) => given(eqB(orB(f, y), false), (hy) => apps(c0("And.intro"), eqB(f, false), eqB(y, false), reflB(false), hy)),
+      (t) => given(eqB(orB(t, y), false), (ht) => absurdB(apps(c0("And"), eqB(t, false), eqB(y, false)), lit(true), lit(false), ht))), h);
+    // From x = true or y = true: (x || y) = true.
+    const orIntro = (x, y, q) => E.app(byCases(x, (z) => E.pi("q", apps(c0("Or"), eqB(z, true), eqB(y, true)), eqB(orB(z, y), true)),
+      (f) => given(apps(c0("Or"), eqB(f, true), eqB(y, true)), (qf) => apps(c0("Or.elim"), eqB(f, true), eqB(y, true), eqB(orB(f, y), true), qf,
+        given(eqB(f, true), (h1) => absurdB(eqB(orB(f, y), true), lit(false), lit(true), h1)),
+        given(eqB(y, true), (h2) => h2))),
+      (t) => given(apps(c0("Or"), eqB(t, true), eqB(y, true)), () => reflB(true))), q);
+    const ltN =(x, y) => apps(E.const("LT.lt", [L.zero]), NatC(), c0("instLTNat"), x, y), leN = (x, y) => apps(E.const("LE.le", [L.zero]), NatC(), c0("instLENat"), x, y);
     const eqN = (x, y) => apps(E.const("Eq", [u1]), NatC(), x, y);
     // Case splits a fact needs, taken only if the search fails without them: `or` proves P ∨ N, and `also(h)` lists
     // what else each side gives, as [proposition, proof] pairs.
@@ -633,9 +655,8 @@ export function emitter(base) {
         if (e.name === "Bool.not" && b.length === 1) return hypothesis(eqB(b[0], !truth), lemma(truth ? "bnot_t" : "bnot_f", b[0], h));
         if (e.name === "Bool.or" && b.length === 2) {
           const A = eqB(b[0], truth), B = eqB(b[1], truth);
-          if (truth) return split(apps(E.const("Eq.mp", [L.zero]), P, apps(c0("Or"), A, B), apps(c0("Bool.or_eq_true"), b[0], b[1]), h), A, B);
-          const both = apps(c0("And"), A, B);
-          return hypothesis(both, apps(c0("Iff.mp"), P, both, apps(c0("Bool.or_eq_false_iff"), b[0], b[1]), h));
+          if (truth) return split(orTrue(b[0], b[1], h), A, B);
+          return hypothesis(apps(c0("And"), A, B), orFalse(b[0], b[1], h));
         }
         if (e.name === "Nat.blt" && b.length === 2) return hypothesis(truth ? ltN(b[0], b[1]) : leN(b[1], b[0]), lemma(truth ? "nat_blt_t" : "nat_blt_f", b[0], b[1], h));
         if (e.name === "Nat.ble" && b.length === 2) return hypothesis(truth ? leN(b[0], b[1]) : ltN(b[1], b[0]), lemma(truth ? "nat_ble_t" : "nat_ble_f", b[0], b[1], h));
@@ -705,7 +726,7 @@ export function emitter(base) {
         }
         if (e.k === "const" && e.name === "Bool.or" && b.length === 2) {
           // By cases on the left side: if it holds, the left; if not, the right, proved knowing the left is false.
-          const A = eqB(b[0], true), N = eqB(b[0], false), B = eqB(b[1], true), or = apps(c0("Or"), A, B), viaOr = (q) => apps(E.const("Eq.mpr", [L.zero]), P, or, apps(c0("Bool.or_eq_true"), b[0], b[1]), q);
+          const A = eqB(b[0], true), N = eqB(b[0], false), B = eqB(b[1], true), or = apps(c0("Or"), A, B), viaOr = (q) => orIntro(b[0], b[1], q);
           return { closed: apps(c0("Or.elim"), A, N, P, lemma("bool_cases", b[0]),
             E.lam("h", A, viaOr(apps(c0("Or.inl"), A, B, E.bvar(0)))),
             E.lam("h", N, viaOr(apps(c0("Or.inr"), A, B, E.app(lift1(sub(E.pi("h", N, B))), E.bvar(0)))))) };

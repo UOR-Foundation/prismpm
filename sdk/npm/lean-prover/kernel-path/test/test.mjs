@@ -1,6 +1,7 @@
 // node test/test.mjs      (npm test)
 // One run that checks the whole thing: what is proved, what must be refused, and that nothing is judged twice.
 import fs from "node:fs";
+import zlib from "node:zlib";
 import os from "node:os";
 import path from "node:path";
 import { open, verified } from "../src/node.mjs";
@@ -143,5 +144,22 @@ section("Throughput");
   await p.close();
 }
 fs.rmSync(dir, { recursive: true, force: true });
+
+// ---------- every constant the proof finder and the lowering write by name is in the base library ----------
+// A term citing a constant the library does not hold is refused by the kernel as an unknown constant, so a theorem
+// that needs it is never proved. Init's Bool.or_eq_true was such a constant, and no statement using `||` was proved.
+section("The base library holds every constant written by name");
+{
+  // The base library: the only one the kernel path loads (library/base.sh), not the fold-laws one above.
+  const base = zlib.gunzipSync(fs.readFileSync(path.join(root, "library/base.ndjson.gz"))).toString();
+  const lib = loadLibrary(base), cited = new Set();
+  for (const file of ["src/emit.mjs", "src/lower.mjs"]) {
+    const text = read(file);
+    for (const m of text.matchAll(/(?:\bc0|E\.const)\(\s*"([A-Z][\w.]*[\w'])"/g)) cited.add(m[1]);
+    for (const m of text.matchAll(/\blemma\(\s*"(\w+)"/g)) cited.add(`LexReflect.${m[1]}`);
+  }
+  const missing = [...cited].filter((n) => !lib.decls.has(n));
+  check(cited.size > 50 && missing.length === 0, `${cited.size} constants cited by name, ${missing.length ? `missing: ${missing.join(", ")}` : "every one in the library"}`);
+}
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);
