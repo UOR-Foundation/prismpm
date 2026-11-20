@@ -6,6 +6,14 @@ Version 0.1.0 was a canonicalization library with no entry here; its API lives o
 
 To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.md).
 
+## [0.10.1](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.10.0...prism-code-v0.10.1) (2026-11-20)
+
+
+### Bugs Fixed
+
+* **lean-prover:** the kernel path proves statements that use || ([ed543db](https://github.com/UOR-Foundation/prismpm/commit/ed543dbb923e470be16523ca2b283de98eedd667))
+* **lean-prover:** the kernel path proves statements that use || ([4933abd](https://github.com/UOR-Foundation/prismpm/commit/4933abd3aeada0726e5be0828145629416d3c437))
+
 ## [0.10.0](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.9.5...prism-code-v0.10.0) (2026-11-20)
 
 ### Features Added
