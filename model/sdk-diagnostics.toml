@@ -1011,6 +1011,16 @@ capability = "CT-12"
 statement = "Attest could not produce a signature."
 
 [[error]]
+code = "skill.missing"
+capability = "DK-41"
+statement = "The folder skill verify was given holds no SKILL.md."
+
+[[error]]
+code = "skill.unproved"
+capability = "DK-41"
+statement = "Lean's kernel could not judge the skill gate, so no skill is installed."
+
+[[error]]
 code = "start.exists"
 capability = "DK-46"
 statement = "The app folder already holds a LexLean model; no starter is written over it."
@@ -1119,13 +1129,3 @@ code = "world_mismatch"
 class = "WorldMismatchError"
 capability = "CT-12"
 statement = "The guest does not have the interface of the WIT world it declares, or the world is not the one the caller pinned."
-
-[[error]]
-code = "skill.missing"
-capability = "DK-41"
-statement = "The folder skill verify was given holds no SKILL.md."
-
-[[error]]
-code = "skill.unproved"
-capability = "DK-41"
-statement = "Lean's kernel could not judge the skill gate, so no skill is installed."
