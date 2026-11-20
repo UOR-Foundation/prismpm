@@ -14,7 +14,8 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const [lib, corpus, portArg, project] = process.argv.slice(2);
 const listing = async (dir, at = "") => (await Promise.all((await readdir(join(dir, at), { withFileTypes: true })).filter((e) => ![".lexlean", ".lake", ".git"].includes(e.name)).map((e) => (e.isDirectory() ? listing(dir, `${at}${e.name}/`) : [`${at}${e.name}`])))).flat();
 const blake3 = join(here, "../src/vendor/blake3.mjs");
-const types = { ".html": "text/html", ".mjs": "text/javascript", ".json": "application/json", ".lean": "text/plain", ".jsonl": "text/plain" };
+// A module script must be served as JavaScript and a WebAssembly file as application/wasm, or browsers refuse them.
+const types = { ".html": "text/html", ".mjs": "text/javascript", ".js": "text/javascript", ".wasm": "application/wasm", ".json": "application/json", ".lean": "text/plain", ".jsonl": "text/plain" };
 const under = (root, rest) => { const p = normalize(join(root, rest)); return p.startsWith(normalize(root)) ? p : null; };
 createServer(async (req, res) => {
   const url = decodeURIComponent(new URL(req.url, "http://x").pathname);

@@ -10,11 +10,11 @@ export { checkNpmSection, libraryName, npmRead, shardName, shardsFor } from "./n
 import { open, pinnedManifest } from "./prover.mjs";
 
 /** `from`: a file in the project where the library package is installed (its package.json, say). */
-export async function openInstalled({ pin, from, resolve }) {
+export async function openInstalled({ pin, from, resolve, webAssembly }) {
   const res = resolve ?? ((spec) => createRequire(from).resolve(spec));
   const dir = dirname(res(`${libraryName(pin)}/package.json`));
   const manifestBytes = new Uint8Array(readFileSync(join(dir, "manifest.json")));
   const manifest = pinnedManifest(manifestBytes, pin);
   const json = (f) => JSON.parse(readFileSync(join(dir, f), "utf8"));
-  return open({ manifest: manifestBytes, pin, read: npmRead(manifest, { resolve: res }), gate: json("gate.json"), official: json("official-init.json") });
+  return open({ manifest: manifestBytes, pin, read: npmRead(manifest, { resolve: res }), gate: json("gate.json"), official: json("official-init.json"), webAssembly });
 }

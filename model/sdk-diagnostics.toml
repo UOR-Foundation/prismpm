@@ -497,6 +497,11 @@ capability = "LP-01"
 statement = "LexLean's check or render refused the project; the diagnostic carries LexLean's own code."
 
 [[error]]
+code = "lean-prover.host-unsupported"
+capability = "LP-06"
+statement = "The host's WebAssembly lacks a feature the engine is built with, so the run is refused before any blob is read."
+
+[[error]]
 code = "lean-prover.kernel-refused"
 capability = "LP-01"
 statement = "The kernel replay refused a declaration."

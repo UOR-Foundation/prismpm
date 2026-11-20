@@ -28,27 +28,44 @@ elaborator and kernel judge every declaration, and each declaration's axioms are
 //   4. the axiom audit, as `lexlean verify` applies it
 // The project is served under /project/ (web/serve.mjs); ?project=URL names another base.
 import { entrypointsOf, judge, judgedRows, sourceRootsOf } from "./src/verdict.mjs";
+import { hostRefusal, missingFeatures } from "./src/host.mjs";
 
 const q = new URLSearchParams(location.search), base = (q.get("project") ?? "/project").replace(/\/$/, "");
 const status = document.getElementById("status"), verdictEl = document.getElementById("verdict"), rows = document.getElementById("rows");
 const say = (s) => { status.textContent = s; (window.result.log ??= []).push(s); };
 window.result = { done: false };
-const worker = new Worker("./elab-worker.mjs", { type: "module" });
-const waiting = new Map(); let nextId = 0, opening = null;
-worker.onmessage = ({ data }) => { if (data.op === "open") return opening(data); waiting.get(data.id)?.(data); waiting.delete(data.id); };
-worker.onerror = (e) => { say("The engine's worker failed: " + (e.message ?? e)); };
-const ask = (msg, transfer = []) => new Promise((r) => { const id = nextId++; waiting.set(id, r); worker.postMessage({ id, ...msg }, transfer); });
+// Every call to the worker settles: with its answer, with its error, or with the worker's own failure (a script that
+// does not load, an uncaught error, a message that cannot be read). Nothing on this page waits on a dead worker.
+let worker = null, nextId = 0, broken = null;
+const waiting = new Map();
+const settle = (id, data) => { const done = waiting.get(id); waiting.delete(id); done?.(data); };
+const fail = (why) => { broken ??= why; for (const id of [...waiting.keys()]) settle(id, { error: why }); };
+const call = (key, msg, transfer = []) => new Promise((resolve, reject) => {
+  if (broken) return reject(new Error(broken));
+  waiting.set(key, (d) => (d.error ? reject(new Error(d.error)) : resolve(d)));
+  worker.postMessage(msg, transfer);
+});
+const ask = (msg, transfer = []) => { const id = nextId++; return call(id, { id, ...msg }, transfer); };
 window.askWorker = ask; // for measurement: { op: "opened" } lists what Lean read
+const get = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url} could not be fetched (HTTP ${r.status})`); return r; };
 const t0 = performance.now();
 try {
-  const opened = await new Promise((r) => { opening = r; worker.postMessage({ op: "open", base: "/lib", lexlean: q.get("lexlean") ?? undefined }); });
+  // Before anything is downloaded: a browser that cannot compile the engine is told what it lacks.
+  const lacking = hostRefusal(missingFeatures());
+  if (lacking) throw new Error(`${lacking}. Try a current Chromium or Firefox.`);
+  worker = new Worker("./elab-worker.mjs", { type: "module" });
+  worker.onmessage = ({ data }) => settle(data.op === "open" ? "open" : data.id, data);
+  worker.onerror = (e) => { e.preventDefault?.(); fail("the engine's worker failed: " + (e.message || "its script did not load or threw")); };
+  worker.onmessageerror = () => fail("the engine's worker sent a message this page cannot read");
+  const opened = await call("open", { op: "open", base: "/lib", lexlean: q.get("lexlean") ?? undefined });
   if (!opened.ok) throw new Error("refused: " + opened.refusal);
   const t = opened.timings;
+  window.result.open = { ms: Math.round(performance.now() - t0), files: opened.files, mb: opened.mb, ...t };
   say(`Engine open in ${Math.round(performance.now() - t0)} ms: ${opened.files} library files, ${opened.mb} MB, each checked by its BLAKE3 label (${t.storeHits} from this tab's store, ${t.storeMisses} fetched).`);
 
   if (!opened.evidence.lexleanPinned) say(status.textContent + ` LexLean is an unpinned build, ${opened.evidence.lexlean}.`);
-  const names = await (await fetch(`${base}/index.json`)).json(), files = [];
-  for (const n of names) files.push([n, new Uint8Array(await (await fetch(`${base}/${n}`)).arrayBuffer())]);
+  const names = await (await get(`${base}/index.json`)).json(), files = [];
+  for (const n of names) files.push([n, new Uint8Array(await (await get(`${base}/${n}`)).arrayBuffer())]);
   const toml = new TextDecoder().decode((files.find(([n]) => n === "lexlean.toml") ?? [null, new Uint8Array()])[1]);
   if (!toml) throw new Error("the project has no lexlean.toml");
 
@@ -67,7 +84,7 @@ try {
   // they were not computed here.
   const given = new Map();
   if (q.get("runtime")) {
-    const bytes = new Uint8Array(await (await fetch(q.get("runtime"))).arrayBuffer());
+    const bytes = new Uint8Array(await (await get(q.get("runtime"))).arrayBuffer());
     const { kappa } = await import("./blake3.mjs");
     for (const l of new TextDecoder().decode(bytes).split("\n").filter((x) => x.startsWith("{"))) { const j = JSON.parse(l); given.set(j.module, j); }
     window.result.runtimeAnswers = { label: kappa(bytes), modules: [...given.keys()], computedBy: "native Lean 4.32.2, outside this tab" };
@@ -104,7 +121,7 @@ try {
   window.result.answers = Object.fromEntries([...answers].filter(([m]) => rendered.modules.some((r) => r.kind === "project" && r.lean_module === m)));
   Object.assign(window.result, { accepted: verdict.accepted, refusals: verdict.refusals, modules: verdict.modules.map((m) => ({ module: m.module, kind: m.kind, accepted: m.accepted, declarations: m.declarations.length, theorems: m.declarations.filter((d) => d.kind === "theorem").length })),
     policies: { rows: verdict.policies.length, held: verdict.policies.filter((p) => p.holds).length }, timing, renderMs, totalMs: Math.round(performance.now() - t0), heapMB,
-    evidence: { ...opened.evidence, source_id: rendered.source_id, semantic_id: rendered.semantic_id, build_id: rendered.build_id }, open: { files: opened.files, mb: opened.mb, ...t } });
+    evidence: { ...opened.evidence, source_id: rendered.source_id, semantic_id: rendered.semantic_id, build_id: rendered.build_id } });
 } catch (e) {
   verdictEl.className = "bad"; verdictEl.textContent = "Could not prove: " + (e.message ?? e);
   window.result.error = String(e.message ?? e);

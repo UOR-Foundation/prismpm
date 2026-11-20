@@ -22,10 +22,15 @@
 // The gate's corpus, in elaboration order, and native Lean's answers for it (gate/run-gate.sh writes both).
 const MODULES = await (await fetch("/corpus/modules.json")).json();
 const status = document.getElementById("status"), rows = document.getElementById("rows");
+const { hostRefusal, missingFeatures } = await import("./src/host.mjs");
+const lacking = hostRefusal(missingFeatures());
+if (lacking) { status.textContent = "Refused: " + lacking; status.className = "bad"; window.result = { opened: { ok: false, refusal: lacking }, done: true }; throw new Error(lacking); }
 const worker = new Worker("./elab-worker.mjs", { type: "module" });
-let pending = null;
+// One request at a time; a worker that dies answers it with its failure, so the page never waits on it.
+let pending = null, broken = null;
 worker.onmessage = ({ data }) => { const p = pending; pending = null; p?.(data); };
-const ask = (msg, transfer) => new Promise((r) => { pending = r; worker.postMessage(msg, transfer ?? []); });
+worker.onerror = (e) => { e.preventDefault?.(); broken = "the engine's worker failed: " + (e.message || "its script did not load or threw"); const p = pending; pending = null; p?.({ ok: false, refusal: broken, error: broken }); };
+const ask = (msg, transfer) => new Promise((r) => { if (broken) return r({ ok: false, refusal: broken, error: broken }); pending = r; worker.postMessage(msg, transfer ?? []); });
 const native = Object.fromEntries((await (await fetch("/corpus/native.jsonl")).text()).split("\n").filter((l) => l.startsWith("{")).map((l) => { const j = JSON.parse(l); return [j.module, j]; }));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const opened = await ask({ op: "open", base: "/lib" });

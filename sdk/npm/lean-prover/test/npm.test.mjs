@@ -98,9 +98,11 @@ function installedWithGate() {
 
 test("openInstalled needs only the pinned label: it admits the manifest, its gate, the official Init and every blob from npm", async () => {
   const { pin, resolve } = installedWithGate();
+  // A host with every feature the engine needs, so this runs on Node 22 too.
+  const webAssembly = { validate: () => true };
   // The stand-in engine is not WebAssembly, so the run ends at engine start, after every check before it passed.
-  await assert.rejects(openInstalled({ pin, resolve }), (e) => e.code === "lean-prover.engine-trap");
-  await assert.rejects(openInstalled({ pin: `blake3:${"6".repeat(64)}`, resolve }), (e) => e.code !== "lean-prover.engine-trap", "another pin names no installed package");
+  await assert.rejects(openInstalled({ pin, resolve, webAssembly }), (e) => e.code === "lean-prover.engine-trap");
+  await assert.rejects(openInstalled({ pin: `blake3:${"6".repeat(64)}`, resolve, webAssembly }), (e) => e.code !== "lean-prover.engine-trap", "another pin names no installed package");
 });
 
 test("an installed library whose manifest is not the pinned one is refused", async () => {

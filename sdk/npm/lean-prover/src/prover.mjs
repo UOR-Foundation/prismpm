@@ -16,6 +16,7 @@
 import { Worker } from "node:worker_threads";
 import { blake3Label, checkEntry, ProverError, readAdmitted } from "./blob.mjs";
 import { gateAdmits } from "./gate.mjs";
+import { hostRefusal, missingFeatures } from "./host.mjs";
 import { libraryLabel, unofficialInit } from "./library.mjs";
 import { checkNpmSection } from "./npm.mjs";
 import { cachedCheck, storeResult } from "./store.mjs";
@@ -115,9 +116,12 @@ function uniqueBuffers() {
  * Opens the engine alone: every blob is read and admitted by label, then Lean starts in its own thread. The corpus
  * gate drives this directly, before any attestation exists; `open` adds the pin, the gate and LexLean.
  */
-export async function openEngine({ manifest, read }) {
+export async function openEngine({ manifest, read, webAssembly = globalThis.WebAssembly }) {
   checkManifest(manifest);
   if (typeof read !== "function") throw unpinned("read is not a function");
+  // Before any blob is read: a host that cannot compile the engine is refused by what it lacks (src/host.mjs).
+  const lacking = hostRefusal(missingFeatures(webAssembly, widthOf(manifest)));
+  if (lacking) throw new ProverError("lean-prover.host-unsupported", `${lacking} (Node ${process.version}; the gate runs the engine on Node 24)`);
   const [loader, wasm, lexleanWasm] = await Promise.all([
     readAdmitted(read, manifest.engine.loader, "engine.loader"),
     readAdmitted(read, manifest.engine.wasm, "engine.wasm"),
@@ -151,10 +155,10 @@ export async function openEngine({ manifest, read }) {
 }
 
 /** Opens the prover: the pinned manifest, admitted by its gate and the official Init, then the engine and LexLean. */
-export async function open({ manifest, pin, read, gate, official }) {
+export async function open({ manifest, pin, read, gate, official, webAssembly }) {
   const m = pinnedManifest(manifest, pin);
   checkAdmission(m, { gate, official });
-  const { engine, lexleanWasm, evidence } = await openEngine({ manifest: m, read });
+  const { engine, lexleanWasm, evidence } = await openEngine({ manifest: m, read, webAssembly });
   const lexlean = await WebAssembly.compile(lexleanWasm);
   return {
     evidence,

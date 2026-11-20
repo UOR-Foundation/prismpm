@@ -103,10 +103,18 @@ async function boot(out) {
   const timings = {};
   let t = now();
   lean = null; memory = null;
-  const next = await factory({
-    instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; raw = instance.exports; done(instance, compiled); }); return {}; },
-    print: (s) => log.push(s), printErr: (s) => log.push(s),
-  });
+  // Emscripten's factory never settles when instantiation fails (a memory limit, say), so the failure is raced
+  // against it: a refusal, not a tab that waits forever.
+  let fail;
+  const failed = new Promise((_, reject) => { fail = reject; });
+  let next;
+  try {
+    next = await Promise.race([failed, factory({
+      instantiateWasm: (imports, done) => { WebAssembly.instantiate(compiled, imports).then((instance) => { memory = Object.values(instance.exports).find((x) => x instanceof WebAssembly.Memory) ?? null; raw = instance.exports; done(instance, compiled); }, fail); return {}; },
+      onAbort: (what) => fail(new Error(`Lean aborted: ${what}`)),
+      print: (s) => log.push(s), printErr: (s) => log.push(s),
+    })]);
+  } catch (e) { return { ok: false, refusal: `this browser cannot start Lean's engine: ${e?.message ?? e}` }; }
   // The file system owns each admitted array instead of copying it: one copy of the library outside Lean's heap,
   // shared by every instance.
   for (const [path, bytes] of [...library, ...out]) {

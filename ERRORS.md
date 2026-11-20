@@ -1019,6 +1019,7 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `lean-prover.engine-ungated` |  | `LP-04` | The manifest's gate attestation does not name this engine's label. |
 | `lean-prover.entrypoint-uncovered` |  | `LP-09` | An entrypoint module is missing from prove's verdict. |
 | `lean-prover.front-end-refused` |  | `LP-01` | LexLean's check or render refused the project; the diagnostic carries LexLean's own code. |
+| `lean-prover.host-unsupported` |  | `LP-06` | The host's WebAssembly lacks a feature the engine is built with, so the run is refused before any blob is read. |
 | `lean-prover.kernel-refused` |  | `LP-01` | The kernel replay refused a declaration. |
 | `lean-prover.library-unofficial` |  | `LP-05` | An Init file's BLAKE3 label differs from the official Lean release. |
 | `lean-prover.manifest-unpinned` |  | `LP-02` | The manifest's BLAKE3 label is not the one prism-code pins. |

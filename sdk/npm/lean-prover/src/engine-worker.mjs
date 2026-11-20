@@ -9,6 +9,7 @@
 //   { op: "request", request }                            -> { answer }   the driver's JSON (`serve` in driver/Elab.lean)
 //   { op: "heap" }                                        -> { heapBytes }  the engine's memory, which never shrinks
 import { parentPort } from "node:worker_threads";
+import { instantiateEngine } from "./host.mjs";
 
 let lean = null;
 let memory = null; // the instance's own memory: Emscripten does not export HEAPU8 from this build
@@ -17,14 +18,12 @@ async function open({ loader, wasm, files }) {
   const url = "data:text/javascript;base64," + Buffer.from(loader).toString("base64");
   const factory = (await import(url)).default;
   const log = [];
-  lean = await factory({
-    instantiateWasm: (imports, done) => {
-      WebAssembly.instantiate(wasm, imports).then((r) => { memory = Object.values(r.instance.exports).find((x) => x instanceof WebAssembly.Memory); done(r.instance, r.module); });
-      return {};
-    },
-    print: (s) => log.push(s),
-    printErr: (s) => log.push(s),
-  });
+  let started;
+  try { started = await instantiateEngine(factory, wasm, { print: (s) => log.push(s) }); } catch (e) {
+    return { ok: false, refusal: `the engine could not be instantiated: ${e?.message ?? e}` };
+  }
+  lean = started.lean;
+  memory = Object.values(started.instance.exports).find((x) => x instanceof WebAssembly.Memory);
   for (const [path, bytes] of files) {
     lean.FS.mkdirTree(path.slice(0, path.lastIndexOf("/")));
     lean.FS.writeFile(path, bytes);
