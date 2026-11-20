@@ -35,6 +35,72 @@ worker.onmessage = ({ data }) => {
 };
 worker.postMessage({ start: { url: new URL('./lexlean.wasm.gz', import.meta.url).href, pin: { kappa: LEXLEAN_WASM.kappa, encoding: LEXLEAN_WASM.encoding } } });
 const check = (project) => new Promise((resolve) => { const id = ++nextId; waiting.set(id, resolve); worker.postMessage({ id, files: project }); });
+const snapshotOf = (project) => new Promise((resolve) => { const id = ++nextId; waiting.set(id, resolve); worker.postMessage({ id, files: project, snapshot: true }); });
+
+// Lean's kernel, in its own worker, so a proof never holds up typing.
+const { ruleTable, tableWords, counterexample, OPS } = await import('./prism-code/journey/rule-table.mjs');
+const prover = new Worker(new URL('./prove-worker.mjs', import.meta.url), { type: 'module' });
+const proving = new Map();
+prover.onmessage = ({ data }) => {
+  if (data.ready) { state.kernel = data; return; }
+  if (data.failed) { state.kernel = { failed: data.failed }; for (const done of proving.values()) done({ error: data.failed }); proving.clear(); return; }
+  proving.get(data.id)?.(data);
+  proving.delete(data.id);
+};
+const prove = (words, guarantees) => (state.kernel?.failed ? Promise.resolve({ error: state.kernel.failed })
+  : new Promise((resolve) => { const id = ++nextId; proving.set(id, resolve); prover.postMessage({ id, words, guarantees }); }));
+
+// After a clean check: read the model as a rule table, look for a request that breaks each guarantee, then have the
+// kernel judge each. A breaking request is found by trying every request in the bounds; proved is the kernel's word.
+async function guarantees(project, mine) {
+  const cell = (tr, i) => tr.children[i];
+  const taken = await snapshotOf(project);
+  if (mine !== latest) return;
+  let table;
+  try { table = ruleTable(JSON.parse(taken.snapshot)); } catch (e) {
+    $('guaranteesSection').hidden = false;
+    $('guarantees').replaceChildren();
+    $('proofStatus').textContent = 'This model is not a rule table, so its guarantees are not proved in this tab: ' + (e?.message ?? e);
+    state.proof = { table: false, why: String(e?.message ?? e) };
+    return;
+  }
+  const value = (f, v) => (f.values ? f.values[v] : v);
+  const said = (g) => 'When ' + g.when.map(([f, op, v]) => table.fields[f].name + ' ' + OPS[op] + ' ' + value(table.fields[f], v)).join(' and ')
+    + ', the answer is ' + (g.always ? 'always ' : 'never ') + table.answers[g.outcome] + '.';
+  const rows = table.guarantees.map((g) => {
+    const tr = document.createElement('tr');
+    const found = counterexample(table, g);
+    const broken = found.request !== null;
+    for (const text of [said(g), broken ? 'broken' : 'proving…', broken ? 'the request "' + found.request + '" answers ' + found.answer : '']) tr.append(Object.assign(document.createElement('td'), { textContent: text }));
+    cell(tr, 1).className = 's';
+    if (broken) cell(tr, 1).dataset.s = 'broken';
+    return { tr, broken, request: found.request };
+  });
+  $('guarantees').replaceChildren(...rows.map((r) => r.tr));
+  $('guaranteesSection').hidden = false;
+  $('proofStatus').textContent = "Asking Lean's kernel about " + rows.length + ' guarantee' + (rows.length === 1 ? '' : 's') + '…';
+  const shaped = tableWords(table);
+  const reply = await prove(shaped.words, shaped.guarantees);
+  if (mine !== latest) return;
+  if (reply.error) {
+    for (const r of rows) if (!r.broken) { cell(r.tr, 1).textContent = 'not proved here'; cell(r.tr, 2).textContent = 'no request in the bounds breaks it'; }
+    $('proofStatus').textContent = "Lean's kernel could not run in this tab: " + reply.error;
+    state.proof = { table: true, error: reply.error, broken: rows.filter((r) => r.broken).length };
+    return;
+  }
+  let count = 0;
+  for (const [i, r] of rows.entries()) {
+    const ok = reply.results[i].proved;
+    if (ok) count++;
+    const status = ok ? 'proved' : r.broken ? 'broken' : 'refused';
+    cell(r.tr, 1).textContent = status;
+    cell(r.tr, 1).dataset.s = status;
+    if (ok) cell(r.tr, 2).textContent = "accepted by Lean's kernel in this tab";
+    else if (!r.broken) cell(r.tr, 2).textContent = "Lean's kernel did not accept it, and no request in the bounds breaks it";
+  }
+  $('proofStatus').textContent = count + ' of ' + rows.length + " proved by Lean's kernel in this tab, in " + reply.ms + ' ms.';
+  state.proof = { table: true, proved: count, total: rows.length, ms: reply.ms, statuses: rows.map((r) => cell(r.tr, 1).textContent), breaking: rows.map((r) => r.request) };
+}
 
 function gutter(marks) {
   const lines = $('source').value.split('\n').length;
@@ -87,6 +153,9 @@ async function run() {
     $('status').dataset.state = result.success ? 'ok' : 'bad';
   }
   gutter(marks);
+  // A model that does not check has no meaning to prove anything about.
+  if (!state.last?.success) { $('guaranteesSection').hidden = true; state.proof = null; }
+  else { state.proving = true; await guarantees({ ...files, [entry]: $('source').value }, mine); if (mine === latest) state.proving = false; }
   state.ready = true;
 }
 

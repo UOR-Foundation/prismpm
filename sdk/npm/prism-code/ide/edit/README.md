@@ -1,4 +1,4 @@
-# Edit and check (phase 2b, first step)
+# Edit, check and prove (phases 2b and 2c, first steps)
 
 A static page, with no build step, that opens one LexLean model for editing and shows LexLean's verdict as you type. It is the first step of phase 2b of `docs/proposals/prism-ide-phase-2.md`.
 
@@ -22,13 +22,27 @@ Tried by hand in one browser, on `model/ide-capability-gate`:
 
 Later checks take 14 to 23 ms; the wait is the 350 ms pause after the last keystroke.
 
+## Prove on edit (phase 2c, for rule tables)
+
+When the model checks, the page goes on to its guarantees. LexLean gives the model's semantic snapshot; prism-code's `rule-table.mjs` reads it as a rule table; each guarantee is first tried against every request in the bounds, which finds a request that breaks it if there is one; then Lean's kernel, in a second worker (`prove-worker.mjs`), judges a proof term for each. "Proved" is the kernel's word alone, within the axioms a rule table is allowed. The kernel, its loader and its library run only when their bytes hash to what `src/journey/kernel/manifest.json` names. The kernel is put back to its just-loaded state before every batch.
+
+Tried by hand in the same browser, on `model/ide-capability-gate`:
+
+| Step | Shown |
+|---|---|
+| Open | 13 of 13 proved by Lean's kernel in the tab, in about 0.86 s; the kernel itself ready in about 0.7 s |
+| Flip the last rule ("granted is yes → allow" to "granted is no → allow") | about 1.3 s after the edit: 7 proved, 6 broken, each broken one with the request that breaks it, such as `When granted = no and resource > write, the answer is never allow`: "the request `network yes no yes workspace no` answers allow" |
+| Undo it | 13 of 13 proved again |
+| A syntax error | the guarantees are hidden: a model that does not check has nothing to prove |
+
 Limits:
 
 - A plain text area, not the workbench editor of `ide/`. No syntax colours, no completion, no formatting (the WASI build of LexLean refuses commands that write).
 - One file is editable: the project's first entrypoint. The other files are read once and sent with every check.
-- Checking only. A model that checks is not thereby proved; which guarantees still hold after an edit is phase 2c.
+- Rule tables only. A model with theorems of its own is checked, and the page says its guarantees are not proved here. `model-prove.mjs` could be tried for those; it did not finish on `model/ide-scope` in 40 minutes in Node.
+- "Refused" (the kernel does not accept a guarantee that no request breaks) was never seen: no such model was tried.
+- A blank line added at the end of the file makes LexLean refuse the model. That is LexLean's rule, shown as it reports it.
 - The executable is served from where prism-code keeps it on this machine. A published page would have to fetch it from its release address, whose cross-origin rules were not tried.
 - The pin reaches the page as `pin.json` from the same server that serves the page. That is no weaker than the page's own code, which the same server serves.
 - LexLean's positions are shown as it gives them. A missing type is reported at the line of the module's first structure, not where it is used.
-- The line marks were restyled after the runs above and not looked at again in a browser.
 - No automated test runs the page.

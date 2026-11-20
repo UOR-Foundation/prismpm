@@ -38,6 +38,12 @@ onmessage = async ({ data }) => {
     const { module, runWasi } = await modulePromise;
     const files = new Map(Object.entries(data.files).map(([path, text]) => [path, typeof text === 'string' ? enc.encode(text) : text]));
     const started = performance.now();
+    if (data.snapshot) {
+      // `lexlean snapshot --all`: what the model means, in the form the rule table and the kernel read.
+      const taken = await runWasi(module, { files, args: ['snapshot', '--all'] });
+      postMessage({ id: data.id, snapshot: taken.exit === 0 ? dec.decode(taken.stdout) : null, ms: Math.round(performance.now() - started) });
+      return;
+    }
     const run = await runWasi(module, { files, args: ['--diagnostic-format', 'json', 'check', '--all'] });
     let result;
     try { result = JSON.parse(dec.decode(run.stdout)); } catch { throw new Error(`LexLean gave no result (exit ${run.exit}): ${dec.decode(run.stderr).slice(0, 300)}`); }

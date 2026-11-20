@@ -10,6 +10,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEXLEAN_WASM, ensureLexleanWasm, lexleanWasmFile } from '../../src/journey/lexlean-wasm.mjs';
+import { ensureKernel, hasKernel, readKernelFile } from '../../src/journey/kernel-store.mjs';
 
 const [projectArg, port = '4170'] = process.argv.slice(2);
 if (!projectArg) { console.error('usage: node tools/serve-edit.mjs <project dir> [port]'); process.exit(64); }
@@ -17,6 +18,10 @@ const project = resolve(projectArg);
 const editDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'edit');
 const src = join(editDir, '..', '..', 'src');
 const wasm = lexleanWasmFile() ?? await ensureLexleanWasm();
+// Lean's kernel, its loader and its library, as a built rule app's page gets them: the manifest from the package,
+// the three files from where prism-code keeps them on this machine (fetched once if absent).
+if (!hasKernel()) await ensureKernel();
+const KERNEL_FILES = new Set(['lean-kernel.mjs.gz', 'lean-kernel.wasm.gz', 'library.ndjson.gz']);
 
 // What a check reads: everything but build outputs, caches, and this repository's notes and generators.
 const SKIPPED = new Set(['.lexlean', '.lake', '.prism', '.git', 'target', 'node_modules', 'tools']);
@@ -46,6 +51,13 @@ createServer(async (request, response) => {
   if (fixed[path]) { send(200, fixed[path].type, fixed[path].body); return; }
   try {
     if (path === '/edit/lexlean.wasm.gz') { send(200, 'application/gzip', await readFile(wasm)); return; }
+    if (path === '/edit/kernel/manifest.json') { send(200, 'application/json', await readFile(join(src, 'journey', 'kernel', 'manifest.json'))); return; }
+    if (path.startsWith('/edit/kernel/')) {
+      const name = path.slice('/edit/kernel/'.length);
+      if (!KERNEL_FILES.has(name)) { send(404, 'text/plain', 'not found'); return; }
+      send(200, 'application/gzip', readKernelFile(name));
+      return;
+    }
     const root = roots.find(([prefix]) => path.startsWith(prefix));
     if (!root) { send(404, 'text/plain', 'not found'); return; }
     let rest = path.slice(root[0].length);
