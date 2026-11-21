@@ -15,6 +15,7 @@
     "@codingame/monaco-vscode-configuration-service-override": "^39.0.5",
     "@codingame/monaco-vscode-dialogs-service-override": "^39.0.5",
     "@codingame/monaco-vscode-editor-api": "^39.0.5",
+    "@codingame/monaco-vscode-explorer-service-override": "39.0.5",
     "@codingame/monaco-vscode-extensions-service-override": "^39.0.5",
     "@codingame/monaco-vscode-files-service-override": "^39.0.5",
     "@codingame/monaco-vscode-languages-service-override": "^39.0.5",
