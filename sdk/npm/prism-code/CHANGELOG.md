@@ -8,7 +8,6 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 
 ## [0.10.3](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.10.2...prism-code-v0.10.3) (2026-11-21)
 
-
 ### Features Added
 
 * **prism-code:** a rule app's page carries its model, and the audit page opens it in the editor ([8e111ae](https://github.com/UOR-Foundation/prismpm/commit/8e111ae111180cfa3b1acfef264893bce2325cd1))
@@ -34,6 +33,9 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 * **prism-code:** the workbench keeps a reader's changes across a reload, named by BLAKE3 ([5800767](https://github.com/UOR-Foundation/prismpm/commit/5800767941cc29e2dc0902a6f764ec2b5d9b46b1))
 * **prism-code:** the workbench keeps a reader's changes across a reload, named by BLAKE3 ([5e25ac2](https://github.com/UOR-Foundation/prismpm/commit/5e25ac2022229ae7b77e2a3b703abc8749b77e67))
 
+### Breaking Changes
+
+None.
 
 ### Bugs Fixed
 
@@ -58,6 +60,10 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 * **prism-code:** the Prism IDE's capability gate, command table and scope kernel, stated in LexLean and proved by Lean ([9d28d69](https://github.com/UOR-Foundation/prismpm/commit/9d28d695b6ad22af2dc6eb12fafbfdd39434ddf7))
 
 
+### Breaking Changes
+
+None.
+
 ### Bugs Fixed
 
 * **prism-code:** a kernel image that will not resume gives a fresh kernel, never a failed proof ([2e683f5](https://github.com/UOR-Foundation/prismpm/commit/2e683f58d3b73a47c4113ab1fbf0a61572306a18))
@@ -76,6 +82,10 @@ To move to 1.0, read the [migration guide](../../../docs/site/migration/to-1-0.m
 
 ## [0.10.1](https://github.com/UOR-Foundation/prismpm/compare/prism-code-v0.10.0...prism-code-v0.10.1) (2026-11-20)
 
+
+### Breaking Changes
+
+None.
 
 ### Bugs Fixed
 
