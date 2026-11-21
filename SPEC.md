@@ -213,7 +213,11 @@ record literal. Every cross-reference is the qualified `<module>::<declaration>`
 identifier of the declaration it names, the identifier the model document
 gives a stakeholder: a call or an acceptance row names a definition of the
 checked source graph, a journey's `actor` names a `Foundation.Arch::Stakeholder`
-of the model document, and a step names a declared `Feature`. Features and
+of the model document, and a step names a declared `Feature`. A list a
+declaration states (`calls`, `acceptance`, `steps`) is a list literal of String
+literals: `nil`, a `cons` of an element and a list literal, or the `append` of
+two list literals, the form LexLean gives a long literal, so a declaration's
+nesting stays bounded however many names it lists. Features and
 journeys are checked, not projected: they are not part of
 `prismpm/model-document`, so no model-document schema, standards profile or
 emitter digest depends on them.

@@ -440,3 +440,83 @@ fn a_statement_out_of_bounds_is_refused_with_pp2018() {
         .statement = format!("line one\nline two {}", "x".repeat(4000));
     check(&declared).unwrap();
 }
+
+fn appended(left: Value, right: Value, kind: &str) -> Value {
+    json!({"kind": "primitive", "operation": "append", "result": {"kind": kind}, "arguments": [left, right]})
+}
+
+#[test]
+fn an_appended_list_literal_is_the_list_of_its_parts() {
+    let calls = ["Product::callBuild", "Product::callCheck"];
+    let acceptance = [
+        "Product::acceptanceBuild",
+        "Product::acceptanceCheck",
+        "Product::acceptanceBuild",
+    ];
+    let consed = replace(&model(), "featureBuild", feature(&calls, &acceptance));
+    // (a ++ b) and ((a ++ nil) ++ (b c)), as LexLean balances a long literal.
+    let mut row = feature(&[], &[]);
+    row["body"]["fields"][1]["value"] = appended(list(&calls[..1]), list(&calls[1..]), "list");
+    row["body"]["fields"][2]["value"] = appended(
+        appended(list(&acceptance[..1]), list(&[]), "list"),
+        list(&acceptance[1..]),
+        "list",
+    );
+    let appended_rows = replace(&model(), "featureBuild", row);
+    check(&declared(&appended_rows)).unwrap();
+    assert_eq!(
+        declared(&appended_rows).features,
+        declared(&consed).features
+    );
+    let mut steps = journey("Architecture::stakeholderAuthor", &[]);
+    steps["body"]["fields"][1]["value"] = appended(
+        list(&["Product::featureCheck"]),
+        list(&["Product::featureBuild"]),
+        "list",
+    );
+    let journeys = replace(&model(), "journeyAuthor", steps);
+    assert_eq!(declared(&journeys).journeys, declared(&model()).journeys);
+    // An append whose result is no list, with other than two arguments, or
+    // of an element that is no String literal, is not a list literal.
+    for wrong in [
+        appended(list(&calls[..1]), list(&calls[1..]), "string"),
+        json!({"kind": "primitive", "operation": "append", "result": {"kind": "list"}, "arguments": [list(&calls)]}),
+        appended(
+            list(&calls[..1]),
+            json!({"kind": "cons", "head": {"kind": "nat", "value": "0"}, "tail": {"kind": "nil"}}),
+            "list",
+        ),
+    ] {
+        let mut row = feature(&[], &["Product::acceptanceBuild"]);
+        row["body"]["fields"][1]["value"] = wrong;
+        let rows = [("Product", "broken", row)];
+        let error =
+            project(rows.iter().map(|(module, id, value)| (*module, *id, value))).unwrap_err();
+        assert_eq!(error.code, "PP2018", "{}", error.message);
+    }
+}
+
+#[test]
+fn a_long_appended_list_literal_is_read_without_recursion() {
+    // Ten thousand acceptance rows as one cons chain would nest past any
+    // JSON reader's limit; as balanced appends of short chains they nest a
+    // few levels, and they are read with a stack, in source order.
+    let names: Vec<String> = (0..10_000).map(|i| format!("Product::row{i}")).collect();
+    let texts: Vec<&str> = names.iter().map(String::as_str).collect();
+    let mut runs: Vec<Value> = texts.chunks(32).map(list).collect();
+    while runs.len() > 1 {
+        runs = runs
+            .chunks(2)
+            .filter_map(|pair| {
+                pair.iter()
+                    .cloned()
+                    .reduce(|left, right| appended(left, right, "list"))
+            })
+            .collect();
+    }
+    let mut row = feature(&["Product::callCheck"], &[]);
+    row["body"]["fields"][2]["value"] = runs.remove(0);
+    let rows = [("Product", "featureLong", row)];
+    let declared = project(rows.iter().map(|(module, id, value)| (*module, *id, value))).unwrap();
+    assert_eq!(declared.features["Product::featureLong"].acceptance, names);
+}
