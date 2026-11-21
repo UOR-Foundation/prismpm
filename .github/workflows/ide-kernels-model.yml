@@ -195,6 +195,8 @@ jobs:
         run: node ide/tools/app-match-test.mjs
       - name: A reader's changes come back only for their model, and only as stored
         run: node ide/tools/drafts-test.mjs
+      - name: A model's archive is read back by tar, has one label, and holds no path that leaves its folder
+        run: node ide/tools/model-tar-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
         shell: bash
         run: |
