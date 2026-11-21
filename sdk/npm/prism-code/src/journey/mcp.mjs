@@ -16,7 +16,9 @@ import { appDir, readSession, sourceDigest, sourceFiles, startApp, starters, wri
 import { build, check, isRuleApp, prove, tryRequest } from './engine.mjs';
 import { NO_DOCKER_FREE_BUILD } from './frontend.mjs';
 import { gapLedger } from '../gaps.mjs';
+import { bundleOf, pullBundle, pushBundle, writeModel } from './app-bundle.mjs';
 import { kappa } from '../blake3.mjs';
+import { PrismCodeError } from '../errors.mjs';
 import { LEXLEAN_CARD } from './card.mjs';
 
 /** The card an agent writes LexLean from, named by its BLAKE3 label so every agent can say which card it read. */
@@ -41,18 +43,18 @@ const { version } = require('../../package.json');
 
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
-export const INSTRUCTIONS = `Prism builds formally verified apps, with four tools named like Docker's. For Prism or /prism, call prism_init.
-An app's one source of truth is its LexLean model in prism/src/. Start it with prism_init, then write it yourself, as the user describes the app.
-After each edit call prism_build. When it names a fix, make exactly that fix and call it again; when it lists the theorems, show the user what each guarantees: Lean proved them, so the user must agree or strike.
-prism_run answers a request from the built app. prism_inspect audits the app, changing nothing.
+export const INSTRUCTIONS = `Prism builds formally verified apps with six tools named like Docker's. For Prism or /prism, call prism_init.
+An app's one source of truth is its LexLean model in prism/src/. Write it yourself, as the user describes the app.
+After each edit call prism_build (check: true only checks). When it names a fix, make exactly that fix and call it again; when it lists the theorems, show the user what each guarantees: Lean proved them, so the user must agree or strike.
+prism_run answers, prism_inspect audits, prism_push publishes by BLAKE3 address, prism_pull fetches and proves.
 ${NO_DOCKER_FREE_BUILD} Never set PRISM_CODE_TIER yourself; only the user chooses it.
 Say "proved" only for what Lean proved, "tested" for what acceptance vectors cover.`;
 
 const GREETING = 'Prism builds an app whose rules are proved by Lean, not just tested. Its one source is a LexLean model: I start it from a starter, write it with you, and Lean proves it.';
 
 /**
- * The four tools an agent sees, named as Docker names them: init, build, run, inspect. Each is one intent, and each
- * answer says what to do next. The finer steps below stay callable by name for agents that learned them, unlisted.
+ * The six tools, the only ones there are, named as Docker names its verbs: init, build, run, inspect, push, pull.
+ * Each is one intent, and each answer says what to do next.
  */
 export const TOOLS = [
   {
@@ -62,12 +64,12 @@ export const TOOLS = [
   },
   {
     name: 'prism_build',
-    description: 'Build the LexLean model as it is on disk into a verified app: check it, prove every theorem with Lean\'s kernel in this process, and, for a rule app, build the verified rule judge. When the model does not check, returns the first problem with the exact fix: the line, and the name to write when one is misspelled. When it does, returns every theorem, its proof, its axioms and whether Lean proved it. Call after every edit. Seconds; nothing is sent anywhere.',
-    inputSchema: { type: 'object', properties: { wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, additionalProperties: false },
+    description: "Build the LexLean model as it is on disk into a verified app, as docker build builds an image: check it, prove every theorem with Lean's kernel in this process, and, for a rule app, build the verified rule judge. With check: true, as docker build --check, only check it: every diagnostic at the line of prism/src/ it anchors to, in seconds, proving nothing. When the model does not check, returns the first problem with the exact fix: the line, and the name to write when one is misspelled. Returns state running while it works; call again to keep waiting.",
+    inputSchema: { type: 'object', properties: { check: { type: 'boolean', description: 'Only check the model: every diagnostic, proving nothing. Default false.' }, wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, additionalProperties: false },
   },
   {
     name: 'prism_run',
-    description: 'Answer one request from the built app, building it first when the model changed since its last build. Nothing answers from a model that is not proved.',
+    description: 'Answer one request from the built app, as docker run runs an image, building it first when the model changed since its last build. Nothing answers from a model that is not proved.',
     inputSchema: { type: 'object', properties: { request: { type: 'string', description: 'One request line, the fields separated by single spaces; for a stateful app, a session: its steps separated by ;.' }, wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, required: ['request'], additionalProperties: false },
   },
   {
@@ -75,44 +77,15 @@ export const TOOLS = [
     description: 'What the app is and what it guarantees, as docker inspect reads an image, changing nothing: its starter and files, whether the model as it is on disk is checked, proved and built, and every theorem of the last proof with its axioms and status. Use it to audit an app.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
-];
-
-/** The finer steps, still answered by name, not listed. */
-const STEPS = [
   {
-    name: 'prism_start',
-    description: 'The older name of prism_init.',
-    inputSchema: TOOLS[0].inputSchema,
+    name: 'prism_push',
+    description: "Publish the proved app, as docker push publishes an image: its model and, when built, its build and page, each object named by the BLAKE3 label of its bytes, and the app by the label of its manifest. Omit reference for this machine's Prism store, or give dir://<folder> for a folder any static host can serve as it is. Returns the address prism_pull takes. Only a proved app is pushed.",
+    inputSchema: { type: 'object', properties: { reference: { type: 'string', description: "Where to publish: omit for this machine's Prism store, or dir://<folder>." } }, additionalProperties: false },
   },
   {
-    name: 'prism_verify',
-    description: 'Check the model, then prove every theorem: the first problem with its fix when it does not check, every theorem when it does.',
-    inputSchema: { type: 'object', properties: { wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, additionalProperties: false },
-  },
-  {
-    name: 'prism_check',
-    description: 'Check the LexLean model as it is on disk: every diagnostic with the line of prism/src/ it anchors to, and what to change. Proves nothing. Seconds in the SDK image.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    name: 'prism_prove',
-    description: 'Prove the model. A rule app is read from its LexLean semantic snapshot and its guarantees are checked by Lean\'s kernel in this process; any other app is proved by lexlean verify in the SDK image (one to five minutes). Returns state running while it works; call again to keep waiting.',
-    inputSchema: { type: 'object', properties: { wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, additionalProperties: false },
-  },
-  {
-    name: 'prism_build',
-    description: 'Prove, then build the app and replay its acceptance vectors. A rule app becomes the verified rule judge and the model\'s numbers, with a static page; any other app is built into a holo in the SDK image (ten minutes or more the first time). Returns state running while it works; call again to keep waiting.',
-    inputSchema: { type: 'object', properties: { wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, additionalProperties: false },
-  },
-  {
-    name: 'prism_try',
-    description: 'Answer one request from the built app. Nothing answers before a build.',
-    inputSchema: { type: 'object', properties: { request: { type: 'string', description: 'One request line, the fields separated by single spaces; for a stateful app, a session: its steps separated by ;.' } }, required: ['request'], additionalProperties: false },
-  },
-  {
-    name: 'prism_status',
-    description: 'Where the app stands: its starter, its source files, what is checked, proved and built for the model as it is on disk, and any job in progress.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    name: 'prism_pull',
+    description: "Fetch an app by its address, as docker pull fetches an image, and have Lean's kernel prove it in this process before anything runs: every object is admitted only when its bytes re-derive its BLAKE3 label, and the model is proved again here, never taken on trust. Installs it as this project's app when none is here yet, else beside it under prism/.prism/pulled/. A rule app is then built, and its build must be the one pushed.",
+    inputSchema: { type: 'object', properties: { reference: { type: 'string', description: "The app: its κ-label (from this machine's Prism store), dir://<folder>#<κ>, or https://<site>/<path>#<κ>." }, wait: { type: 'number', description: 'Seconds to wait before returning, default 45.' } }, required: ['reference'], additionalProperties: false },
   },
 ];
 
@@ -123,7 +96,7 @@ const PROMPTS = [{ name: 'prism', description: 'Build a formally verified app wi
 
 /** What is wrong with a tool call's arguments, in words that say what to send; null when they fit the tool's schema. */
 export function argumentIssue(name, args) {
-  const schema = [...TOOLS, ...STEPS].find((t) => t.name === name).inputSchema;
+  const schema = TOOLS.find((t) => t.name === name).inputSchema;
   const takes = Object.keys(schema.properties);
   const shape = takes.length ? `It takes ${takes.map((k) => `\`${k}\``).join(', ')}.` : 'It takes no arguments.';
   if (!args || typeof args !== 'object' || Array.isArray(args)) return `${name} takes its arguments as one JSON object. ${shape}`;
@@ -240,62 +213,61 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
     };
   };
 
+  // The steps the six tools are made of. None is a tool of its own.
+  function initApp(args) {
+    setImmediate(() => import('./kernel-prove.mjs').then((m) => m.warmKernel()).catch(() => {}));
+    // LexLean as WebAssembly is fetched once, while the user is still describing the app.
+    setImmediate(() => import('./lexlean-wasm.mjs').then((m) => m.lexleanReady()).catch(() => {}));
+    const all = starters();
+    const list = Object.entries(all).map(([name, s]) => ({ starter: name, module: s.module, shape: s.shape }));
+    if (started()) return { greeting: 'Welcome back.', ...status(), note: args.starter ? 'This project already holds a model, so no starter was written.' : undefined, language: LANGUAGE, nextSteps: [NO_DOCKER_FREE_BUILD] };
+    if (!args.starter) return { greeting: GREETING, project: dir, starters: list, next: 'Pick the starter whose shape fits the app the user describes, and call prism_init again with it.', nextSteps: [NO_DOCKER_FREE_BUILD] };
+    let made;
+    try {
+      made = startApp(dir, args.starter);
+    } catch (error) {
+      return { ok: false, code: error.code, message: error.message, starters: list };
+    }
+    const session = load();
+    session.starter = made.starter;
+    session.status = {};
+    save(session);
+    return {
+      ok: true,
+      project: dir,
+      starter: made.starter,
+      model: `src/${made.module}.lex.tex`,
+      files: sourceFiles(dir),
+      next: `Edit prism/src/${made.module}.lex.tex to the app the user describes, then call prism_build.`,
+      language: LANGUAGE,
+      nextSteps: [NO_DOCKER_FREE_BUILD],
+    };
+  }
+  async function checkModel() {
+    if (!started()) return { state: 'blocked', message: 'There is no model yet. Call prism_init with a starter first.' };
+    const session = load();
+    const result = await check(dir, session, { gaps });
+    save(session);
+    return result;
+  }
+  // Check, then prove: the fix when the model does not check, every theorem when it does.
+  async function verifyModel(args, progress) {
+    const checked = await checkModel();
+    if (checked.ok === false || checked.state === 'blocked') return { step: 'check', ...checked };
+    const proved = await longTool('prove', args, progress);
+    return { step: 'prove', checkedIn: checked.ms, ...proved };
+  }
+
   const tools = {
-    prism_start(args) {
-      setImmediate(() => import('./kernel-prove.mjs').then((m) => m.warmKernel()).catch(() => {}));
-      // LexLean as WebAssembly is fetched once, while the user is still describing the app.
-      setImmediate(() => import('./lexlean-wasm.mjs').then((m) => m.lexleanReady()).catch(() => {}));
-      const all = starters();
-      const list = Object.entries(all).map(([name, s]) => ({ starter: name, module: s.module, shape: s.shape }));
-      if (started()) return { greeting: 'Welcome back.', ...status(), note: args.starter ? 'This project already holds a model, so no starter was written.' : undefined, language: LANGUAGE, nextSteps: [NO_DOCKER_FREE_BUILD] };
-      if (!args.starter) return { greeting: GREETING, project: dir, starters: list, next: 'Pick the starter whose shape fits the app the user describes, and call prism_init again with it.', nextSteps: [NO_DOCKER_FREE_BUILD] };
-      let made;
-      try {
-        made = startApp(dir, args.starter);
-      } catch (error) {
-        return { ok: false, code: error.code, message: error.message, starters: list };
-      }
-      const session = load();
-      session.starter = made.starter;
-      session.status = {};
-      save(session);
-      return {
-        ok: true,
-        project: dir,
-        starter: made.starter,
-        model: `src/${made.module}.lex.tex`,
-        files: sourceFiles(dir),
-        next: `Edit prism/src/${made.module}.lex.tex to the app the user describes, then call prism_build.`,
-        language: LANGUAGE,
-        nextSteps: [NO_DOCKER_FREE_BUILD],
-      };
-    },
-    async prism_check() {
-      if (!started()) return { state: 'blocked', message: 'There is no model yet. Call prism_init with a starter first.' };
-      const session = load();
-      const result = await check(dir, session, { gaps });
-      save(session);
-      return result;
-    },
-    prism_prove: (args, progress) => longTool('prove', args, progress),
-    async prism_try(args) {
-      return tryRequest(dir, load(), args.request);
-    },
-    prism_status: status,
-    // Check, then prove: the fix when the model does not check, every theorem when it does.
-    async prism_verify(args, progress) {
-      const checked = await tools.prism_check();
-      if (checked.ok === false || checked.state === 'blocked') return { step: 'check', ...checked };
-      const proved = await longTool('prove', args, progress);
-      return { step: 'prove', checkedIn: checked.ms, ...proved };
-    },
-    prism_init: (args) => tools.prism_start(args),
+    prism_init: (args) => initApp(args),
     // Check, prove, then build what needs no image: a rule app's verified judge. Another app stops at proved.
+    // With check: true, as docker build --check, only the check.
     async prism_build(args, progress) {
-      const verified = await tools.prism_verify(args, progress);
+      if (args.check) return { step: 'check', ...(await checkModel()) };
+      const verified = await verifyModel(args, progress);
       // Proved, not a rule app: say plainly that nothing was built here, and how it is built.
       if (verified.step === 'prove' && verified.state === 'done' && verified.ok !== false && !isRuleApp(load())) {
-        return { ...verified, built: { ok: false, reason: 'Proved, not built: this app is built into a holo through Rust to WebAssembly, which does not run in this process yet. npx prism-code build --remote github builds it on your repository\'s own GitHub Actions and checks what comes back here; prism_run answers once it is built.' } };
+        return { ...verified, built: { ok: false, reason: "Proved, not built: this app is built into a holo through Rust to WebAssembly, which does not run in this process yet. npx prism-code build --remote github builds it on your repository's own GitHub Actions." } };
       }
       if (verified.step !== 'prove' || verified.state !== 'done' || verified.ok === false || !isRuleApp(load())) return verified;
       const built = await longTool('build', args, progress);
@@ -312,6 +284,54 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
       const now = status();
       const audit = load().status.audit ?? null;
       return { ...now, audit: audit ? { ...audit, current: audit.source === now.source } : null };
+    },
+    // Publish what is proved: the model, and the build when it is the build of this model.
+    async prism_push(args) {
+      if (!started()) return { state: 'blocked', message: 'There is no model yet. Call prism_init with a starter first.' };
+      const now = status();
+      const session = load();
+      // A build of an earlier model is not this app's build: it is left out.
+      if (!now.built?.current) delete session.status.ruleApp;
+      let pushed;
+      try {
+        if (!now.proved?.current) throw new PrismCodeError('bundle.unproved', 'Only a proved app is pushed, and this model as it is on disk is not proved. Call prism_build first.');
+        pushed = await pushBundle(bundleOf(dir, session), args.reference);
+      } catch (error) {
+        return { ok: false, code: error.code, message: error.message };
+      }
+      return { ok: true, ...pushed, built: !!now.built?.current, next: `Anyone can fetch this app with prism_pull and reference ${pushed.reference}; Lean's kernel proves it on their machine before it runs.` };
+    },
+    // Fetch, admit every object by its label, install, and prove it here before anything runs.
+    async prism_pull(args, progress) {
+      let pulled;
+      try {
+        pulled = await pullBundle(args.reference);
+      } catch (error) {
+        return { ok: false, code: error.code, message: error.message };
+      }
+      const hex = pulled.address.slice(pulled.address.indexOf(':') + 1);
+      const target = started() ? join(dir, '.prism', 'pulled', hex) : dir;
+      try {
+        writeModel(target, pulled.files);
+      } catch (error) {
+        return { ok: false, code: error.code, message: error.message };
+      }
+      const session = readSession(target);
+      session.starter = pulled.manifest.starter;
+      session.status = {};
+      writeSession(target, session);
+      const log = (line) => progress?.(0, line);
+      const proved = await prove(target, session, { log, gaps });
+      writeSession(target, session);
+      const answer = { ok: proved.ok, address: pulled.address, installed: target, starter: pulled.manifest.starter, proved: { ok: proved.ok, message: proved.message, theorems: proved.theorems ?? proved.guarantees ?? null } };
+      if (!proved.ok) return { ...answer, next: "Lean's kernel did not prove this app here, so nothing was built and nothing runs from it." };
+      if (pulled.manifest.built && isRuleApp(session)) {
+        const built = await build(target, session, { log, gaps });
+        writeSession(target, session);
+        const same = built.ok && built.address === pulled.manifest.built.address;
+        return { ...answer, ok: same, built: { ok: built.ok, address: built.address, same }, next: same ? (target === dir ? 'Proved and built here, the same app that was pushed: call prism_run with a request.' : `Proved and built here, the same app that was pushed, in ${target}.`) : 'Built here, but not the build that was pushed: the pushed build is not this model\'s, and nothing runs from it.' };
+      }
+      return { ...answer, next: target === dir ? 'Proved here. Call prism_build to build it, then prism_run.' : `Proved here, in ${target}.` };
     },
   };
 
@@ -354,7 +374,7 @@ export function createServer({ cwd = process.cwd(), send, gaps = gapLedger() }) 
           return reply(id, { prompts: PROMPTS });
         case 'prompts/get':
           if (params.name !== 'prism') return error(id, -32602, `Unknown prompt: ${params.name}`);
-          return reply(id, { description: PROMPTS[0].description, messages: [{ role: 'user', content: { type: 'text', text: 'Call the prism_start tool and follow what it returns: start the app from the starter that fits what I want, write its LexLean model with me, and show me its guarantees before you prove or build.' } }] });
+          return reply(id, { description: PROMPTS[0].description, messages: [{ role: 'user', content: { type: 'text', text: 'Call the prism_init tool and follow what it returns: start the app from the starter that fits what I want, write its LexLean model with me, and show me its guarantees before you prove or build.' } }] });
         case 'resources/list':
           return reply(id, {
             resources: [

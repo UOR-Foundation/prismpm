@@ -77,20 +77,20 @@ of truth is its LexLean model under `prism/src/`, which the agent writes with
 you. Its machine-readable form is the JSON LexLean exports for the model,
 `lexlean/semantic-snapshot/2`, named by its `semantic_id`.
 
-`prism_start` lists the starters, and starts the app from the one that fits.
+`prism_init` lists the starters, and starts the app from the one that fits.
 Each is a LexLean module named by its SHA-256 in
 `templates/starters/index.json`, copied only when its bytes match:
 
 | Starter | Shape | Proved by |
 | --- | --- | --- |
 | `rule-app` | one answer from one request, each condition a field against a value | Lean's kernel in this process, from the model's semantic snapshot; the app is the verified rule judge with the model's numbers, served as a static page |
-| `decision-app` | one answer from one request, with its own judge and theorems | `lexlean verify`, then built into a holo |
-| `stateful-app` | state kept between steps, with actions and invariants | `lexlean verify`, then built into a holo |
+| `decision-app` | one answer from one request, with its own judge and theorems | Lean's kernel in this process, from the kernel declarations LexLean writes; built into a holo through the SDK image |
+| `stateful-app` | state kept between steps, with actions and invariants | Lean's kernel in this process, as a decision app; built into a holo through the SDK image |
 
-The agent edits the model, and `prism_check` returns every diagnostic at the
-line of `prism/src/` it anchors to. The agent shows you the guarantees the
-model states before anything is proved. `prism_prove` and `prism_build` prove
-and build it, and `prism_try` answers from the built app. A rule app's
+The agent edits the model, and `prism_build` with `check: true` returns every
+diagnostic at the line of `prism/src/` it anchors to. The agent shows you the
+guarantees the model states before anything is proved. `prism_build` proves
+and builds it, and `prism_run` answers from the built app. A rule app's
 guarantees are first tried for a counterexample among the values its
 conditions tell apart, then judged by Lean's kernel. Guarantees are proved;
 the reading of requests and the examples are tested.
@@ -100,23 +100,32 @@ and no image. LexLean's front end runs as WebAssembly on this machine once its
 pinned copy is here ([Phase 3](../../../docs/proposals/canonical-serverless-build.md)),
 on a read-only WASI host held in memory: it checks every app and takes its
 semantic snapshot in under a second, and a rule app is then proved by Lean's
-kernel in this process and built, with no server. Its pinned copy is fetched
+kernel in this process and built, with no server. Every other app's theorems
+are proved by Lean's kernel in this process too. Its pinned copy is fetched
 once, about 4 MB, and used only when it has its κ-label (BLAKE3);
 `PRISM_LEXLEAN_FETCH=0` fetches nothing. It and Lean's kernel are kept once per machine in
 `$PRISM_HOME/kappa`. `setup` and the first check after an upgrade remove what this
 version no longer pins; `prism-code system df` shows what that frees, and
-`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Any other app's theorems are proved by
-the hosted verifier, which stores the model unlisted, not privately, until
-in-process proof producers land (Phase 4). `PRISM_CODE_TIER=offline` sends
-nothing anywhere. Such an app is not yet built into a holo by the guided build,
+`prism-code system prune` frees it, with the proof cache past `PRISM_KAPPA_CACHE_MB`. Nothing about an
+app is sent anywhere. An app other than a rule app is not yet built into a holo by the guided build,
 which needs Lean's export, Rust and WebAssembly; that, and a step with nothing
 to run on, fails with `build.frontend-unavailable`. Publishing to GitHub from
 `prism_build` waits for the template's ID rows, scenarios and tests to be
 written from the snapshot (`build.publish-unavailable`).
 
-The tools are `prism_start`, `prism_check`, `prism_prove`, `prism_build`,
-`prism_try` and `prism_status`. Proving and building run as jobs, so a call
-returns `running` and the next call picks the job up.
+There are six tools, the only ones, named as Docker names its verbs:
+
+| Docker | Tool | What it does |
+| --- | --- | --- |
+| `docker init` | `prism_init` | Start the app from a starter, or list the starters |
+| `docker build` | `prism_build` | Check, prove every theorem, build; `check: true` only checks |
+| `docker run` | `prism_run` | Answer a request from the built app |
+| `docker inspect` | `prism_inspect` | What the app guarantees, and what is checked, proved and built |
+| `docker push` | `prism_push` | Publish the proved app by its BLAKE3 address |
+| `docker pull` | `prism_pull` | Fetch an app by address; Lean's kernel proves it before anything runs |
+
+Proving and building run as jobs, so a call returns `running` and the next
+call picks the job up.
 
 ### What the journey reports, and how to turn it off
 

@@ -884,7 +884,7 @@ pub fn run_at(root: &Path, id: &str) {
         "DK-46" => node_suite::verify_exact(
             root,
             id,
-            &[("sdk/npm/prism-code/test/journey-lexlean.test.mjs", 10)],
+            &[("sdk/npm/prism-code/test/journey-lexlean.test.mjs", 12)],
             "600000",
         ),
         // LexLean's front end as WebAssembly in prism-code (Phase 3).
@@ -899,6 +899,13 @@ pub fn run_at(root: &Path, id: &str) {
             root,
             id,
             &[("sdk/npm/prism-code/test/webgpu-bridge-model.test.mjs", 6)],
+            "600000",
+        ),
+        // The six agent tools and an app as one BLAKE3-addressed bundle (prism_push, prism_pull).
+        "DK-49" => node_suite::verify_exact(
+            root,
+            id,
+            &[("sdk/npm/prism-code/test/agent-tools.test.mjs", 8)],
             "600000",
         ),
         // The `prism-code system` and `auth` command groups of #446 and #447.

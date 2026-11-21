@@ -928,7 +928,7 @@ function takeProject(args) {
 }
 
 /**
- * The model tiers run the journey's own steps (journey/engine.mjs), so the CLI and `prism_prove` give one answer:
+ * The model tiers run the journey's own steps (journey/engine.mjs), so the CLI and `prism_build` give one answer:
  * LexLean as WebAssembly checks the model, and Lean's kernel, as WebAssembly, proves every theorem in this process.
  * No Docker, no image and no server: nothing about the app is sent anywhere.
  */

@@ -248,7 +248,7 @@ async function buildUnheld(dir, session, { log = () => {}, env = process.env, sn
   wasm ??= wasmProbe(await lexleanReady({ env, log }));
   if (remote === 'github') return { ...failure(new PrismCodeError('build.publish-unavailable', `Publishing to GitHub writes the template's ID rows, scenarios and tests, and this prism-code does not yet write them from the model's semantic snapshot. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
   if (isRuleApp(session)) return buildRuleApp(dir, session, { log, env, snapshot, gaps, kernel, wasm });
-  return { ...failure(new PrismCodeError('build.frontend-unavailable', `This app's holo is built from Lean's export through Rust to WebAssembly, and no step runs that without an image yet; a rule app (the rule-app starter) builds with nothing compiled. prism_prove proves this app's theorems. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
+  return { ...failure(new PrismCodeError('build.frontend-unavailable', `This app's holo is built from Lean's export through Rust to WebAssembly, and no step runs that without an image yet; a rule app (the rule-app starter) builds with nothing compiled. prism_build proves this app's theorems. ${NO_DOCKER_FREE_BUILD}`)), stage: 'build' };
 }
 
 /** A rule app: kernel-checked from its snapshot, then written as the rule judge and its numbers, with its page. */
