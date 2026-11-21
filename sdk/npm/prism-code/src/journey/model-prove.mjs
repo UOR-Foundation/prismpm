@@ -29,6 +29,7 @@ import { admittedLabel, kappaDirectory, pinnedFile, writeAtomic } from './kappa-
 import { kappa } from '../blake3.mjs';
 import { loadLibrary } from '../vendor/kernel-path/emit.mjs';
 import { COVERED, plan } from '../vendor/kernel-path/plan.mjs';
+import { judgeDeclarations } from '../vendor/kernel-path/declarations.mjs';
 
 export const MODEL_KERNEL_REPOSITORY = 'UOR-Foundation/PrismPM';
 export const MODEL_KERNEL_COMMIT = '67ba3a17656fae808cfa9e6b7419591e35c977c6';
@@ -147,7 +148,7 @@ function keepVerdicts(env, known) {
 
 let opened = null;
 
-/** Lean's kernel with the base library resident, opened once per process. Resolves `{ library, check, resumed }`. */
+/** Lean's kernel with the base library resident, opened once per process. Resolves `{ library, baseText, check, resumed }`. */
 export function openModelKernel({ env = process.env } = {}) {
   opened ??= (async () => {
     const glue = readFile('lean-kernel.mjs', env), wasm = readFile('lean-kernel.wasm.gz', env), base = readFile('base.ndjson.gz', env);
@@ -222,7 +223,7 @@ export function openModelKernel({ env = process.env } = {}) {
       if (loaded.exit !== 0) throw new Error(`the kernel refused its base library: ${loaded.output}`);
       keepImage(env, heap().slice());
     }
-    return { library: loadLibrary(baseText), check: (text) => run('check_suffix', text), resumed, ...(setAside ? { setAside } : {}) };
+    return { library: loadLibrary(baseText), baseText, check: (text) => run('check_suffix', text), resumed, ...(setAside ? { setAside } : {}) };
   })();
   opened.catch(() => { opened = null; });
   return opened;
@@ -282,4 +283,66 @@ export async function modelProve(snapshot, { env = process.env, fetch = globalTh
   }
   const ok = theorems.length > 0 && theorems.every((t) => t.status.startsWith('proved'));
   return { ok, theorems, declarations: p.declarations, judged, remembered: theorems.filter((t) => t.remembered).length, resumed: !!k.resumed, ms: elapsed() };
+}
+
+/** A theorem's verdict from the axioms the kernel observed for its accepted proof: the same rule for both paths. */
+function verdictOf(th) {
+  const got = th.axioms;
+  return got === null ? 'not proved: the kernel reported nothing for it'
+    : got.some((a) => !STANDARD_AXIOMS.includes(a)) ? `not proved: it rests on ${got.filter((a) => !STANDARD_AXIOMS.includes(a)).join(', ')}, outside Lean's standard axioms`
+    : got.some((a) => !th.declared.includes(a)) ? `not proved: it rests on ${got.filter((a) => !th.declared.includes(a)).join(', ')}, which it does not declare`
+    : got.length < th.declared.length ? 'proved, on fewer axioms than declared' : 'proved';
+}
+
+/**
+ * Prove every theorem of a model from the kernel declarations LexLean wrote for it (`lexlean declare`, LexLean CL-29):
+ * the project's types, definitions and theorem statements as LexLean means them, and the proofs LexLean produced,
+ * as lean4export lines that continue the base library this kernel holds. Every LexLean proof form is planned: a proof
+ * LexLean produced is judged as it is, and a proof is found here for each other theorem (`judgeDeclarations`). A
+ * produced proof the kernel refuses is set aside and its theorem found like any other, so it never sinks the rest.
+ * Resolves the same shape as `modelProve`, each theorem also carrying `produced` and, when set aside, `setAside`.
+ */
+export async function modelProveDeclared(document, { env = process.env, fetch = globalThis.fetch, log = () => {}, kernel = null } = {}) {
+  const started = performance.now();
+  let k = kernel;
+  if (!k) {
+    await ensureModelKernel({ env, fetch, log });
+    k = await openModelKernel({ env });
+  }
+  const elapsed = () => Math.round(performance.now() - started);
+  const empty = (refusal) => ({ ok: false, theorems: [], declarations: 0, judged: 0, remembered: 0, ms: elapsed(), refusal });
+  if (document?.spec !== 'lexlean/kernel-declarations/2' || !document.library) return empty("LexLean wrote no declarations over this kernel's library");
+  // The planner reads the kernel's answer as lines; the axioms of an accepted run come with it.
+  const lines = (text) => text.split(/\r?\n/);
+  const check = (text) => { const r = k.check(text); return { exit: r.exit, out: lines(r.output), axioms: r.axioms }; };
+  let j;
+  try {
+    j = judgeDeclarations({ spec: document.spec, library: document.library, theorems: document.theorems, refused: document.refused ?? [] }, document.suffix, k.baseText, check);
+  } catch (error) {
+    return empty(error.message);
+  }
+  if (j.declarations.exit !== 0) return empty(`Lean's kernel refused LexLean's declarations: ${j.declarations.out.slice(-2).join(' ')}`);
+  const p = j.plan;
+  const theorems = p.theorems.map((th) => ({
+    name: th.name, proof: th.proof, declared: th.declared, produced: th.produced ?? null,
+    axioms: th.produced ? (j.declarations.axioms?.[th.produced] ?? null) : null,
+    status: th.status, remembered: false, ...(j.setAside.has(th.name) ? { setAside: j.setAside.get(th.name) } : {}),
+  }));
+  let todo = theorems.filter((t) => !t.status && !t.produced).map((t) => t.name);
+  const judged = todo.length;
+  while (todo.length) {
+    const r = k.check(p.file(todo));
+    if (r.exit === 0) {
+      for (const n of todo) theorems.find((x) => x.name === n).axioms = r.axioms[n] ?? null;
+      break;
+    }
+    const named = /declaration '([^']+)'/.exec(r.output)?.[1];
+    const culprit = theorems.find((t) => t.name === named && todo.includes(t.name));
+    if (!culprit) return { ...empty(`Lean's kernel refused the proofs found: ${lines(r.output).slice(-1)[0]}`), theorems };
+    culprit.status = `not proved: Lean's kernel refused the proof found (${lines(r.output).slice(-1)[0].slice(0, 200)})`;
+    todo = todo.filter((n) => n !== culprit.name);
+  }
+  for (const th of theorems) if (!th.status) th.status = verdictOf(th);
+  const ok = theorems.length > 0 && theorems.every((t) => t.status.startsWith('proved'));
+  return { ok, theorems, declarations: lines(document.suffix).filter(Boolean).length, judged, remembered: 0, produced: theorems.filter((t) => t.produced).length, setAside: j.setAside.size, resumed: !!k.resumed, ms: elapsed() };
 }

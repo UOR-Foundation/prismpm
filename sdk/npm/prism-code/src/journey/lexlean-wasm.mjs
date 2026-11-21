@@ -155,11 +155,14 @@ function moduleOf(file) {
  * are run here: a command that changes the project is refused by LexLean on
  * WASI (`LLV7010`), and the file system it sees is read only.
  */
-export async function runLexleanWasm(projectDir, args, { env = process.env, pin = null } = {}) {
+export async function runLexleanWasm(projectDir, args, { env = process.env, pin = null, files = null } = {}) {
   const file = lexleanWasmFile({ env, pin });
   if (!file) throw new PrismCodeError('lexlean.wasm-unavailable', 'LexLean as WebAssembly is not on this machine');
   const started = performance.now();
-  const r = await runWasi(await moduleOf(file), { files: projectFiles(projectDir), args });
+  // `files` adds read-only files beside the project's own, such as the library export `declare` continues.
+  const all = projectFiles(projectDir);
+  for (const [path, bytes] of files ?? []) all.set(path, bytes);
+  const r = await runWasi(await moduleOf(file), { files: all, args });
   return { exit: r.exit, stdout: Buffer.from(r.stdout), stderr: Buffer.from(r.stderr).toString('utf8'), ms: Math.round(performance.now() - started) };
 }
 
@@ -185,4 +188,27 @@ export async function wasmSnapshot(projectDir, options = {}) {
   if (r.exit !== 0) return { ok: false, check: await wasmCheck(projectDir, options), ms: r.ms };
   // LexLean names the snapshot (its semantic_id); Prism derives no identity of its own for it.
   return { ok: true, bytes: r.stdout, snapshot: JSON.parse(r.stdout.toString('utf8')), ms: r.ms };
+}
+
+/** Where the library export `declare` continues is placed in the instance's file system, beside the project. */
+export const DECLARE_LIBRARY_PATH = '/.prism-code/base.ndjson';
+
+/**
+ * `lexlean declare --all --library <base>` (LexLean CL-29): the project's kernel declarations, written by LexLean
+ * itself from the model with no Lean, as one `lexlean/kernel-declarations/2` document that continues `base`, the
+ * library export the kernel holds. Resolves `{ ok: true, document, ms }`; `{ ok: false, unsupported: true }` when the
+ * pinned LexLean has no `declare` command, so the caller keeps its own lowering; or `{ ok: false, check }` with the
+ * command result of `check` when LexLean refuses the model.
+ */
+export async function wasmDeclare(projectDir, base, options = {}) {
+  const files = new Map([[DECLARE_LIBRARY_PATH, typeof base === 'string' ? new TextEncoder().encode(base) : base]]);
+  const r = await runLexleanWasm(projectDir, ['declare', '--all', '--library', DECLARE_LIBRARY_PATH], { ...options, files });
+  if (r.exit === 0) {
+    const document = JSON.parse(r.stdout.toString('utf8'));
+    if (document.spec !== 'lexlean/kernel-declarations/2') throw new PrismCodeError('lexlean.wasm-failed', `LexLean's declare gave a ${document.spec}, not lexlean/kernel-declarations/2`);
+    return { ok: true, document, ms: r.ms };
+  }
+  // CLI misuse naming the command: this LexLean predates `declare` (a release before CL-29).
+  if (r.exit === 2 && /unrecognized subcommand|invalid value 'declare'|unexpected argument/i.test(r.stderr)) return { ok: false, unsupported: true, ms: r.ms };
+  return { ok: false, check: await wasmCheck(projectDir, options), ms: r.ms };
 }

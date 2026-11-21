@@ -133,6 +133,7 @@
   "src/toml.mjs",
   "src/tracing.mjs",
   "src/uorc.mjs",
+  "src/vendor/kernel-path/declarations.mjs",
   "src/vendor/kernel-path/emit.mjs",
   "src/vendor/kernel-path/lower.mjs",
   "src/vendor/kernel-path/plan.mjs",

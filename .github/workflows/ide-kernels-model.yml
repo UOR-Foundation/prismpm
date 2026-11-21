@@ -193,6 +193,10 @@ jobs:
         run: node ide/tools/scope-test.mjs
       - name: A model is told apart from one its app does not run
         run: node ide/tools/app-match-test.mjs
+      - name: A reader's changes come back only for their model, and only as stored
+        run: node ide/tools/drafts-test.mjs
+      - name: A model's archive is read back by tar, has one label, and holds no path that leaves its folder
+        run: node ide/tools/model-tar-test.mjs
       # The terminal's command line is tested against the tables above, with xterm.js as the lockfile installs it.
       - name: Install the IDE's pinned dependencies
         working-directory: sdk/npm/prism-code/ide

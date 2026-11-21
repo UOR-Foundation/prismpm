@@ -79,10 +79,69 @@ Tried by hand in the same browser. `edit/ide/?theme=<a theme's name>` opens the 
 
 A diagnostic in another file of the project is now named in the strip rather than dropped. On `model/ide-scope` it reads `lexlean.toml: LLC0101: lean_toolchain must be exactly leanprover/lean4:v4.32.2`: the pinned LexLean refuses every model configured for Lean 4.32.1.
 
+### Every file of the model
+
+The workbench shows the model as its one folder, in its own Explorer, and any file can be opened and changed. The command palette (F1) and the keyboard shortcuts are the workbench's own.
+
+- A check reads every file as it stands in the editor: the entry file, and any other file that was opened and changed.
+- A diagnostic is marked in the file it is about, and listed under Problems with that file's name.
+- A changed file keeps its change after its editor is closed, for as long as the tab is open. Nothing is written anywhere: a reload brings back the model as fetched.
+
+Tried by hand in the same browser, on `model/ide-capability-gate`, and on an app's model served as Pages serves it:
+
+| Step | Shown |
+|---|---|
+| Open | the Explorer lists `language`, `src` and the project's files; the entry file is open; 13 of 13 proved |
+| Click `lexlean.lock` in the Explorer | it opens in a second tab |
+| In `lexlean.toml`, change the Lean toolchain to one LexLean does not take | one problem, `LLC0101`, marked in `lexlean.toml`; guarantees not judged |
+| Undo | no problems; 13 of 13 proved |
+| F1, "Color Theme" | the command palette lists the theme commands |
+| On an app's model, add a comment to `prism.toml` | still proved; "Your text still gives the rules the app at … runs." |
+
+### Changes kept across a reload
+
+The workbench page keeps the reader's changes in the browser, in the origin's private file system (`drafts.mjs`). Everything is named by its BLAKE3 label, from prism-code's own `blake3.mjs`:
+
+- The model as fetched has one label, over its entry and every file's label: the base.
+- Each changed file's text is stored once, under its own label.
+- A draft says, for one base, which paths were changed and the label of each one's text.
+
+So a draft belongs to exactly the model it was made on: when an app publishes a different model, the old draft is not laid over it. A stored text comes back only if its bytes derive again to its label; one that does not is left out and the page says so. A line under the strip names the changed files and has a "Discard my changes" button.
+
+Tried by hand on the assembled site, served as Pages serves it:
+
+| Step | Shown |
+|---|---|
+| Change the entry file and `prism.toml` | "Changed and kept in this browser: prism.toml, src/App.lex.tex." |
+| Reload | both files open as they were left; the same line; the check runs on the restored text |
+| "Discard my changes" | the page reloads with the model as fetched; 13 of 13 proved |
+| A change on one model, then another model opened | the second model has no draft and no line |
+
+`tools/drafts-test.mjs` holds the store to this on a directory in memory, with a stored text altered behind its back and a draft that names another model.
+
+### Taking the model out
+
+"Download model", beside the strip, gives the model as it stands in the editor as one tar archive (`model-tar.mjs`) that unpacks into a folder named `model`, a LexLean project.
+
+- The archive is written the same way every time: paths in order, no dates, no owners, one mode. The same model gives the same bytes.
+- So the archive has one BLAKE3 label. The file is named by its first twelve digits and the page states it in full. Two people who download the same model hold the same label.
+- A path that would leave the folder it is unpacked into is refused, whoever wrote the model's listing.
+
+`tools/model-tar-test.mjs` has the system's own tar unpack an archive and compares every file, and plants paths that must be refused.
+
+Checked in the same browser on `model/ide-capability-gate`: the archive the page makes of the model as fetched is 45056 bytes with the label `blake3:a4ac2e2ff115…`, the same bytes count and label Node gives for the repository's files; a changed file gives another label; undoing the change gives the first one back. The button itself was not pressed by hand: what was checked is the archive the button hands over.
+
 Limits of the workbench page:
 
+- A draft is trusted no further than the origin that serves the page: another page of the same origin can write to the same store. It is the reader's convenience, not evidence of anything.
+- Texts a discarded draft named stay in the browser until the site's data is cleared. Nothing names them.
+- Where the browser has no private file system for the page (a private window), nothing is kept, and the line says a reload loses the changes. That case was not tried by hand.
+- The plain edit page keeps nothing.
+- New files, renames and deletions made in the Explorer are not read by a check: it reads the files the model was fetched with.
+- Edits to files other than the entry were made by setting their text from a script, not by typing keys.
+
 - Colours were looked at in three of the ten themes, and on three files. Names a model defines, such as `judge`, keep the plain text colour.
-- The theme was chosen by the address; the workbench's command palette did not open on this page.
+- The themes above were chosen by the address, before the command palette was switched on.
 - The token stylesheet is also rewritten once a second, because the theme's colour table grows as tokens are first seen and no event says so.
 - Every broken guarantee is reported on the one line where the guarantees are stated, not at its own place in that line.
 - Edits were made by setting the editor's text from a script, not by typing keys.
@@ -207,7 +266,7 @@ Apps published before this have no `model/`, so the audit page offers no editor 
 Limits:
 
 - `index.html` here is a plain text area: no syntax colours, no completion, no formatting (the WASI build of LexLean refuses commands that write).
-- One file is editable: the project's first entrypoint. The other files are read once and sent with every check.
+- On the plain page one file is editable: the project's first entrypoint. The workbench page opens every file.
 - Rule tables only. A model with theorems of its own is checked, and the page says its guarantees are not proved here. `model-prove.mjs` could be tried for those; it did not finish on `model/ide-scope` in 40 minutes in Node.
 - "Refused" (the kernel does not accept a guarantee that no request breaks) was never seen: no such model was tried.
 - A blank line added at the end of the file makes LexLean refuse the model. That is LexLean's rule, shown as it reports it.
