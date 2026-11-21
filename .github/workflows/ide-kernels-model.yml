@@ -197,6 +197,12 @@ jobs:
         run: node ide/tools/drafts-test.mjs
       - name: A model's archive is read back by tar, has one label, and holds no path that leaves its folder
         run: node ide/tools/model-tar-test.mjs
+      # The terminal's command line is tested against the tables above, with xterm.js as the lockfile installs it.
+      - name: Install the IDE's pinned dependencies
+        working-directory: sdk/npm/prism-code/ide
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: The terminal's command line asks its tables and obeys them, and xterm.js is the pinned one
+        run: node ide/tools/terminal-test.mjs
       - name: "Planted defect: a gate that allows without a grant is refused"
         shell: bash
         run: |

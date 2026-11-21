@@ -42,12 +42,15 @@ const original = files[entry];
 $('file').textContent = listing.entry;
 $('source').value = original;
 
+// What each executable turned out to be, once known: 'pinned', 'mismatch' or 'absent'. The terminal asks.
+const settle = {};
+const settled = { lexlean: new Promise((r) => { settle.lexlean = r; }), kernel: new Promise((r) => { settle.kernel = r; }) };
 const worker = new Worker(new URL('./lexlean-worker.mjs', import.meta.url), { type: 'module' });
 const waiting = new Map();
 let nextId = 0;
 worker.onmessage = ({ data }) => {
-  if (data.ready) { state.engine = data; $('engine').textContent = `LexLean ${LEXLEAN_WASM.commit.slice(0, 7)}, ${(data.bytes / 1048576).toFixed(1)} MB, checked against ${data.kappa.slice(0, 19)}… and ready in ${data.ms} ms`; return; }
-  if (data.failed) { state.error = data.failed; $('engine').textContent = 'LexLean could not start: ' + data.failed; $('status').textContent = 'Not checked.'; state.ready = true; return; }
+  if (data.ready) { settle.lexlean('pinned'); state.engine = data; $('engine').textContent = `LexLean ${LEXLEAN_WASM.commit.slice(0, 7)}, ${(data.bytes / 1048576).toFixed(1)} MB, checked against ${data.kappa.slice(0, 19)}… and ready in ${data.ms} ms`; return; }
+  if (data.failed) { settle.lexlean(data.reason ?? 'absent'); state.error = data.failed; $('engine').textContent = 'LexLean could not start: ' + data.failed; $('status').textContent = 'Not checked.'; state.ready = true; return; }
   waiting.get(data.id)?.(data);
   waiting.delete(data.id);
 };
@@ -72,8 +75,8 @@ function compare(table, text) {
 const prover = new Worker(new URL('./prove-worker.mjs', import.meta.url), { type: 'module' });
 const proving = new Map();
 prover.onmessage = ({ data }) => {
-  if (data.ready) { state.kernel = data; return; }
-  if (data.failed) { state.kernel = { failed: data.failed }; for (const done of proving.values()) done({ error: data.failed }); proving.clear(); return; }
+  if (data.ready) { settle.kernel('pinned'); state.kernel = data; return; }
+  if (data.failed) { settle.kernel(data.reason ?? 'absent'); state.kernel = { failed: data.failed }; for (const done of proving.values()) done({ error: data.failed }); proving.clear(); return; }
   proving.get(data.id)?.(data);
   proving.delete(data.id);
 };
@@ -197,3 +200,13 @@ $('source').addEventListener('scroll', () => { $('gutter').scrollTop = $('source
 $('revert').addEventListener('click', () => { $('source').value = original; run(); });
 gutter(new Set());
 run();
+
+// The terminal: a command line for this model, on xterm.js. It gets the page's own workers and nothing else.
+import('./terminal/terminal.mjs').then(({ startTerminal }) => startTerminal($('terminal'), {
+  project: () => ({ ...files, [entry]: $('source').value }),
+  check, snapshotOf, prove,
+  held: async () => ({ lexlean: await settled.lexlean, kernel: await settled.kernel }),
+  pin: LEXLEAN_WASM,
+  setTitle: (text) => { $('terminalTitle').textContent = text; },
+  find: $('terminalFind'),
+})).catch((error) => { $('terminal').textContent = 'The terminal could not start: ' + (error?.message ?? error); });

@@ -14,7 +14,7 @@
 // The page is served beside ../edit by tools/serve-edit.mjs, which gives it the project, the LexLean executable and
 // the kernel. No extension runs here, so the capability gate of main.js has nothing to judge and is not loaded.
 
-import { initialize, getService, IEditorService, IMarkerService, IWorkbenchThemeService } from '@codingame/monaco-vscode-api/services';
+import { initialize, getService, ICommandService, IEditorService, IMarkerService, IWorkbenchThemeService } from '@codingame/monaco-vscode-api/services';
 import getExtensionsOverride from '@codingame/monaco-vscode-extensions-service-override';
 import getFilesOverride, { RegisteredFileSystemProvider, RegisteredMemoryFile, registerFileSystemOverlay } from '@codingame/monaco-vscode-files-service-override';
 import { URI } from '@codingame/monaco-vscode-api/vscode/vs/base/common/uri';
@@ -36,6 +36,8 @@ import '@codingame/monaco-vscode-theme-defaults-default-extension';
 import extHostWorkerUrl from '@codingame/monaco-vscode-api/workers/extensionHost.worker?worker&url';
 import editorWorkerUrl from '@codingame/monaco-vscode-api/workers/editor.worker?worker&url';
 import { LEXLEAN, registerLexLean, tokenTypes } from './lexlean-language.js';
+import { prismTerminal } from './model-terminal.js';
+import { ITerminalService } from '@codingame/monaco-vscode-terminal-service-override';
 
 const PAUSE_MS = 350;
 const ERROR = 8; // MarkerSeverity.Error
@@ -120,9 +122,32 @@ function channel(url, onNote) {
   };
   return { post: (message) => worker.postMessage(message), ask: (message) => new Promise((resolve) => { const id = ++next; waiting.set(id, resolve); worker.postMessage({ id, ...message }); }) };
 }
-const lexlean = channel(EDIT + 'lexlean-worker.mjs', (note) => { state.lexlean = note; });
+// What each executable turned out to be, once known: 'pinned', 'mismatch' or 'absent'. The terminal asks.
+const settle = {};
+const settled = { lexlean: new Promise((r) => { settle.lexlean = r; }), kernel: new Promise((r) => { settle.kernel = r; }) };
+const noted = (which) => (note) => { state[which] = note; if (note.ready) settle[which]('pinned'); if (note.failed) settle[which](note.reason ?? 'absent'); };
+const lexlean = channel(EDIT + 'lexlean-worker.mjs', noted('lexlean'));
 lexlean.post({ start: { url: EDIT + 'lexlean.wasm.gz', pin: { kappa: pin.kappa, encoding: pin.encoding } } });
-const kernel = channel(EDIT + 'prove-worker.mjs', (note) => { state.kernel = note; });
+const kernel = channel(EDIT + 'prove-worker.mjs', noted('kernel'));
+
+// The terminal panel's command line: the one the plain edit page uses, from the files published beside it.
+// `projectNow` is the model as it is in the editor, once the editor has opened it.
+let projectNow = () => files;
+const terminals = [];
+async function commandLine(io) {
+  const at = (path) => import(/* @vite-ignore */ EDIT + path);
+  const [{ createCommandLine }, { createKeptIn, openStore }, { kappa }, { reuseAdmits }, rules, published, manifest] = await Promise.all([
+    at('terminal/programs.mjs'), at('terminal/kappa-space.mjs'), at('prism-code/blake3.mjs'), at('prism-code/journey/kappa-rules.mjs'), at('prism-code/journey/rule-table.mjs'),
+    json(EDIT + 'terminal/tables.json'), json(EDIT + 'kernel/manifest.json').catch(() => null),
+  ]);
+  return createCommandLine({
+    tables: published.tables, luts: published.luts, rules, kappa, reuseAdmits, project: () => projectNow(),
+    check: (project) => lexlean.ask({ files: project }), snapshotOf: (project) => lexlean.ask({ files: project, snapshot: true }),
+    prove: (words, guarantees) => kernel.ask({ words, guarantees }),
+    held: async () => ({ lexlean: await settled.lexlean, kernel: await settled.kernel }),
+    pin, manifest, kept: createKeptIn(await openStore({ kappa })), ...io,
+  });
+}
 
 window.MonacoEnvironment = {
   getWorkerUrl: (_moduleId, label) => (label === 'extensionHostWorkerMain' ? extHostWorkerUrl : editorWorkerUrl),
@@ -145,6 +170,7 @@ try {
     ...getExtensionsOverride({ enableWorkerExtensionHost: true }), ...getFilesOverride(), ...getConfigurationOverride(),
     ...getWorkbenchOverride(), ...getModelOverride(), ...getLanguagesOverride(), ...getThemeOverride(), ...getMarkersOverride(),
     ...getStorageOverride(), ...getLifecycleOverride(), ...getNotificationsOverride(), ...getDialogsOverride(),
+    ...prismTerminal(commandLine, terminals),
     // The Explorer, so every file of the model can be opened; the keyboard shortcuts and the command palette.
     ...getExplorerOverride(), ...getKeybindingsOverride(), ...getQuickAccessOverride(),
   }, document.getElementById('workbench'), {
@@ -162,6 +188,12 @@ try {
   // The file ending should be enough; if the workbench chose otherwise, say which language this is.
   if (model.getLanguageId() !== LEXLEAN) monaco.editor.setModelLanguage(model, LEXLEAN);
   state.model = { lines: model.getLineCount(), language: model.getLanguageId() };
+  // The terminal panel, open from the start. A test reaches its command lines through window.prismModel.terminals.
+  window.prismModel.terminals = terminals;
+  // The workbench's emulator for the terminal in front, so a test can read what was drawn and when.
+  const terminalService = await getService(ITerminalService);
+  window.prismModel.xterm = () => terminalService.activeInstance?.xterm?.raw ?? null;
+  (await getService(ICommandService)).executeCommand('workbench.action.terminal.focus').catch((error) => { state.terminalError = String(error?.message ?? error); });
   const themes = await getService(IWorkbenchThemeService);
   // The editor gives each token a class, mtk<n>, where n indexes the theme's table of colours. In VS Code the
   // stylesheet that gives those classes their colours is written by the TextMate service, which this page does not
@@ -185,6 +217,8 @@ try {
   // The model as it stands in the editor: each file as fetched, or as the reader has changed it. A file that was
   // opened and changed keeps its change after its editor is closed, for as long as the tab is open.
   const current = { ...restored };
+  // What the terminal's commands read: every file as the reader has it now.
+  projectNow = () => ({ ...files, ...current, [entry]: model.getValue() });
   sayDraft(Object.keys(current).filter((path) => current[path] !== files[path]).sort());
   // The model as it stands in the editor, as one archive. The same model gives the same bytes, so the label names it.
   window.prismModel.archive = () => modelTar({ ...files, ...current });
