@@ -9,7 +9,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { kappa } from '../src/blake3.mjs';
 import { bundledSkills, planSkills } from '../src/setup.mjs';
-import { GATE_DIR, admitSkills, failing, folderFacts, installs, judgeSkill, modelLabel, namedVerbs, readPins, routingFacts, shippedVerbs, verifyInstalled } from '../src/skills.mjs';
+import { GATE_DIR, admitSkills, failing, folderFacts, installs, judgeSkill, modelLabel, namedTools, namedVerbs, readPins, routingFacts, shippedVerbs, verifyInstalled } from '../src/skills.mjs';
 
 const proofs = readFileSync(join(GATE_DIR, 'src/SkillGateProofs.lex.tex'), 'utf8');
 const model = readFileSync(join(GATE_DIR, 'src/SkillGate.lex.tex'), 'utf8');
@@ -17,13 +17,14 @@ const theorems = [...proofs.matchAll(/^theorem\{\n {2}name: (\w+),/gm)].map((m) 
 const skillMarkdown = readFileSync(fileURLToPath(new URL('../skill/SKILL.md', import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
 
 /** A record every condition admits. */
-const good = () => ({ markdownNamed: 'blake3:a', markdownRendered: 'blake3:a', modelNamed: 'blake3:m', modelPinned: 'blake3:m', commandsNamed: 3, commandsShipped: 3, network: 0, secrets: 0, execution: 0, sendsWithoutOptIn: 0, proofNeedsDocker: 0, theoremsDeclared: 10, theoremsProved: 10 });
+const good = () => ({ markdownNamed: 'blake3:a', markdownRendered: 'blake3:a', modelNamed: 'blake3:m', modelPinned: 'blake3:m', commandsNamed: 3, commandsShipped: 3, toolsNamed: 6, toolsServed: 6, network: 0, secrets: 0, execution: 0, sendsWithoutOptIn: 0, proofNeedsDocker: 0, theoremsDeclared: 10, theoremsProved: 10 });
 
 /** One planted defect per theorem: the record that breaks only it. */
 const PLANTED = {
   aSkillInstallsOnlyAsTheBytesItsModelRenders: { markdownNamed: 'blake3:b' },
   aSkillInstallsOnlyUnderItsPinnedModel: { modelNamed: 'blake3:n' },
   aSkillInstallsOnlyWhenEveryCommandItTeachesShips: { commandsShipped: 2 },
+  aSkillInstallsOnlyWhenEveryToolItTeachesIsServed: { toolsServed: 5 },
   aSkillInstallsOnlyWithoutNetworkAuthority: { network: 1 },
   aSkillInstallsOnlyWithoutSecrets: { secrets: 1 },
   aSkillInstallsOnlyWithoutExecutionAuthority: { execution: 1 },
@@ -33,8 +34,8 @@ const PLANTED = {
   aSkillInstallsOnlyWhenEveryTheoremItDeclaresIsProved: { theoremsProved: 9 },
 };
 
-test('the gate model declares ten theorems, and each has exactly one planted defect here that only it refuses', () => {
-  assert.equal(theorems.length, 10);
+test('the gate model declares eleven theorems, and each has exactly one planted defect here that only it refuses', () => {
+  assert.equal(theorems.length, 11);
   assert.deepEqual([...theorems].sort(), Object.keys(PLANTED).sort());
   assert.equal(installs(good()), true);
   assert.deepEqual(failing(good()), []);
@@ -49,6 +50,15 @@ test('installs is the model\'s own definition: the same five parts, joined the s
   assert.match(model, /name: installs,[\s\S]*?body: \(\(\(\(canonical s\) && \(namesOnlyShipped s\)\) && \(noAuthority s\)\) && \(\(staysLocal s\) && \(selfProved s\)\)\)/);
   const fields = [...model.matchAll(/\{name: (\w+), type: Nat\}/g)].map((m) => m[1]);
   assert.deepEqual(fields.sort(), Object.keys(good()).sort(), 'the record setup computes has exactly the model\'s fields');
+});
+
+test('a skill teaches only the six tools the MCP server answers: one that names a retired tool is refused by that theorem', async () => {
+  assert.deepEqual([...namedTools(skillMarkdown)].sort(), ['prism_build', 'prism_init', 'prism_inspect', 'prism_pull', 'prism_push', 'prism_run']);
+  const markdown = 'Call `prism_init`, then `prism_try`.';
+  const verdict = await judgeSkill({ name: 'prism', markdown, pins: { skills: { prism: { markdown: kappa(new TextEncoder().encode(markdown)) } }, gate: modelLabel() }, gate: { declared: 11, proved: 11, theorems }, verbs: new Set(), routing: { sendsWithoutOptIn: 0, proofNeedsDocker: 0 } });
+  assert.equal(verdict.admitted, false);
+  assert.deepEqual(verdict.failing, ['aSkillInstallsOnlyWhenEveryToolItTeachesIsServed']);
+  assert.deepEqual(verdict.unshipped, ['prism_try']);
 });
 
 test('the pins name the skill prism-code ships and the gate model as it is', () => {

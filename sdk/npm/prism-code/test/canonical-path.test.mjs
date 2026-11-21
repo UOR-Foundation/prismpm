@@ -47,11 +47,11 @@ test('setup ends by telling the user that no step needs Docker, then to ask an a
   assert.match(plan.next.at(-1), /build me a Prism app/);
 });
 
-test('the MCP instructions every agent receives name the LexLean model and the four tools, that no step needs Docker or a server, and leave the tier to the user', () => {
+test('the MCP instructions every agent receives name the LexLean model and the six tools, that no step needs Docker or a server, and leave the tier to the user', () => {
   assert.match(INSTRUCTIONS, /one source of truth is its LexLean model in prism\/src\//);
   assert.match(INSTRUCTIONS, /For Prism or \/prism, call prism_init\./);
-  for (const name of ['prism_build', 'prism_run', 'prism_inspect']) assert.ok(INSTRUCTIONS.includes(name), name);
-  assert.doesNotMatch(INSTRUCTIONS, /prism_start|prism_check|prism_prove|prism_try|prism_status/);
+  for (const name of ['prism_build', 'prism_run', 'prism_inspect', 'prism_push', 'prism_pull']) assert.ok(INSTRUCTIONS.includes(name), name);
+  assert.doesNotMatch(INSTRUCTIONS, /prism_start|prism_check|prism_prove|prism_verify|prism_try|prism_status/);
   assert.match(INSTRUCTIONS, /No step needs Docker, an image or a server\. LexLean runs as WebAssembly/);
   assert.match(INSTRUCTIONS, /Never set PRISM_CODE_TIER yourself/);
   assert.ok(INSTRUCTIONS.split(/\s+/).length < 200, 'the instructions stay short enough to be read');

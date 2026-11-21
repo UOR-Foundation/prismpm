@@ -105,6 +105,9 @@ function sayDraft(paths) {
 }
 document.getElementById('draftDiscard').addEventListener('click', async () => { await drafts.discard(base); location.reload(); });
 
+// The model as one file the reader can take away: a tar archive named by the BLAKE3 label of its bytes.
+const { modelTar } = await import(/* @vite-ignore */ EDIT + 'model-tar.mjs');
+
 // One request at a time to each worker, matched by id.
 function channel(url, onNote) {
   const worker = new Worker(url, { type: 'module' });
@@ -183,6 +186,25 @@ try {
   // opened and changed keeps its change after its editor is closed, for as long as the tab is open.
   const current = { ...restored };
   sayDraft(Object.keys(current).filter((path) => current[path] !== files[path]).sort());
+  // The model as it stands in the editor, as one archive. The same model gives the same bytes, so the label names it.
+  window.prismModel.archive = () => modelTar({ ...files, ...current });
+  const took = document.getElementById('took');
+  document.getElementById('download').addEventListener('click', () => {
+    try {
+      const { bytes, label } = window.prismModel.archive();
+      const name = `model-${label.slice('blake3:'.length, 'blake3:'.length + 12)}.tar`;
+      const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([bytes], { type: 'application/x-tar' })), download: name });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+      const changed = Object.keys(current).filter((path) => current[path] !== files[path]).length;
+      state.took = { name, label, bytes: bytes.length, changed };
+      took.textContent = `Downloaded ${name}: the model ${changed ? `with your ${changed} changed file${changed === 1 ? '' : 's'}` : 'as fetched'}, ${bytes.length} bytes. Its address is ${label}. It unpacks into a folder named model.`;
+    } catch (error) {
+      state.took = { error: String(error?.message ?? error) };
+      took.textContent = 'The model could not be put in an archive: ' + state.took.error;
+    }
+    took.hidden = false;
+  });
   let saving = null;
   const keep = () => {
     clearTimeout(saving);

@@ -60,7 +60,7 @@ setTimeout(() => finish(2, 'timed out after 5 minutes'), 300000).unref();
 await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'ide-prove-rule-app', version: '1' } });
 child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
 
-const checked = await call('prism_check');
+const checked = await call('prism_build', { check: true });
 if (!checked.ok) finish(1, 'check refused: ' + JSON.stringify(checked.diagnostics ?? checked).slice(0, 800));
 let built = await call('prism_build', { wait: 240 });
 while (built.state === 'running') built = await call('prism_build', { wait: 60 });

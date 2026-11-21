@@ -124,7 +124,7 @@ test('outside a project: no lockfile means the image a new app is pinned to, unl
   const configDir = join(scratch(), '.prism');
   const none = rows(planMachine({}, context({ cwd, configDir })));
   assert.equal(none.image.status, 'deferred');
-  assert.equal(none.image.reference, DEFAULT_SDK_IMAGE, 'the image prism_prove asks for in an app that is not pinned yet');
+  assert.equal(none.image.reference, DEFAULT_SDK_IMAGE, 'the image prism_build asks for in an app that is not pinned yet');
   assert.match(none.image.detail, /\(no prismpm\.lock here, the image new apps are pinned to\) is not here; .*setup --pull gets it now/);
   assert.equal(none.endings.status, 'not-found');
   const named = rows(planMachine({ image: IMAGE, pull: false }, context({ cwd, configDir })));

@@ -952,6 +952,15 @@ Registered in model/sdk-diagnostics.toml. These are the codes the Prism SDK modu
 | `build.frontend-unavailable` |  | `DK-46` | LexLean's front end is not available: LexLean as WebAssembly is not on this machine and could not be fetched, or PRISM_CODE_TIER=offline fetches nothing. Nothing about the app is sent anywhere instead. |
 | `build.host-not-allowed` |  | `DK-45` | A build asked a host outside its serverless boundary: not HTTPS, not GitHub's static hosts or the user's Pages site, or the hosted verifier, which is never asked. Nothing was sent, and there is no fallback. |
 | `build.publish-unavailable` |  | `DK-46` | Publishing an app to GitHub is not available until the template's ID rows, scenarios and tests are written from the model's semantic snapshot. |
+| `bundle.altered` |  | `DK-49` | An object of a pulled app does not re-derive its κ-label (BLAKE3): it was altered, and nothing was written. |
+| `bundle.exists` |  | `DK-49` | A pulled model file would replace a file that holds other bytes; pull into an empty project. |
+| `bundle.missing` |  | `DK-49` | An object a pulled app's manifest names is not in the store the reference names. |
+| `bundle.path` |  | `DK-49` | A pulled app's manifest names a path outside the app. |
+| `bundle.read-only` |  | `DK-49` | An https:// store is read-only to prism_push; push to a dir:// folder and publish that folder with any static host. |
+| `bundle.reference` |  | `DK-49` | A reference is not a κ-label, dir://<folder>#<κ> or https://<site>#<κ>, or a pull names no app. |
+| `bundle.schema` |  | `DK-49` | A pulled manifest is not a prism/app-bundle/1 manifest. |
+| `bundle.store-off` |  | `DK-49` | This machine keeps no Prism store (PRISM_KAPPA=0), so an app is pushed only to a dir:// folder. |
+| `bundle.unproved` |  | `DK-49` | prism_push publishes only an app whose proof is current; call prism_build first. |
 | `canonical.algorithm` |  | `DK-41` | The digest algorithm needs node:crypto, which this host does not have; sha256 stays available. |
 | `capabilities.invalid` |  | `AL-07` | A capability file or capability set is malformed, or a set was named without a capability file. |
 | `capabilities.kind` |  | `AL-07` | A capability names a kind this version does not know. |

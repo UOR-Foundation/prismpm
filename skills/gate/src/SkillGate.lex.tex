@@ -14,6 +14,8 @@ structure{
     {name: modelPinned, type: Nat},
     {name: commandsNamed, type: Nat},
     {name: commandsShipped, type: Nat},
+    {name: toolsNamed, type: Nat},
+    {name: toolsServed, type: Nat},
     {name: network, type: Nat},
     {name: secrets, type: Nat},
     {name: execution, type: Nat},
@@ -35,7 +37,7 @@ definition{
   name: namesOnlyShipped,
   parameters: [s : Skill],
   result: Bool,
-  body: ((project s commandsShipped) =? (project s commandsNamed))
+  body: (((project s commandsShipped) =? (project s commandsNamed)) && ((project s toolsServed) =? (project s toolsNamed)))
 }
 
 definition{
