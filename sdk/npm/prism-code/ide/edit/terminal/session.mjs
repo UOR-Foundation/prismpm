@@ -12,8 +12,10 @@ const dec = new TextDecoder();
  * Ask a table. `tables` is { name: table as rule-table.mjs reads it }, `judgeTable` is that module's own judge.
  * `words` is { field name: word or number }. A word the table does not list throws: the caller refuses.
  */
-export function makeJudge(tables, judgeTable) {
+export function makeJudge(tables, judgeTable, luts = {}) {
   return (name, words) => {
+    // A table that was materialized (kappa-space.mjs) answers with one read; `luts` is { name: { bytes, sizes } }.
+    const lut = luts[name];
     const table = tables[name];
     if (!table) throw new Error(`there is no ${name} table`);
     const request = table.fields.map((f) => {
@@ -27,6 +29,7 @@ export function makeJudge(tables, judgeTable) {
       // Past the field's top the answer is the top's: the table's bounds are the terminal's own buffer.
       return Math.min(given, f.greatest);
     });
+    if (lut) return table.answers[lut.bytes[request.reduce((at, value, f) => at * lut.sizes[f] + value, 0)]];
     return table.answers[judgeTable(table, request).answer];
   };
 }
@@ -55,8 +58,11 @@ export function resolveTarget(path, files) {
 }
 
 /**
- * Output on its way to the terminal, held by the flow table. `sink(bytes, done)` is the terminal's write with its
- * callback. `write` resolves when the last piece has been handed over; `stop` drops what has not been.
+ * Output on its way to the terminal, held by the flow table. `sink(bytes, drained)` is the terminal's write.
+ * `drained()` says the whole piece has been drawn; `drained(n)` says n more of it has, for a terminal that
+ * acknowledges in batches. A sink that counts in something other than bytes returns the piece's size in its own
+ * unit and drains in that unit. `write` resolves when the last piece has been handed over; `stop` drops what has
+ * not been.
  */
 export function createWriter({ judge, sink, piece = 16384 }) {
   let pending = 0;
@@ -81,19 +87,26 @@ export function createWriter({ judge, sink, piece = 16384 }) {
           await settled();
         }
         const part = bytes.subarray(at, at + piece);
-        pending += part.length;
+        let left = part.length;
+        pending += left;
+        const drained = (n = left) => { const took = Math.min(left, n); left -= took; pending -= took; const go = wake; wake = null; go?.(); };
+        const size = sink(part, drained);
+        // The sink's own count of the piece, when it gave one and has drawn none of it yet.
+        if (Number.isInteger(size) && left === part.length) { pending += size - left; left = size; }
         state.peak = Math.max(state.peak, pending);
-        sink(part, () => { pending -= part.length; const go = wake; wake = null; go?.(); });
       }
       return true;
     },
   };
 }
 
-/** A program's output kept in this tab, by the label of what made it. Nothing outlives the tab. */
+/**
+ * A program's output kept in this tab, by the label of what made it. Nothing here outlives the tab;
+ * kept-opfs.mjs keeps the same entries between visits. `get` and `set` may be asynchronous.
+ */
 export function createKept() {
   const entries = new Map();
-  return { get: (key) => entries.get(key) ?? null, set: (key, entry) => entries.set(key, entry), size: () => entries.size };
+  return { get: (key) => entries.get(key) ?? null, set: (key, entry) => { entries.set(key, entry); }, size: () => entries.size };
 }
 
 const HELP = [
@@ -118,12 +131,15 @@ const HELP = [
  *   programs         { check, snapshot, prove, audit }: each takes { '/path': text } and resolves its output as text
  *   kappa(bytes)     BLAKE3 label
  *   reuseAdmits      kappa-rules.mjs's rule, proved in model/rule-app
- *   kept             createKept's
+ *   kept             createKept's, or kept-opfs.mjs's
  *   clear()          clear the screen
  */
 export function createSession({ judge, writer, files, bytesOf, labelOf, programs, kappa, reuseAdmits, kept, clear }) {
   const listed = () => HELP.map(([usage]) => usage.split(' ')[0]);
   const log = [];
+  // Everything a command prints is text: a control byte in it is written out, never sent. So no output, whatever
+  // file or program it came from, can carry a sequence to the terminal. Only the line editor writes sequences.
+  const say = (text) => writer.write(visible(text));
 
   // What a running command is handed. Each use is put to the reach table first; there is no network, clipboard or
   // process here to ask for, and the table would deny them.
@@ -134,11 +150,11 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
       if (answer !== 'allow') throw new Error(`${command} may not use ${resource}`);
     };
     return {
-      print: (text) => { need('screen'); return writer.write(text); },
+      print: (text) => { need('screen'); return say(text); },
       list: () => { need('readmodel'); return [...files().keys()].sort(); },
       read: (path) => { need('readmodel'); return files().get(path); },
       kept: (key) => { need('readstore'); return kept.get(key); },
-      keep: (key, entry) => { need('writestore'); kept.set(key, entry); },
+      keep: (key, entry) => { need('writestore'); return kept.set(key, entry); },
     };
   }
 
@@ -147,7 +163,7 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
       + HELP.map(([usage, what]) => '  ' + usage.padEnd(14) + what).join('\n') + '\n'),
     clear: () => clear(),
     ls: (hand, at) => hand.print(hand.list().filter((name) => !at.folder || name.startsWith(at.folder)).map((name) => name.slice(1)).join('\n') + '\n'),
-    cat: (hand, at) => (at.file ? hand.print(visible(hand.read(at.file)).replace(/\n?$/, '\n')) : hand.print('cat needs a file of the open model.\n')),
+    cat: (hand, at) => (at.file ? hand.print(hand.read(at.file).replace(/\n?$/, '\n')) : hand.print('cat needs a file of the open model.\n')),
     kappa: (hand, at) => (at.file ? hand.print(kappa(enc.encode(hand.read(at.file))) + '  ' + at.file.slice(1) + '\n') : hand.print('kappa needs a file of the open model.\n')),
   };
 
@@ -168,7 +184,6 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
     const command = listed().includes(first) ? first : 'other';
     const path = args.find((a) => !a.startsWith('-'));
     const at = path === undefined ? { target: 'none' } : resolveTarget(path, files());
-    const say = (text) => writer.write(text);
 
     // The reuse rule is asked only for a command the reach table lets read the store.
     let stored = 'no';
@@ -178,7 +193,7 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
     if (program && judge('reach', { command, resource: 'readstore' }) === 'allow') {
       const project = Object.fromEntries(files());
       named = keyOf(command, program, project);
-      found = kept.get(named.key);
+      found = await kept.get(named.key);
       const admitted = reuseAdmits({
         present: found ? 1 : 0, storedKey: found?.key ?? '', computedKey: named.key, storedKernel: found?.program ?? '', kernelPinned: program,
         storedLibrary: found?.input ?? '', libraryPinned: named.input, storedBytes: found?.output ?? '', derivedBytes: found ? kappa(found.bytes) : '',
@@ -193,7 +208,8 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
     if (answer === 'builtin') await builtins[command](handOf(command), at);
     else if (answer === 'reuse') {
       const hand = handOf(command);
-      await hand.print(dec.decode(hand.kept(named.key).bytes));
+      hand.kept(named.key);
+      await hand.print(dec.decode(found.bytes));
       await hand.print(`(kept output ${found.output.slice(0, 19)}…, shown again; nothing was run)\n`);
     } else if (answer === 'run') {
       const hand = handOf(command);
@@ -201,10 +217,10 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
       const made = await programs[command](project);
       const out = enc.encode(made.text.replace(/\n?$/, '\n'));
       // Only an output the program finished is kept, under the key of exactly what it read.
-      if (made.keep !== false && named) hand.keep(named.key, { key: named.key, program, input: named.input, output: kappa(out), bytes: out });
+      if (made.keep !== false && named) await hand.keep(named.key, { key: named.key, program, input: named.input, output: kappa(out), bytes: out });
       await hand.print(dec.decode(out));
-    } else if (command === 'other') await say(`${visible(first)}: not a command here. Type help.\n`);
-    else if (at.target === 'outside') await say(`${visible(path)}: not in the open model.\n`);
+    } else if (command === 'other') await say(`${first}: not a command here. Type help.\n`);
+    else if (at.target === 'outside') await say(`${path}: not in the open model.\n`);
     else if (bytes === 'mismatch') await say(`${command}: its program is not the pinned one, so nothing was run.\n`);
     else await say(`${command}: its program could not be fetched, so nothing was run.\n`);
     return answer;
@@ -214,51 +230,82 @@ export function createSession({ judge, writer, files, bytesOf, labelOf, programs
 }
 
 /**
- * Keys into lines. `echo(text)` writes to the terminal at once; `submit(line)` runs a line and resolves when it is
- * done. The cursor stays at the end of the line: there is no editing in the middle.
+ * Keys into lines, with the editing a terminal user expects: the cursor moves within the line (Left, Right, Home,
+ * End, Ctrl+A, Ctrl+E), Backspace and Delete remove, Ctrl+U, Ctrl+K and Ctrl+W cut, Up and Down walk the history,
+ * Tab completes a command name, Ctrl+C abandons the line or stops the running command, Ctrl+L clears the screen.
+ * `echo(text)` writes to the terminal at once; `submit(line)` runs a line and resolves when it is done.
+ * A character is taken to be one column wide.
  */
 export function createLineEditor({ echo, submit, interrupt, clear, commands, prompt = 'model> ' }) {
-  let line = '';
+  let chars = [];
+  let cursor = 0;
   let busy = false;
   // Keys pressed while a command runs: entered, in order, when it is done.
   const ahead = [];
   const history = [];
   let at = 0;
-  const redraw = (next) => { echo('\r\x1b[K' + prompt + next); line = next; };
+  const text = () => chars.join('');
+  /** Draw the line again from its start and put the cursor where it belongs. */
+  const redraw = () => echo('\r\x1b[K' + prompt + text() + (cursor < chars.length ? `\x1b[${chars.length - cursor}D` : ''));
+  const set = (next, where = null) => { chars = [...next]; cursor = where ?? chars.length; redraw(); };
   const done = async () => { busy = false; echo(prompt); while (ahead.length && !busy) await feed(ahead.shift()); };
-  const enter = (text) => {
+  const enter = () => {
+    const line = text();
     echo('\r\n');
-    line = '';
-    if (text.trim()) { history.push(text); }
+    chars = [];
+    cursor = 0;
+    if (line.trim() && history[history.length - 1] !== line) history.push(line);
     at = history.length;
     busy = true;
-    return Promise.resolve(submit(text)).catch((error) => echo(String(error?.message ?? error).replace(/\n/g, '\r\n') + '\r\n')).then(done);
+    return Promise.resolve(submit(line)).catch((error) => echo(visible(String(error?.message ?? error)).replace(/\n/g, '\r\n') + '\r\n')).then(done);
   };
+  const insert = (data) => {
+    const added = [...visible(data).replace(/[\n\t]/g, ' ')];
+    chars.splice(cursor, 0, ...added);
+    cursor += added.length;
+    // At the end of the line a key is just echoed; in the middle the rest of the line moves.
+    if (cursor === chars.length) echo(added.join('')); else redraw();
+  };
+  const wordStart = () => { let i = cursor; while (i > 0 && chars[i - 1] === ' ') i--; while (i > 0 && chars[i - 1] !== ' ') i--; return i; };
+  const keys = {
+    '\r': () => enter(),
+    '\x7f': () => { if (cursor > 0) { chars.splice(--cursor, 1); redraw(); } },
+    '\x1b[3~': () => { if (cursor < chars.length) { chars.splice(cursor, 1); redraw(); } },
+    '\x03': () => { echo('^C\r\n'); chars = []; cursor = 0; at = history.length; echo(prompt); },
+    '\x0c': () => { clear(); redraw(); },
+    '\x1b[A': () => { if (at > 0) set(history[--at]); },
+    '\x1b[B': () => { if (at < history.length) { at++; set(history[at] ?? ''); } },
+    '\x1b[D': () => { if (cursor > 0) { cursor--; echo('\x1b[D'); } },
+    '\x1b[C': () => { if (cursor < chars.length) { cursor++; echo('\x1b[C'); } },
+    '\x01': () => { cursor = 0; redraw(); },
+    '\x05': () => { cursor = chars.length; redraw(); },
+    '\x15': () => { chars.splice(0, cursor); cursor = 0; redraw(); },
+    '\x0b': () => { chars.length = cursor; redraw(); },
+    '\x17': () => { const from = wordStart(); chars.splice(from, cursor - from); cursor = from; redraw(); },
+    '\t': () => {
+      const line = text();
+      const fits = commands().filter((name) => name.startsWith(line));
+      if (line && !line.includes(' ') && fits.length === 1) set(fits[0] + ' ');
+    },
+  };
+  // Home and End, as terminals variously send them.
+  for (const home of ['\x1b[H', '\x1bOH', '\x1b[1~']) keys[home] = keys['\x01'];
+  for (const end of ['\x1b[F', '\x1bOF', '\x1b[4~']) keys[end] = keys['\x05'];
+
   /** What the terminal reports for a key press, or a pasted line. */
   async function feed(data) {
-      if (busy) { if (data === '\x03') { ahead.length = 0; interrupt(); echo('^C\r\n'); } else ahead.push(data); return; }
-      if (data === '\r') return enter(line);
-      if (data === '\x7f') { if (line) { const cut = [...line]; cut.pop(); redraw(cut.join('')); } return; }
-      if (data === '\x03') { echo('^C\r\n'); line = ''; echo(prompt); return; }
-      if (data === '\x0c') { clear(); redraw(line); return; }
-      if (data === '\x1b[A') { if (at > 0) redraw(history[--at]); return; }
-      if (data === '\x1b[B') { if (at < history.length) { at++; redraw(history[at] ?? ''); } return; }
-      if (data === '\t') {
-        const fits = commands().filter((name) => name.startsWith(line));
-        if (line && !line.includes(' ') && fits.length === 1) redraw(fits[0] + ' ');
-        return;
-      }
-      // Any other control sequence a key sends (arrows left and right, function keys) does nothing.
-      if (data.startsWith('\x1b')) return;
-      const text = visible(data).replace(/[\n\t]/g, ' ');
-      line += text;
-      echo(text);
+    if (busy) { if (data === '\x03') { ahead.length = 0; interrupt(); echo('^C\r\n'); } else ahead.push(data); return; }
+    if (keys[data]) return keys[data]();
+    // Any other control sequence a key sends (function keys, modified arrows) does nothing.
+    if (data.startsWith('\x1b')) return;
+    insert(data);
   }
   return {
     start() { echo(prompt); },
     get busy() { return busy; },
+    get line() { return text(); },
     feed,
     /** Lines the user chose to paste: each is entered in turn. */
-    async lines(texts) { for (const text of texts) { if (!busy) redraw(visible(text).replace(/\t/g, ' ')); await enter(line); } },
+    async lines(texts) { for (const line of texts) { if (!busy) set(visible(line).replace(/\t/g, ' ')); await enter(); } },
   };
 }

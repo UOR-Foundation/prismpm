@@ -10,7 +10,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { kappa } from '../../src/blake3.mjs';
 import { ensureLexleanWasm, lexleanWasmFile, wasmSnapshot } from '../../src/journey/lexlean-wasm.mjs';
-import { ruleTable } from '../../src/journey/rule-table.mjs';
+import { judgeTable, ruleTable } from '../../src/journey/rule-table.mjs';
+import { materialize } from '../edit/terminal/kappa-space.mjs';
 
 const ide = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PINS = join(ide, 'edit', 'terminal', 'pins.json');
@@ -22,6 +23,8 @@ const VENDOR = {
   'addon-fit.mjs': ['@xterm/addon-fit', 'lib/addon-fit.mjs'],
   'addon-webgl.mjs': ['@xterm/addon-webgl', 'lib/addon-webgl.mjs'],
   'addon-web-links.mjs': ['@xterm/addon-web-links', 'lib/addon-web-links.mjs'],
+  'addon-search.mjs': ['@xterm/addon-search', 'lib/addon-search.mjs'],
+  'addon-unicode11.mjs': ['@xterm/addon-unicode11', 'lib/addon-unicode11.mjs'],
 };
 /** The tables the terminal asks, by the name it asks them under. */
 const MODELS = { commands: 'ide-terminal-commands', reach: 'ide-terminal-reach', effects: 'ide-terminal-effects', flow: 'ide-terminal-flow', audit: 'ide-audit' };
@@ -65,7 +68,10 @@ export async function terminalTables() {
     if (!taken.ok) throw new Error(`model/${model} does not check`);
     tables[name] = ruleTable(taken.snapshot);
   }
-  return { schema: 'prism-ide/terminal-tables/1', tables };
+  // A table over a finite set of requests is also named by the label of its lookup table: every answer, in order.
+  const luts = {};
+  for (const [name, table] of Object.entries(tables)) { const lut = materialize(table, judgeTable, kappa); if (lut) luts[name] = lut.kappa; }
+  return { schema: 'prism-ide/terminal-tables/1', tables, luts };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1] && process.argv[2] === 'pin') {

@@ -208,4 +208,5 @@ import('./terminal/terminal.mjs').then(({ startTerminal }) => startTerminal($('t
   held: async () => ({ lexlean: await settled.lexlean, kernel: await settled.kernel }),
   pin: LEXLEAN_WASM,
   setTitle: (text) => { $('terminalTitle').textContent = text; },
+  find: $('terminalFind'),
 })).catch((error) => { $('terminal').textContent = 'The terminal could not start: ' + (error?.message ?? error); });
