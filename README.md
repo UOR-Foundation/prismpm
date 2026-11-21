@@ -1,3 +1,7 @@
+![PrismPM provisional banner: build, verify, package. Placeholder not approved](assets/readme-banner-PLACEHOLDER.png)
+
+*Illustrative placeholder artwork, pending UOR Foundation brand approval.*
+
 # PrismPM
 
 **Turn a software model into an application you can build, check, and share.**
